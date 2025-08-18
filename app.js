@@ -19,6 +19,8 @@ const $$ = (q, el = document) => Array.from(el.querySelectorAll(q));
 function ymd(d) { return d.toISOString().slice(0, 10); }
 function startOfWeek(d) { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0, 0, 0, 0); return x; }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
 function getMonthStr(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 
 // ===== App State =====
@@ -734,13 +736,18 @@ async function checkNewMemo() {
 window.addEventListener("hashchange", () => { closePlanModal(); });
 
 (async function boot() {
-    const last = JSON.parse(localStorage.getItem("athlog:last") || "{}");
-    if(last.team && last.member){
-        teamId = last.team;
-        memberId = last.member;
-        viewingMemberId = last.member;
-        await getMembersRef(teamId).doc(memberId).set({ name: memberId }, { merge: true });
-        showApp();
+    try {
+        const last = JSON.parse(localStorage.getItem("athlog:last") || "{}");
+        if(last.team && last.member){
+            teamId = last.team;
+            memberId = last.member;
+            viewingMemberId = last.member;
+            await getMembersRef(teamId).doc(memberId).set({ name: memberId }, { merge: true });
+            showApp();
+        }
+    } catch (e) {
+        console.error("Failed to auto-login from saved session:", e);
+        localStorage.removeItem("athlog:last");
     }
 })();
 
