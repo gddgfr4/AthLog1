@@ -331,7 +331,7 @@ function renderWeek() {
         btn.style.background = ''; btn.style.color = '';
         if (tags.length) {
             const map = { ジョグ: "var(--q-jog)", ポイント: "var(--q-point)", 補強: "var(--q-sup)", オフ: "var(--q-off)", その他: "var(--q-other)" };
-            btn.style.color = '#1f2735';
+            btn.style.color = '#1f2937';
             if (tags.length == 1) btn.style.backgroundColor = map[tags[0]];
             else btn.style.background = `linear-gradient(90deg, ${map[tags[0]]} 50%, ${map[tags[1]]} 50%)`;
         }
