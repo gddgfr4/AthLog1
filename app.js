@@ -402,7 +402,9 @@ function renderPlans() {
     unsubscribePlans = getPlansCollectionRef(teamId).where('month', '==', mon).onSnapshot(snapshot => {
         const allPlans = {};
         snapshot.docs.forEach(doc => {
-            allPlans[doc.id] = doc.data();
+            const data = doc.data();
+            if (!allPlans[data.day]) allPlans[data.day] = [];
+            allPlans[data.day].push({ id: doc.id, ...data });
         });
         
         const box = $("#planList"); if(!box) return;
@@ -420,7 +422,7 @@ function renderPlans() {
             row.addEventListener("click", () => openPlanModal(dt));
             box.appendChild(row);
             
-            const arr = allPlans[dayKey]?.events || [];
+            const arr = allPlans[dayKey] || [];
             const list = arr.filter(it => {
                 if (scope === "team" && it.scope !== "team") return false;
                 if (scope !== 'all' && scope !== 'team' && it.mem !== scope) return false;
