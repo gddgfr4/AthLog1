@@ -90,15 +90,11 @@ $$(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.ta
 async function saveJournal() {
     const activeCond = $('#conditionBtns button.active');
     const docRef = getJournalRef(teamId, memberId, selDate);
-    const doc = await docRef.get();
-    const currentData = doc.data() || {};
     
     const journalData = {
         dist: Number($("#distInput").value || 0),
         train: $("#trainInput").value,
         feel: $("#feelInput").value,
-        tags: currentData.tags || [],
-        paint: currentData.paint || [],
         condition: activeCond ? Number(activeCond.dataset.val) : null,
     };
     await docRef.set(journalData, { merge: true });
@@ -125,11 +121,14 @@ function initJournal() {
 
     $("#undoBtn")?.addEventListener("click", async () => { 
         const docRef = getJournalRef(teamId, memberId, selDate);
-        const doc = await docRef.get();
-        const j = doc.data() || {};
-        j.paint = j.paint || [];
-        j.paint.pop();
-        await docRef.set({ paint: j.paint }, { merge: true });
+        await db.runTransaction(async (transaction) => {
+            const doc = await transaction.get(docRef);
+            if (!doc.exists) return;
+            const j = doc.data();
+            j.paint = j.paint || [];
+            j.paint.pop();
+            transaction.update(docRef, { paint: j.paint });
+        });
     });
     $("#copyPrev")?.addEventListener("click", async () => {
         const prev = addDays(selDate, -1);
@@ -186,12 +185,14 @@ function initJournal() {
 
     $$(".qbtn").forEach(b => b.addEventListener("click", async () => {
         const docRef = getJournalRef(teamId, memberId, selDate);
-        const doc = await docRef.get();
-        const j = doc.data() || { tags: [] };
-        const tag = b.textContent.trim();
-        if (j.tags.includes(tag)) j.tags = j.tags.filter(t => t !== tag);
-        else { if (j.tags.length >= 2) j.tags.shift(); j.tags.push(tag); }
-        await docRef.set({ tags: j.tags }, { merge: true });
+        await db.runTransaction(async (transaction) => {
+            const doc = await transaction.get(docRef);
+            const j = doc.data() || { tags: [] };
+            const tag = b.textContent.trim();
+            if (j.tags.includes(tag)) j.tags = j.tags.filter(t => t !== tag);
+            else { if (j.tags.length >= 2) j.tags.shift(); j.tags.push(tag); }
+            transaction.set(docRef, { tags: j.tags }, { merge: true });
+        });
     }));
 
     $("#mergeBtn")?.addEventListener("click", async () => {
@@ -453,549 +454,13 @@ function renderChat() {
     });
 }
 
-// ... (The rest of the file is identical to the one provided in the previous turn)
-
-// ===== Utilities =====
-const $ = (q, el = document) => el.querySelector(q);
-const $$ = (q, el = document) => Array.from(el.querySelectorAll(q));
-
-const STORAGE_KEY = "athlog:data:v1";
-
-function ymd(d) { return d.toISOString().slice(0, 10); }
-function startOfWeek(d) { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0, 0, 0, 0); return x; } // Monday
-function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
-function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
-function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
-function getMonthStr(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
-
-function loadAll() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { teams: {} }; }
-    catch { return { teams: {} }; }
-}
-function saveAll(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
-
-// ===== App State =====
-let data = loadAll();
-let teamId = null, memberId = null, viewingMemberId = null;
-let selDate = new Date();
-let brush = { lvl: 1, erase: false };
-let painting = false, strokes = [];
-let canvas, ctx, imgEl;
-let distanceChart = null, conditionChart = null;
-let dashboardOffset = 0, dashboardMode = 'month';
-let conditionChartOffset = 0;
-
-// ===== Data Structure Helpers =====
-function ensureTeamMember() {
-    if (!data.teams[teamId]) data.teams[teamId] = { members: {}, memo: [], chat: {} };
-    if (!data.teams[teamId].members[memberId]) data.teams[teamId].members[memberId] = { journal: {}, plans: {}, goals: {} };
-    if (!data.teams[teamId].members[memberId].goals) data.teams[teamId].members[memberId].goals = {};
-    if (!data.teams[teamId].memo) data.teams[teamId].memo = [];
-}
-
-function getMember(team, mem) { return data.teams[team]?.members?.[mem] || null; }
-
-function getJournal(day) {
-    const memberToView = data.teams[teamId]?.members?.[viewingMemberId];
-    const empty = { dist: 0, train: "", feel: "", tags: [], paint: [], condition: null };
-    if (!memberToView) return empty;
-    const key = ymd(day);
-    const m = memberToView;
-    if (!m.journal) m.journal = {};
-    if (!m.journal[key] && viewingMemberId === memberId) m.journal[key] = { ...empty };
-    return m.journal[key] || empty;
-}
-
-function getWeekDates(d) {
-    const s = startOfWeek(d);
-    return [...Array(7).keys()].map(i => addDays(s, i));
-}
-
-function sumWeekKm(d) {
-    const dates = getWeekDates(d);
-    let s = 0;
-    dates.forEach(dt => { const j = getMember(teamId, viewingMemberId)?.journal?.[ymd(dt)]; if (j) s += Number(j.dist || 0); });
-    return s;
-}
-
-// ===== AI Comment Logic =====
-const muscleRegions = [
-    { name: "首", x_min: 0.43, x_max: 0.57, y_min: 0.15, y_max: 0.22 }, { name: "肩", x_min: 0.28, x_max: 0.72, y_min: 0.2, y_max: 0.28 },
-    { name: "背中", x_min: 0.38, x_max: 0.62, y_min: 0.28, y_max: 0.45 }, { name: "腰", x_min: 0.4, x_max: 0.6, y_min: 0.45, y_max: 0.52 },
-    { name: "お尻", x_min: 0.35, x_max: 0.65, y_min: 0.52, y_max: 0.62 }, { name: "ハムストリング", x_min: 0.35, x_max: 0.65, y_min: 0.62, y_max: 0.78 },
-    { name: "ふくらはぎ", x_min: 0.38, x_max: 0.62, y_min: 0.78, y_max: 0.9 }, { name: "胸", x_min: 0.35, x_max: 0.65, y_min: 0.25, y_max: 0.35, front: true },
-    { name: "腹筋", x_min: 0.4, x_max: 0.6, y_min: 0.35, y_max: 0.48, front: true }, { name: "太もも前", x_min: 0.35, x_max: 0.65, y_min: 0.55, y_max: 0.75, front: true },
-    { name: "すね", x_min: 0.38, x_max: 0.62, y_min: 0.75, y_max: 0.88, front: true },
-];
-
-function weekAIComment(d) {
-    const wkm = sumWeekKm(d);
-    const dates = getWeekDates(d);
-    let fatigueScore = 0; const fatigueAreas = {};
-    if (canvas) {
-        dates.forEach(dt => {
-            const j = getMember(teamId, viewingMemberId)?.journal?.[ymd(dt)];
-            if (!j || !j.paint) return;
-            j.paint.forEach(stroke => {
-                if (stroke.erase) return;
-                fatigueScore += (stroke.lvl || 1);
-                stroke.pts.forEach(p => {
-                    const x = p.x / canvas.width; const y = p.y / canvas.height;
-                    const isFront = x < 0.5;
-                    for (const region of muscleRegions) {
-                        if ((isFront && region.front) || (!isFront && !region.front)) {
-                            const regionX = isFront ? x * 2 : (x - 0.5) * 2;
-                            if (regionX > region.x_min && regionX < region.x_max && y > region.y_min && y < region.y_max) {
-                                fatigueAreas[region.name] = (fatigueAreas[region.name] || 0) + stroke.lvl; break;
-                            }
-                        }
-                    }
-                });
-            });
-        });
-    }
-    let distMsg = wkm > 80 ? "走行距離が多く、ハイボリュームな週でした。" : wkm > 50 ? "良いペースで走行距離を積めています。" : "走行距離は控えめでした。";
-    let fatigueMsg = "";
-    if (fatigueScore > 40) fatigueMsg = "また、強い筋肉疲労が蓄積しているようです。回復を最優先に考えましょう。";
-    else if (fatigueScore > 20) fatigueMsg = "筋肉の疲労感も見られるため、ストレッチなどのケアを意識すると良いでしょう。";
-    else if (wkm > 10) fatigueMsg = "身体のコンディションは良好のようです。";
-    const topAreas = Object.entries(fatigueAreas).sort((a, b) => b[1] - a[1]).slice(0, 2).map(e => e[0]);
-    if (topAreas.length > 0) fatigueMsg += `特に${topAreas.join('と')}に疲労が集中しています。`;
-    return `【週分析AI】総距離は${wkm.toFixed(1)}km。${distMsg} ${fatigueMsg}`;
-}
-
-// ===== UI Boot & Tab Control =====
-function populateMemberSelect() {
-    const select = $("#memberSelect");
-    if (!select) return;
-    select.innerHTML = '';
-    const members = Object.keys(data.teams[teamId]?.members || {});
-    members.forEach(mem => {
-        const option = document.createElement('option');
-        option.value = mem;
-        option.textContent = mem;
-        select.appendChild(option);
-    });
-    select.value = viewingMemberId;
-}
-
-function showApp() {
-    $("#teamLabel").textContent = teamId;
-    $("#memberLabel").textContent = viewingMemberId;
-    $("#login").classList.add("hidden");
-    $("#app").classList.remove("hidden");
-
-    populateMemberSelect();
-    const memberSelect = $("#memberSelect");
-    if (memberSelect) memberSelect.addEventListener('change', () => {
-        viewingMemberId = $("#memberSelect").value;
-        $("#memberLabel").textContent = viewingMemberId;
-        switchTab($(".tab.active")?.dataset.tab, true);
-    });
-
-    initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
-    switchTab("journal");
-    checkNewMemo();
-}
-
-function switchTab(id, forceRender = false) {
-    if (!forceRender && $(".tab.active")?.dataset.tab === id) return;
-    $$(".tab").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === id));
-    $$(".tabpanel").forEach(p => p.classList.toggle("active", p.id === id));
-    if (id === "journal") renderJournal();
-    if (id === "month") renderMonth();
-    if (id === "plans") renderPlans();
-    if (id === "dashboard") renderDashboard();
-    if (id === "memo") {
-        renderMemo();
-        localStorage.setItem(`athlog:${teamId}:lastMemoView`, Date.now());
-        checkNewMemo();
-    }
-}
-
-// ===== Login & Logout =====
-$("#logoutBtn")?.addEventListener("click", () => {
-    localStorage.removeItem("athlog:last");
-    teamId = null; memberId = null; viewingMemberId = null;
-    $("#app").classList.add("hidden");
-    $("#login").classList.remove("hidden");
-});
-
-$$(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
-
-// ===== JOURNAL =====
-function collectPlansTypesForDay(day, scopeSel) {
-    const mon = getMonthStr(day);
-    const dayKey = ymd(day);
-    const teamMembers = Object.keys(data.teams[teamId]?.members || {});
-    const types = new Set();
-    teamMembers.forEach(m => {
-        const monthly = data.teams[teamId].members[m].plans[mon] || {};
-        const arr = monthly[dayKey] || [];
-        arr.forEach(it => {
-            let shouldAdd = false;
-            if (scopeSel === "auto") { if (it.mem === memberId || it.scope === "team") shouldAdd = true; }
-            else if (scopeSel === memberId && it.mem === memberId) { shouldAdd = true; }
-            else if (scopeSel === "team" && it.scope === "team") { shouldAdd = true; }
-            if (shouldAdd) types.add(it.type);
-        });
-    });
-    return Array.from(types);
-}
-
-function initJournal() {
-    imgEl = $("#humanImg");
-    canvas = $("#paint");
-    const fit = () => {
-        if (!canvas || !imgEl) return;
-        canvas.width = imgEl.clientWidth; canvas.height = imgEl.clientHeight;
-        ctx = canvas.getContext("2d"); renderPaint();
-    };
-    if (imgEl && $(".canvas-wrap")) new ResizeObserver(fit).observe($(".canvas-wrap"));
-    fit();
-
-    const brushBtns = $$('.palette .lvl, .palette #eraser');
-    brushBtns.forEach(b => b.addEventListener('click', () => {
-        brush.lvl = Number(b.dataset.lvl) || 1; brush.erase = b.id === 'eraser';
-        brushBtns.forEach(btn => btn.classList.remove('active'));
-        b.classList.add('active');
-    }));
-    if (brushBtns.length) $('.palette .lvl[data-lvl="1"]')?.classList.add('active');
-
-    $("#undoBtn")?.addEventListener("click", () => { const j = getJournal(selDate); j.paint.pop(); renderPaint(); saveAll(data); });
-    $("#copyPrev")?.addEventListener("click", () => {
-        const prev = addDays(selDate, -1);
-        const pj = getMember(teamId, memberId)?.journal?.[ymd(prev)];
-        const j = getJournal(selDate);
-        if (pj) { j.paint = JSON.parse(JSON.stringify(pj.paint || [])); renderPaint(); saveAll(data); }
-    });
-
-    let rafId = null;
-    const pos = (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-        return { x, y };
-    };
-    const start = (e) => {
-        painting = true; const p = pos(e);
-        strokes.push({ lvl: brush.lvl, erase: brush.erase, pts: [p] });
-        drawLive(); e.preventDefault();
-    };
-    const move = (e) => {
-        if (!painting) return;
-        const p = pos(e); const s = strokes[strokes.length - 1];
-        if (s) s.pts.push(p);
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = requestAnimationFrame(drawLive);
-        e.preventDefault();
-    };
-    const end = () => {
-        if (!painting) return;
-        painting = false; if (rafId) cancelAnimationFrame(rafId); rafId = null;
-        const j = getJournal(selDate);
-        const currentStroke = strokes.pop();
-        if (currentStroke && currentStroke.pts.length > 1) j.paint.push(currentStroke);
-        saveAll(data); renderPaint();
-    };
-    if (canvas) {
-        canvas.addEventListener("mousedown", start);
-        canvas.addEventListener("mousemove", move);
-        window.addEventListener("mouseup", end);
-        canvas.addEventListener("touchstart", start, { passive: false });
-        canvas.addEventListener("touchmove", move, { passive: false });
-        window.addEventListener("touchend", end);
-    }
-
-    $("#weekPrev")?.addEventListener("click", () => { selDate = addDays(selDate, -7); renderJournal(); });
-    $("#weekNext")?.addEventListener("click", () => { selDate = addDays(selDate, 7); renderJournal(); });
-    $("#gotoToday")?.addEventListener("click", () => { selDate = new Date(); renderJournal(); });
-    $("#datePicker")?.addEventListener("change", (e) => { selDate = new Date(e.target.value); renderJournal(); });
-
-    $$(".qbtn").forEach(b => b.addEventListener("click", () => {
-        const j = getJournal(selDate); const tag = b.textContent.trim();
-        if (j.tags.includes(tag)) j.tags = j.tags.filter(t => t !== tag);
-        else { if (j.tags.length >= 2) j.tags.shift(); j.tags.push(tag); }
-        saveAll(data); renderWeek(); renderQuickButtons(); renderMonth();
-    }));
-
-    $("#mergeBtn")?.addEventListener("click", () => {
-        const scope = $("#mergeScope").value;
-        const text = collectPlansTextForDay(selDate, scope);
-        if (text) $("#trainInput").value = ($("#trainInput").value ? ($("#trainInput").value + "\n") : "") + text;
-        const types = collectPlansTypesForDay(selDate, scope);
-        if (types.length) {
-            const j = getJournal(selDate); j.tags = types.slice(0, 2);
-            saveAll(data); renderQuickButtons(); renderWeek();
-        }
-    });
-
-    $$('#conditionBtns button').forEach(btn => {
-        btn.addEventListener('click', () => {
-            $$('#conditionBtns button').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        });
-    });
-
-    $("#saveBtn")?.addEventListener("click", (e) => {
-        const btn = e.target;
-        const j = getJournal(selDate);
-        j.dist = Number($("#distInput").value || 0);
-        j.train = $("#trainInput").value;
-        j.feel = $("#feelInput").value;
-        const activeCond = $('#conditionBtns button.active');
-        j.condition = activeCond ? Number(activeCond.dataset.val) : null;
-        
-        saveAll(data);
-        renderJournal(); renderMonth();
-        btn.textContent = "保存しました！"; btn.disabled = true;
-        setTimeout(() => { btn.textContent = "この日を保存"; btn.disabled = false; }, 1500);
-    });
-}
-
-function renderPaint() {
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const j = getJournal(selDate);
-    const allStrokes = (j.paint || []).concat(strokes);
-    const drawStroke = (s) => {
-        if (!s || s.pts.length < 1) return;
-        const col = s.erase ? "rgba(0,0,0,1)" : (s.lvl == 1 ? "rgba(245, 158, 11,0.6)" : s.lvl == 2 ? "rgba(239, 68, 68,0.6)" : "rgba(217, 70, 239,0.6)");
-        ctx.lineWidth = 18; ctx.lineCap = "round";
-        ctx.globalCompositeOperation = s.erase ? "destination-out" : "source-over";
-        ctx.strokeStyle = col;
-        ctx.beginPath(); ctx.moveTo(s.pts[0].x, s.pts[0].y);
-        for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i].x, s.pts[i].y);
-        ctx.stroke();
-    };
-    allStrokes.forEach(drawStroke);
-    ctx.globalCompositeOperation = "source-over";
-}
-
-function drawLive() { renderPaint(); }
-
-function renderWeek() {
-    const chips = $("#weekChips"); if (!chips) return;
-    chips.innerHTML = "";
-    const days = getWeekDates(selDate);
-    days.forEach(d => {
-        const key = ymd(d);
-        const j = getJournal(d) || {};
-        const btn = document.createElement("button");
-        btn.className = "chip" + (ymd(selDate) === key ? " active" : "");
-        const tags = j.tags || [];
-        btn.innerHTML = `<div>${["日", "月", "火", "水", "木", "金", "土"][d.getDay()]} ${d.getDate()}</div><div class="km">${(j.dist || 0)}km</div>`;
-        btn.style.background = ''; btn.style.color = '';
-        if (tags.length) {
-            const map = { ジョグ: "var(--q-jog)", ポイント: "var(--q-point)", 補強: "var(--q-sup)", オフ: "var(--q-off)", その他: "var(--q-other)" };
-            btn.style.color = '#1f2937';
-            if (tags.length == 1) btn.style.backgroundColor = map[tags[0]];
-            else btn.style.background = `linear-gradient(90deg, ${map[tags[0]]} 50%, ${map[tags[1]]} 50%)`;
-        }
-        btn.addEventListener("click", () => { selDate = d; renderJournal(); });
-        chips.appendChild(btn);
-    });
-    $("#weekSum").textContent = `週 走行距離: ${sumWeekKm(selDate).toFixed(1)} km`;
-    $("#weekMonthLabel").textContent = `${selDate.getMonth() + 1}月`;
-}
-
-function renderQuickButtons() {
-    const j = getJournal(selDate);
-    const currentTags = j.tags || [];
-    $$(".qbtn").forEach(b => {
-        const tag = b.textContent.trim();
-        b.classList.toggle('active', currentTags.includes(tag));
-    });
-}
-
-function renderJournal() {
-    const isReadOnly = viewingMemberId !== memberId;
-    $$('#journal input, #journal textarea, #journal .qbtn, #saveBtn, #mergeBtn, #conditionBtns button, .palette button').forEach(el => {
-        const isNavControl = ['weekPrev', 'weekNext', 'gotoToday', 'datePicker'].includes(el.id);
-        if (!isNavControl) el.disabled = isReadOnly;
-    });
-    if ($('#paint')) $('#paint').style.pointerEvents = isReadOnly ? 'none' : 'auto';
-    
-    const mergeScopeSelect = $("#mergeScope");
-    if (mergeScopeSelect) {
-        mergeScopeSelect.innerHTML = `
-            <option value="auto">予定から追加(自動)</option>
-            <option value="${memberId}">${memberId}の予定</option>
-            <option value="team">全員の予定</option>
-        `;
-    }
-
-    $("#datePicker").value = ymd(selDate);
-    const j = getJournal(selDate);
-    $("#distInput").value = j.dist || "";
-    $("#trainInput").value = j.train || "";
-    $("#feelInput").value = j.feel || "";
-    $("#aiBox").textContent = weekAIComment(selDate);
-
-    $$('#conditionBtns button').forEach(b => b.classList.remove('active'));
-    if (j.condition) $(`#conditionBtns button[data-val="${j.condition}"]`)?.classList.add('active');
-    
-    renderWeek(); renderPaint(); renderQuickButtons();
-}
-
-// ===== MONTH LIST =====
-function initMonth() {
-    $("#mPrev")?.addEventListener("click", () => { const m = $("#monthPick").value.split("-"); const d = new Date(Number(m[0]), Number(m[1]) - 2, 1); $("#monthPick").value = getMonthStr(d); renderMonth(); });
-    $("#mNext")?.addEventListener("click", () => { const m = $("#monthPick").value.split("-"); const d = new Date(Number(m[0]), Number(m[1]), 1); $("#monthPick").value = getMonthStr(d); renderMonth(); });
-    $("#monthPick")?.addEventListener("change", renderMonth);
-
-    const saveBtn = $("#saveMonthGoalBtn");
-    if (saveBtn) saveBtn.addEventListener("click", (e) => {
-        ensureTeamMember();
-        const monthStr = $("#monthPick").value;
-        data.teams[teamId].members[memberId].goals[monthStr] = $("#monthGoalInput").value;
-        saveAll(data);
-        const btn = e.target; btn.textContent = "保存しました！";
-        setTimeout(() => { btn.textContent = "目標を保存"; }, 1500);
-    });
-}
-
-function renderMonth() {
-    const isReadOnly = viewingMemberId !== memberId;
-    $("#monthGoalInput").disabled = isReadOnly;
-    $("#saveMonthGoalBtn").disabled = isReadOnly;
-
-    const box = $("#monthList"); if (!box) return;
-    box.innerHTML = "";
-    const [yy, mm] = $("#monthPick").value.split("-").map(Number);
-    let sum = 0;
-    for (let d = 1; d <= endOfMonth(new Date(yy, mm - 1, 1)).getDate(); d++) {
-        const dt = new Date(yy, mm - 1, d);
-        const j = getJournal(dt) || {};
-        sum += Number(j.dist || 0);
-        const row = document.createElement("div"); row.className = "row";
-        const tags = j.tags || []; let tagsHtml = '';
-        if (tags.length) {
-            const classMap = { ジョグ: "jog", ポイント: "point", 補強: "sup", オフ: "off", その他: "other" };
-            tagsHtml = `<div class="month-tags">` + tags.map(tag => `<span class="cat-tag ${classMap[tag] || ''}">${tag}</span>`).join('') + `</div>`;
-        }
-        const cond = j.condition; let condHtml = '';
-        if (cond) {
-            condHtml = `<div class="condition-display">` + Array(cond).fill(0).map((_, i) => `<span class="star c${cond}">★</span>`).join('') + `</div>`;
-        }
-        row.innerHTML = `<div class="dow">${["SU", "MO", "TU", "WE", "TH", "FR", "SA"][dt.getDay()]}<br>${d}</div>
-                     <div class="txt">${tagsHtml}${condHtml}<div>${(j.train || "—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span></div></div>`;
-        row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
-        box.appendChild(row);
-    }
-    $("#monthSum").textContent = `月間走行距離: ${sum.toFixed(1)} km`;
-    const monthStr = $("#monthPick").value;
-    const goal = data.teams[teamId].members[viewingMemberId]?.goals?.[monthStr] || "";
-    $("#monthGoalInput").value = goal;
-}
-
-// ===== PLANS (Schedule) =====
-function createPlanTagHtml(type) {
-    const classMap = { ジョグ: "jog", ポイント: "point", 補強: "sup", オフ: "off", その他: "other" };
-    const className = classMap[type] || '';
-    return `<span class="cat-tag ${className}">${type}</span>`;
-}
-
-function populatePlanScopeSelect() {
-    const select = $("#planScope");
-    if (!select) return;
-    const currentVal = select.value;
-    select.innerHTML = `
-        <option value="all">全件</option>
-        <option value="team">全員</option>
-        <option value="${viewingMemberId}">${viewingMemberId}</option>
-    `;
-    select.value = currentVal || 'all';
-}
-
-function initPlans() {
-    $("#pPrev")?.addEventListener("click", () => { const m = $("#planMonthPick").value.split("-"); const d = new Date(Number(m[0]), Number(m[1]) - 2, 1); $("#planMonthPick").value = getMonthStr(d); renderPlans(); });
-    $("#pNext")?.addEventListener("click", () => { const m = $("#planMonthPick").value.split("-"); const d = new Date(Number(m[0]), Number(m[1]), 1); $("#planMonthPick").value = getMonthStr(d); renderPlans(); });
-    $("#planMonthPick")?.addEventListener("change", renderPlans);
-    $("#planScope")?.addEventListener("change", renderPlans);
-    $("#tagFilter")?.addEventListener("input", renderPlans);
-    $("#toggleChat")?.addEventListener("click", () => $("#chatBox").classList.toggle("hidden"));
-    const chatInput = $("#chatInput");
-    if (chatInput) chatInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            const txt = e.target.value.trim(); if (!txt) return;
-            ensureTeamMember(); const mon = $("#planMonthPick").value;
-            if(!data.teams[teamId].chat) data.teams[teamId].chat = {};
-            (data.teams[teamId].chat[mon] || (data.teams[teamId].chat[mon] = [])).push({ mem: memberId, txt, ts: Date.now() });
-            saveAll(data); e.target.value = ""; renderChat();
-        }
-    });
-}
-
-function collectPlans(team, mem, monthStr) {
-    ensureTeamMember();
-    const t = data.teams[team].members[mem];
-    if(!t.plans) t.plans = {};
-    t.plans[monthStr] ||= {};
-    return t.plans[monthStr];
-}
-
-function renderPlans() {
-    populatePlanScopeSelect();
-    const box = $("#planList"); if(!box) return;
-    box.innerHTML = "";
-    const mon = $("#planMonthPick").value;
-    const [yy, mm] = mon.split("-").map(Number);
-    const scope = $("#planScope").value;
-    const tagText = $("#tagFilter").value.trim();
-    const tagSet = new Set(tagText ? tagText.split(",").map(s => s.trim()).filter(Boolean) : []);
-    for (let d = 1; d <= endOfMonth(new Date(yy, mm - 1, 1)).getDate(); d++) {
-        const dt = new Date(yy, mm - 1, d);
-        const dayKey = ymd(dt);
-        const row = document.createElement("div"); row.className = "row";
-        row.innerHTML = `<div class="dow">${["SU", "MO", "TU", "WE", "TH", "FR", "SA"][dt.getDay()]}<br>${d}</div>
-                     <div class="txt" id="pl_${dayKey}" style="flex-wrap: wrap; flex-direction: row; align-items: center;">—</div>`;
-        row.addEventListener("click", () => openPlanModal(dt));
-        box.appendChild(row);
-        const list = [];
-        const teamMembers = Object.keys(data.teams[teamId]?.members || {});
-        teamMembers.forEach(m => {
-            const memberData = data.teams[teamId].members[m];
-            if (!memberData.plans) memberData.plans = {};
-            const monthly = memberData.plans[mon] || {};
-            const arr = monthly[dayKey] || [];
-            arr.forEach(it => {
-                if (scope === "team" && it.scope !== "team") return;
-                if (scope !== 'all' && scope !== 'team' && it.mem !== scope) return;
-                if (tagSet.size) if (!(it.tags || []).some(t => tagSet.has(t))) return;
-                list.push({ mem: m, ...it });
-            });
-        });
-        const targetEl = $("#pl_" + dayKey);
-        if (list.length) targetEl.innerHTML = list.map(x => `<span style="display:inline-flex; align-items:center; gap:6px; margin: 2px 8px 2px 0;">${createPlanTagHtml(x.type)}<span>${x.content}</span></span>`).join("");
-        else targetEl.textContent = '—';
-    }
-    renderChat();
-}
-
-function renderChat() {
-    const mon = $("#planMonthPick").value;
-    const logs = (data.teams[teamId].chat && data.teams[teamId].chat[mon]) || [];
-    const box = $("#chatLog"); if(!box) return;
-    box.innerHTML = "";
-    logs.sort((a, b) => a.ts - b.ts).forEach(m => {
-        const div = document.createElement("div");
-        div.className = "msg";
-        const time = new Date(m.ts).toLocaleString("ja-JP");
-        div.innerHTML = `<span class="name">${m.mem}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
-        box.appendChild(div);
-    });
-    box.scrollTop = box.scrollHeight;
-}
-
 let modalDiv = null;
 function openPlanModal(dt) {
     closePlanModal();
     const mon = getMonthStr(dt);
     const dayKey = ymd(dt);
     
-    let editingIndex = null;
-    let editingMember = null;
+    let editingId = null;
 
     modalDiv = document.createElement("div");
     modalDiv.style.cssText = "position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:100;";
@@ -1022,89 +487,85 @@ function openPlanModal(dt) {
     const pActionBtn = $("#p_action", modalDiv), pDeleteBtn = $("#p_delete", modalDiv);
     const pType = $("#ptype", modalDiv), pScope = $("#pscope", modalDiv), pTags = $("#ptags", modalDiv), pContent = $("#pcontent", modalDiv);
     const resetForm = () => {
-        editingIndex = null; editingMember = null;
+        editingId = null;
         pType.value = "ジョグ"; pScope.value = "self"; pTags.value = ""; pContent.value = "";
         pActionBtn.textContent = "追加"; pDeleteBtn.style.display = "none";
         $$("#plist .row", modalDiv).forEach(r => r.style.outline = 'none');
     };
-    const editItem = (mem, index, targetRow) => {
-        const item = data.teams[teamId].members[mem].plans[mon][dayKey][index];
-        if (!item || item.mem !== memberId) return;
-        editingIndex = index; editingMember = mem;
-        pType.value = item.type; pScope.value = item.scope; pTags.value = (item.tags || []).join(","); pContent.value = item.content;
-        pActionBtn.textContent = "更新"; pDeleteBtn.style.display = "block";
-        $$("#plist .row", modalDiv).forEach(r => r.style.outline = 'none');
-        targetRow.style.outline = `2px solid var(--primary)`;
+    const editItem = (id, targetRow) => {
+        const planDocRef = getPlansCollectionRef(teamId).doc(dayKey).collection('events').doc(id);
+        planDocRef.get().then(doc => {
+            const item = doc.data();
+            if (!item || item.mem !== memberId) return;
+            editingId = id;
+            pType.value = item.type; pScope.value = item.scope; pTags.value = (item.tags || []).join(","); pContent.value = item.content;
+            pActionBtn.textContent = "更新"; pDeleteBtn.style.display = "block";
+            $$("#plist .row", modalDiv).forEach(r => r.style.outline = 'none');
+            targetRow.style.outline = `2px solid var(--primary)`;
+        });
     };
     renderPlanListInModal(mon, dayKey, editItem);
     $("#p_close", modalDiv).addEventListener("click", closePlanModal);
     $("#p_new", modalDiv).addEventListener("click", resetForm);
-    pDeleteBtn.addEventListener("click", () => {
-        if (editingIndex === null || !confirm("この予定を削除しますか？")) return;
-        data.teams[teamId].members[editingMember].plans[mon][dayKey].splice(editingIndex, 1);
-        saveAll(data); renderPlans(); resetForm();
-        renderPlanListInModal(mon, dayKey, editItem);
+    pDeleteBtn.addEventListener("click", async () => {
+        if (!editingId || !confirm("この予定を削除しますか？")) return;
+        await getPlansCollectionRef(teamId).doc(dayKey).collection('events').doc(editingId).delete();
+        resetForm();
     });
-    pActionBtn.addEventListener("click", () => {
+    pActionBtn.addEventListener("click", async () => {
         const content = pContent.value.trim(); if (!content) return;
-        const planData = { type: pType.value, scope: pScope.value, content, mem: memberId, tags: (pTags.value || "").split(",").map(s => s.trim()).filter(Boolean) };
-        if (editingIndex === null) {
-            const arr = collectPlans(teamId, memberId, mon)[dayKey] || (collectPlans(teamId, memberId, mon)[dayKey] = []);
-            arr.push(planData);
+        const planData = { type: pType.value, scope: pScope.value, content, mem: memberId, tags: (pTags.value || "").split(",").map(s => s.trim()).filter(Boolean), month: mon, day: dayKey };
+        if (editingId) {
+            await getPlansCollectionRef(teamId).doc(dayKey).collection('events').doc(editingId).set(planData);
         } else {
-            data.teams[teamId].members[editingMember].plans[mon][dayKey][editingIndex] = planData;
+            await getPlansCollectionRef(teamId).doc(dayKey).collection('events').add(planData);
         }
-        saveAll(data); renderPlans(); resetForm();
-        renderPlanListInModal(mon, dayKey, editItem);
+        resetForm();
     });
 }
 
 function renderPlanListInModal(mon, dayKey, editCallback) {
     const cont = $("#plist", modalDiv); cont.innerHTML = '';
-    const allPlansForDay = [];
-    Object.keys(data.teams[teamId].members).forEach(m => {
-        const memberPlans = data.teams[teamId].members[m].plans[mon]?.[dayKey] || [];
-        memberPlans.forEach((p, i) => allPlansForDay.push({ ...p, originalIndex: i, originalMember: m }));
-    });
-    if (!allPlansForDay.length) { cont.innerHTML = '<div class="muted" style="text-align:center;">予定はありません</div>'; return; }
-    
-    allPlansForDay.forEach((x, i) => {
-        const isMyPlan = x.mem === memberId;
-        const row = document.createElement("div"); row.className = "row";
-        let ownerText = x.scope === 'team' ? ' (全員)' : ` (${x.mem})`;
-        if (isMyPlan) {
-            row.style.cursor = "pointer";
-            row.addEventListener("click", () => editCallback(x.originalMember, x.originalIndex, row));
-        }
-        row.innerHTML = `<div class="dow">${i + 1}</div>
-       <div class="txt" style="flex-direction:row; gap:8px; align-items:center;">
-         ${createPlanTagHtml(x.type)}
-         <span>${x.content}<span class="muted">${ownerText}</span></span>
-       </div>`;
-        cont.appendChild(row);
+    getPlansCollectionRef(teamId).doc(dayKey).collection('events').orderBy('mem').get().then(snapshot => {
+        if (snapshot.empty) { cont.innerHTML = '<div class="muted" style="text-align:center;">予定はありません</div>'; return; }
+        snapshot.docs.forEach((doc, i) => {
+            const x = doc.data();
+            const isMyPlan = x.mem === memberId;
+            const row = document.createElement("div"); row.className = "row";
+            let ownerText = x.scope === 'team' ? ' (全員)' : ` (${x.mem})`;
+            if (isMyPlan) {
+                row.style.cursor = "pointer";
+                row.addEventListener("click", () => editCallback(doc.id, row));
+            }
+            row.innerHTML = `<div class="dow">${i + 1}</div>
+           <div class="txt" style="flex-direction:row; gap:8px; align-items:center;">
+             ${createPlanTagHtml(x.type)}
+             <span>${x.content}<span class="muted">${ownerText}</span></span>
+           </div>`;
+            cont.appendChild(row);
+        });
     });
 }
 
 function closePlanModal() { if (modalDiv) { modalDiv.remove(); modalDiv = null; } }
 
-function collectPlansTextForDay(day, scopeSel) {
-    const mon = getMonthStr(day);
+async function collectPlansTextForDay(day, scopeSel) {
     const dayKey = ymd(day);
-    const teamMembers = Object.keys(data.teams[teamId]?.members || {});
+    const plansRef = getPlansCollectionRef(teamId).doc(dayKey).collection('events');
+    let query = plansRef;
+    if (scopeSel === memberId) query = query.where('mem', '==', memberId);
+    if (scopeSel === 'team') query = query.where('scope', '==', 'team');
+    
+    const snapshot = await query.get();
     const list = [];
-    teamMembers.forEach(m => {
-        const monthly = data.teams[teamId].members[m].plans[mon] || {};
-        const arr = monthly[dayKey] || [];
-        arr.forEach(it => {
-            if (scopeSel === memberId && it.mem !== memberId) return;
-            if (scopeSel === "team" && it.scope !== "team") return;
-            if (scopeSel === "auto") {
-                if (it.mem === memberId) list.push(`[${memberId}] ${it.type} ${it.content}`);
-                else if (it.scope === "team") list.push(`[全員] ${it.type} ${it.content}`);
-            } else {
-                list.push(`${it.type} ${it.content}`);
-            }
-        });
+    snapshot.docs.forEach(doc => {
+        const it = doc.data();
+        if (scopeSel === "auto") {
+            if (it.mem === memberId) list.push(`[${memberId}] ${it.type} ${it.content}`);
+            else if (it.scope === "team") list.push(`[全員] ${it.type} ${it.content}`);
+        } else {
+            list.push(`${it.type} ${it.content}`);
+        }
     });
     return list.join("\n");
 }
@@ -1133,7 +594,7 @@ function renderDashboard() {
     renderConditionChart();
 }
 
-function renderDistanceChart() {
+async function renderDistanceChart() {
     const ctx = $('#distanceChart')?.getContext('2d');
     if (!ctx) return;
     
@@ -1142,7 +603,9 @@ function renderDistanceChart() {
     
     const labels = [];
     const chartData = [];
-    const journal = data.teams[teamId]?.members[viewingMemberId]?.journal || {};
+    const journalSnaps = await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
+    const journal = {};
+    journalSnaps.forEach(doc => journal[doc.id] = doc.data());
     
     if (dashboardMode === 'month') {
         $("#distChartTitle").textContent = "月間走行距離グラフ";
@@ -1186,12 +649,15 @@ function renderDistanceChart() {
     });
 }
 
-function renderConditionChart() {
+async function renderConditionChart() {
     const ctx = $('#conditionChart')?.getContext('2d');
     if (!ctx) return;
     const labels = [];
     const chartData = [];
-    const journal = data.teams[teamId]?.members[viewingMemberId]?.journal || {};
+    const journalSnaps = await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
+    const journal = {};
+    journalSnaps.forEach(doc => journal[doc.id] = doc.data());
+    
     const today = new Date();
     const endDate = addDays(today, conditionChartOffset);
 
@@ -1218,15 +684,11 @@ function initMemo() {
     const memoInput = $("#memoChatInput");
     const sendBtn = $("#memoSendBtn");
 
-    const sendMessage = () => {
+    const sendMessage = async () => {
         const txt = memoInput.value.trim();
         if (!txt) return;
-        ensureTeamMember();
-        data.teams[teamId].memo.push({ mem: memberId, txt, ts: Date.now() });
-        saveAll(data);
+        await getTeamMemoCollectionRef(teamId).add({ mem: memberId, txt, ts: Date.now() });
         memoInput.value = "";
-        renderMemo();
-        checkNewMemo();
     }
 
     if (memoInput) memoInput.addEventListener('keydown', (e) => {
@@ -1236,57 +698,59 @@ function initMemo() {
 }
 
 function renderMemo() {
-    ensureTeamMember();
-    const logs = data.teams[teamId].memo || [];
-    const box = $("#memoChatLog"); if(!box) return;
-    box.innerHTML = "";
-    logs.sort((a, b) => a.ts - b.ts).forEach(m => {
-        const div = document.createElement("div");
-        div.className = "msg";
-        const time = new Date(m.ts).toLocaleString("ja-JP");
-        div.innerHTML = `<span class="name">${m.mem}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
-        box.appendChild(div);
+    if (unsubscribeMemo) unsubscribeMemo();
+    unsubscribeMemo = getTeamMemoCollectionRef(teamId).orderBy('ts').onSnapshot(snapshot => {
+        const box = $("#memoChatLog"); if(!box) return;
+        box.innerHTML = "";
+        snapshot.docs.forEach(doc => {
+            const m = doc.data();
+            const div = document.createElement("div");
+            div.className = "msg";
+            const time = new Date(m.ts).toLocaleString("ja-JP");
+            div.innerHTML = `<span class="name">${m.mem}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
+            box.appendChild(div);
+        });
+        box.scrollTop = box.scrollHeight;
     });
-    box.scrollTop = box.scrollHeight;
 }
 
-function checkNewMemo() {
-    const lastView = localStorage.getItem(`athlog:${teamId}:lastMemoView`);
-    const memo = data.teams[teamId]?.memo || [];
-    const lastMessage = memo[memo.length - 1];
+async function checkNewMemo() {
+    const lastView = localStorage.getItem(`athlog:${teamId}:lastMemoView`) || 0;
+    const snapshot = await getTeamMemoCollectionRef(teamId).orderBy('ts', 'desc').limit(1).get();
     const memoTab = $('[data-tab="memo"]');
-    if (memoTab && lastMessage && lastMessage.ts > lastView) {
-        memoTab.classList.add('new-message');
-    } else if (memoTab) {
-        memoTab.classList.remove('new-message');
+    if (!snapshot.empty) {
+        const lastMessage = snapshot.docs[0].data();
+        if (memoTab && lastMessage.ts > lastView) {
+            memoTab.classList.add('new-message');
+        } else if (memoTab) {
+            memoTab.classList.remove('new-message');
+        }
     }
 }
 
 // ===== Boot and Login =====
 window.addEventListener("hashchange", () => { closePlanModal(); });
 
-(function boot() {
-    try {
-        const last = JSON.parse(localStorage.getItem("athlog:last") || "{}");
-        if (last.team && last.member) {
-            teamId = last.team; memberId = last.member; viewingMemberId = last.member;
-            ensureTeamMember();
-            showApp();
-        }
-    } catch (e) {
-        console.error("Failed to auto-login from saved session:", e);
-        localStorage.removeItem("athlog:last");
+(async function boot() {
+    const last = JSON.parse(localStorage.getItem("athlog:last") || "{}");
+    if(last.team && last.member){
+        teamId = last.team;
+        memberId = last.member;
+        viewingMemberId = last.member;
+        await getMembersRef(teamId).doc(memberId).set({ name: memberId }, { merge: true });
+        showApp();
     }
 })();
 
-function doLogin() {
+async function doLogin() {
     teamId = $("#teamId").value.trim();
     memberId = $("#memberName").value.trim();
     viewingMemberId = memberId;
     if (!teamId || !memberId) { alert("Team / Member を入力"); return; }
     localStorage.setItem("athlog:last", JSON.stringify({ team: teamId, member: memberId }));
-    ensureTeamMember();
-    saveAll(data);
+    
+    await getMembersRef(teamId).doc(memberId).set({ name: memberId }, { merge: true });
+    
     const lg = $("#login"); if (lg) { lg.classList.add("hidden"); lg.style.display = "none"; }
     const app = $("#app"); if (app) { app.classList.remove("hidden"); }
     try {
@@ -1297,10 +761,24 @@ function doLogin() {
     }
 }
 
+async function populateMemberSelect() {
+    const select = $("#memberSelect");
+    if (!select) return;
+    select.innerHTML = '';
+    const snapshot = await getMembersRef(teamId).get();
+    snapshot.docs.forEach(doc => {
+        const mem = doc.id;
+        const option = document.createElement('option');
+        option.value = mem;
+        option.textContent = mem;
+        select.appendChild(option);
+    });
+    select.value = viewingMemberId;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const btn = $("#loginBtn");
     if (btn) { btn.onclick = doLogin; }
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
-
