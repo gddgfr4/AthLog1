@@ -28,7 +28,6 @@
     <button data-tab="memo" class="tab">チームメモ</button>
   </nav>
 
-  <!-- JOURNAL -->
   <section id="journal" class="tabpanel active">
     <div class="journal-grid">
       <div class="panel">
@@ -102,7 +101,6 @@
     </div>
   </section>
 
-  <!-- MONTH LIST -->
   <section id="month" class="tabpanel">
     <div class="monthbar">
       <button id="mPrev" class="ghost">&larr;</button>
@@ -120,7 +118,6 @@
     <div id="monthList" class="list"></div>
   </section>
 
-  <!-- PLANS -->
   <section id="plans" class="tabpanel">
     <div class="monthbar">
       <button id="pPrev" class="ghost">&larr;</button>
@@ -141,7 +138,6 @@
     <div id="planList" class="list"></div>
   </section>
 
-  <!-- DASHBOARD -->
   <section id="dashboard" class="tabpanel">
     <div class="panel" style="margin-bottom: 12px;">
       <div class="dash-header">
@@ -167,7 +163,6 @@
     </div>
   </section>
 
-  <!-- TEAM MEMO -->
   <section id="memo" class="tabpanel">
     <div class="panel">
       <h3>チームメモ</h3>
@@ -182,7 +177,6 @@
   </section>
 </div>
 
-<!-- LOGIN DIALOG -->
 <div id="login" class="login">
   <div class="login-card">
     <div class="logo">AthLog</div>
@@ -195,6 +189,8 @@
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
