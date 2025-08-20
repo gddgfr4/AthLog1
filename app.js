@@ -76,6 +76,8 @@ let distanceChart = null, conditionChart = null;
 let dashboardOffset = 0, dashboardMode = 'month';
 let conditionChartOffset = 0;
 let unsubscribePlans, unsubscribeMemo, unsubscribeMonthChat, unsubscribeJournal;
+// 入力中フラグ（未保存の上書き防止）
+let dirty = { dist: false, train: false, feel: false };
 
 // ===== Data Access Layer (Firestore) =====
 const getJournalRef = (team, member, day) => db.collection('teams').doc(team).collection('members').doc(member).collection('journal').doc(ymd(day));
@@ -148,6 +150,9 @@ async function saveJournal() {
         condition: activeCond ? Number(activeCond.dataset.val) : null,
     };
     await docRef.set(journalData, { merge: true });
+      // 保存完了 → 未保存フラグを下ろす
+  dirty = { dist: false, train: false, feel: false };
+
 }
 
 function initJournal() {
@@ -257,6 +262,11 @@ function initJournal() {
     });
 
     $$('#conditionBtns button').forEach(btn => {
+          // 入力したら未保存フラグON
+  $("#distInput")?.addEventListener("input", () => { dirty.dist = true; });
+  $("#trainInput")?.addEventListener("input", () => { dirty.train = true; });
+  $("#feelInput")?.addEventListener("input", () => { dirty.feel = true; });
+
         btn.addEventListener('click', () => {
             $$('#conditionBtns button').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -894,6 +904,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
 
