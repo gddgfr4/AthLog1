@@ -418,6 +418,81 @@ function initMonth() {
     });
 }
 
+async function renderMonth() {
+  // 編集可否
+  const isReadOnly = viewingMemberId !== memberId;
+  $("#monthGoalInput").disabled = isReadOnly;
+  $("#saveMonthGoalBtn").disabled = isReadOnly;
+
+  // コンテナ
+  const box = $("#monthList"); 
+  if (!box) return;
+  box.innerHTML = "";
+
+  // 月決定（空なら現在月をUIにも反映）
+  const mp = $("#monthPick");
+  const monStr = (mp && mp.value) ? mp.value : getMonthStr(new Date());
+  if (mp && !mp.value) mp.value = monStr;
+
+  const [yy, mm] = monStr.split("-").map(Number);
+  const lastDay = endOfMonth(new Date(yy, mm - 1, 1)).getDate();
+
+  // 先に全行を置く（失敗しても表示が残る）
+  let sum = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    const dt  = new Date(yy, mm - 1, d);
+    const dow = ["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()];
+
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <div class="dow">${dow}<br>${d}</div>
+      <div class="txt"><div>—</div></div>
+    `;
+    row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
+    box.appendChild(row);
+
+    // 非同期でデータを埋める（失敗しても無視）
+    (async () => {
+      try {
+        const snap = await getJournalRef(teamId, viewingMemberId, dt).get();
+        const j = snap.data() || {};
+
+        // 合計距離を都度更新
+        sum += Number(j.dist || 0);
+        $("#monthSum").textContent = `月間走行距離: ${sum.toFixed(1)} km`;
+
+        const classMap = { ジョグ:"jog", ポイント:"point", 補強:"sup", オフ:"off", その他:"other" };
+        const tags = Array.isArray(j.tags) ? j.tags : [];
+        const tagsHtml = tags.length
+          ? `<div class="month-tags">${tags.map(t => `<span class="cat-tag ${classMap[t]||""}">${t}</span>`).join("")}</div>`
+          : "";
+
+        const cond = j.condition;
+        const condHtml = cond
+          ? `<div class="condition-display">${Array(cond).fill(0).map(() => `<span class="star c${cond}">★</span>`).join("")}</div>`
+          : "";
+
+        const txt = row.querySelector(".txt");
+        txt.innerHTML = `${tagsHtml}${condHtml}
+          <div>${(j.train || "—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span></div>`;
+      } catch (err) {
+        console.error("renderMonth day read error:", err);
+        // 取得に失敗しても row は残す（— のまま）
+      }
+    })();
+  }
+
+  // 月間目標の読み込み（安全にラップ）
+  try {
+    const goalDoc = await getGoalsRef(teamId, viewingMemberId, monStr).get();
+    $("#monthGoalInput").value = goalDoc.data()?.goal || "";
+  } catch (e) {
+    console.error("read goal error:", e);
+  }
+}
+
+
 function renderMemoItem(m) {
   const div = document.createElement("div");
   div.className = "msg";
@@ -991,6 +1066,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
 
