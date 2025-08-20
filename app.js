@@ -151,7 +151,8 @@ async function saveJournal() {
     };
     await docRef.set(journalData, { merge: true });
       // 保存完了 → 未保存フラグを下ろす
-  dirty = { dist: false, train: false, feel: false };
+    dirty = { dist: false, train: false, feel: false };
+    renderWeek();
 
 }
 
@@ -274,6 +275,7 @@ function initJournal() {
 
         // 入力は上で保存済みなので dirty を降ろす
         dirty = { dist: false, train: false, feel: false };
+        renderWeek();
     }));
 
     $("#mergeBtn")?.addEventListener("click", async () => {
@@ -284,6 +286,7 @@ function initJournal() {
         if (types.length) {
             const docRef = getJournalRef(teamId, memberId, selDate);
             await docRef.set({ tags: types.slice(0, 2) }, { merge: true });
+            renderWeek();
         }
     });
 
@@ -321,6 +324,7 @@ async function renderJournal() {
     }
 
     $("#datePicker").value = ymd(selDate);
+    renderWeek();
 
     unsubscribeJournal = getJournalRef(teamId, viewingMemberId, selDate).onSnapshot(doc => {
         const j = doc.data() || { dist: 0, train: "", feel: "", tags: [], paint: [], condition: null };
@@ -332,7 +336,6 @@ async function renderJournal() {
         $$('#conditionBtns button').forEach(b => b.classList.remove('active'));
         if (j.condition) $(`#conditionBtns button[data-val="${j.condition}"]`)?.classList.add('active');
         
-        renderWeek(); 
         renderPaint(j); 
         renderQuickButtons(j);
         weekAIComment(selDate).then(comment => $("#aiBox").textContent = comment);
@@ -929,6 +932,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
 
