@@ -606,7 +606,17 @@ function openPlanModal(dt) {
     });
     pActionBtn.addEventListener("click", async () => {
         const content = pContent.value.trim(); if (!content) return;
-        const planData = { type: pType.value, scope: pScope.value, content, mem: memberId, tags: (pTags.value || "").split(",").map(s => s.trim()).filter(Boolean), month: mon, day: dayKey };
+                const planData = {
+          type: pType.value,
+          scope: pScope.value,
+          content,
+          mem: memberId,
+          tags: (pTags.value || "").split(",").map(s => s.trim()).filter(Boolean),
+          month: mon,
+          day: dayKey,
+          team: teamId
+        };
+
         if (editingId) {
             await getPlansCollectionRef(teamId).doc(dayKey).collection('events').doc(editingId).set(planData);
         } else {
@@ -879,6 +889,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
 
