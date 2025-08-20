@@ -12,6 +12,45 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// === 追加：正規化/復元のユーティリティ ===
+function clientToNorm(e, el) {
+  const rect = el.getBoundingClientRect();
+  const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+  const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+  return { nx: cx / rect.width, ny: cy / rect.height };
+}
+function ptToPx(pt, cw, ch) {
+  // 新データ（正規化）: {nx,ny} / 旧データ: {x,y}
+  if (pt && typeof pt.nx === 'number') return { x: pt.nx * cw, y: pt.ny * ch };
+  return { x: pt.x, y: pt.y };
+}
+// 線分と点の距離（px）
+function distPointToSegPx(P, A, B) {
+  const vx = B.x - A.x, vy = B.y - A.y;
+  const wx = P.x - A.x, wy = P.y - A.y;
+  const c1 = vx * wx + vy * wy;
+  const c2 = vx * vx + vy * vy;
+  let t = c2 ? (c1 / c2) : 0;
+  t = Math.max(0, Math.min(1, t));
+  const dx = A.x + t * vx - P.x;
+  const dy = A.y + t * vy - P.y;
+  return Math.hypot(dx, dy);
+}
+// タップ地点に当たるストロークを末尾側から1本だけ探す
+function findHitStrokeIndex(paint, Ppx, cw, ch, thresholdPx = 14) {
+  for (let i = paint.length - 1; i >= 0; i--) {
+    const s = paint[i];
+    if (!s || !Array.isArray(s.pts) || s.pts.length < 2) continue;
+    for (let k = 0; k < s.pts.length - 1; k++) {
+      const A = ptToPx(s.pts[k], cw, ch);
+      const B = ptToPx(s.pts[k + 1], cw, ch);
+      if (distPointToSegPx(Ppx, A, B) <= thresholdPx) return i;
+    }
+  }
+  return -1;
+}
+
+
 // ===== Utilities =====
 const $ = (q, el = document) => el.querySelector(q);
 const $$ = (q, el = document) => Array.from(el.querySelectorAll(q));
@@ -171,6 +210,27 @@ function initJournal() {
         canvas.width = imgEl.clientWidth; canvas.height = imgEl.clientHeight;
         ctx = canvas.getContext("2d"); renderPaint();
     };
+
+    // 追加：タップ地点のストロークを1本削除
+async function eraseStrokeAtEvent(e) {
+  if (!canvas) return;
+  const { nx, ny } = clientToNorm(e, canvas);
+  const Ppx = { x: nx * canvas.width, y: ny * canvas.height };
+  const docRef = getJournalRef(teamId, memberId, selDate);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(docRef);
+    const base = snap.data() || {};
+    const paint = Array.isArray(base.paint) ? [...base.paint] : [];
+    const idx = findHitStrokeIndex(paint, Ppx, canvas.width, canvas.height, 14);
+    if (idx >= 0) {
+      paint.splice(idx, 1);
+      tx.set(docRef, { paint }, { merge: true });
+    }
+  });
+}
+
+    
     if (imgEl && $(".canvas-wrap")) new ResizeObserver(fit).observe($(".canvas-wrap"));
     fit();  // 入力したら未保存フラグON（1回だけ登録）
     $("#distInput")?.addEventListener("input", () => { dirty.dist  = true; });
@@ -1051,6 +1111,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
 
