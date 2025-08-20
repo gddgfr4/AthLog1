@@ -150,10 +150,20 @@ async function showApp() {
     if (memberSelect) memberSelect.addEventListener('change', () => {
         viewingMemberId = $("#memberSelect").value;
         $("#memberLabel").textContent = viewingMemberId;
+
+        selDate = new Date();
+        const dp = $("#datePicker");
+        if (dp) dp.value = ymd(selDate);
+        
         switchTab($(".tab.active")?.dataset.tab, true);
     });
 
     initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
+
+    selDate = new Date();
+    const dp = $("#datePicker");
+    if (dp) dp.value = ymd(selDate);
+    
     switchTab("journal");
     checkNewMemo();
 }
@@ -1111,6 +1121,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
 
