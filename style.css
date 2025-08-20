@@ -99,72 +99,56 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .dash-controls { display: flex; gap: 8px; align-items: center; }
 .plan-copy-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 
-/* =========================
-   Journal 週カレンダーの並び替え
-   （上段：月ラベル/日付入力/今日へ、下段：週チップ）
-   ========================= */
-
-/* 週バーを2段に折り返す */
-.weekbar {
-  display: flex;
-  flex-wrap: wrap;              /* ← ここで折り返し */
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
+/* ===== Journal 週カレンダーの並び（上段：← → ｜ 右に日付入力/今日へ、下段：週チップ） ===== */
+.weekbar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  margin-bottom:8px;
 }
 
-/* 上段へ持ち上げる3つ（右側は月ラベル） */
-#weekMonthLabel,
-#datePicker,
-#gotoToday {
-  order: -1;                    /* ← 上段へ */
-}
-#weekMonthLabel {
-  margin-left: auto;            /* 右端に寄せる */
-}
+/* 左に並べる：← → */
+#weekPrev{ order:-2; }
+#weekNext{ order:-1; }
 
-/* 週チップの帯は “下段で横スクロール1行” に固定 */
-.chips {
-  order: 0;
-  flex: 1 1 100%;               /* 下段をフル幅で占有 */
-  display: flex;
-  gap: 6px;
-  justify-content: flex-start;  /* 左寄せ（中央にしたければ center） */
-  overflow-x: auto;             /* 横スクロール可 */
-  padding: 4px 2px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-.chips::-webkit-scrollbar { height: 6px; }
+/* 右側：日付入力→今日へ */
+#datePicker{ order:0; margin-left:auto; }
+#gotoToday{ order:1; }
 
-/* チップ内のレイアウトを縦積みにしてはみ出しを防止 */
-.chip {
-  display: inline-flex;
-  flex-direction: column;       /* 1行目：曜日+日付 / 2行目：km */
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-width: 64px;              /* 文字が潰れない最低幅 */
-  padding: 8px 10px;
-  border-radius: 12px;
-  line-height: 1.1;             /* 数字が枠からはみ出るのを抑える */
-  text-align: center;
-}
-.chip.active {
-  outline: 2px solid var(--primary);
-  outline-offset: 0;
-}
-.chip > div:first-child {        /* 曜日+日付 */
-  font-weight: 600;
-}
-.km {
-  font-size: 12px;
-  color: var(--muted);
-}
+/* 「8月」ラベルは非表示 */
+#weekMonthLabel{ display:none !important; }
 
-/* モバイルでの詰め調整（任意） */
-@media (max-width: 520px) {
-  .chip { min-width: 56px; padding: 6px 8px; }
-  .km   { font-size: 11px; }
+/* 下段：週チップ帯（横スクロール1行） */
+.chips{
+  order:2;
+  flex:1 1 100%;
+  display:flex;
+  gap:6px;
+  justify-content:flex-start;
+  overflow-x:auto;
+  padding:4px 2px;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;
 }
+.chips::-webkit-scrollbar{ height:6px; }
 
+/* チップ内を縦積みにして文字のはみ出しを防止 */
+.chip{
+  display:inline-flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  min-width:64px;
+  padding:8px 10px;
+  border-radius:12px;
+  line-height:1.1;
+  text-align:center;
+}
+.chip.active{ outline:2px solid var(--primary); outline-offset:0; }
+.chip > div:first-child{ font-weight:600; }
+
+@media (max-width:520px){
+  .chip{ min-width:56px; padding:6px 8px; }
+}
