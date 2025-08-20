@@ -16,12 +16,18 @@ const db = firebase.firestore();
 const $ = (q, el = document) => el.querySelector(q);
 const $$ = (q, el = document) => Array.from(el.querySelectorAll(q));
 
-function ymd(d) { return d.toISOString().slice(0, 10); }
+function ymd(d) { 
+    const date = new Date(d.getTime() - (d.getTimezoneOffset() * 60000));
+    return date.toISOString().slice(0, 10);
+}
 function startOfWeek(d) { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0, 0, 0, 0); return x; }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
-function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
-function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
 function getMonthStr(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+function getWeekDates(d) {
+    const s = startOfWeek(d);
+    return [...Array(7).keys()].map(i => addDays(s, i));
+}
 
 // ===== App State =====
 let teamId = null, memberId = null, viewingMemberId = null;
@@ -191,7 +197,7 @@ function initJournal() {
             const doc = await transaction.get(docRef);
             const j = doc.data() || { tags: [] };
             const tag = b.textContent.trim();
-            if (j.tags.includes(tag)) j.tags = j.tags.filter(t => t !== tag);
+            if (j.tags && j.tags.includes(tag)) j.tags = j.tags.filter(t => t !== tag);
             else { if (j.tags.length >= 2) j.tags.shift(); j.tags.push(tag); }
             transaction.set(docRef, { tags: j.tags }, { merge: true });
         });
