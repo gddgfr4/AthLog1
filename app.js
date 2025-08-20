@@ -65,6 +65,13 @@ async function weekAIComment(d) {
     return `【週分析AI】総距離は${wkm.toFixed(1)}km。${distMsg} ${fatigueMsg}`;
 }
 
+// ---- Team Memo paging state ----
+let memoPageSize = 30;        // 1ページ(表示初期/追加読込)の件数
+let memoOldestDoc = null;     // いま表示している中で最古のドキュメント
+let memoLatestTs = 0;         // いま表示している中で最新のタイムスタンプ
+let memoLiveUnsub = null;     // 最新1件のライブ購読解除用
+let memoLoadingOlder = false; // 追加読込中フラグ
+
 
 // ===== App State =====
 let teamId = null, memberId = null, viewingMemberId = null;
@@ -411,43 +418,96 @@ function initMonth() {
     });
 }
 
-async function renderMonth() {
-    const isReadOnly = viewingMemberId !== memberId;
-    $("#monthGoalInput").disabled = isReadOnly;
-    $("#saveMonthGoalBtn").disabled = isReadOnly;
-
-    const box = $("#monthList"); if (!box) return;
-    box.innerHTML = "";
-    const mp = $("#monthPick");
-    const monStr = (mp && mp.value) ? mp.value : getMonthStr(new Date());
-    if (mp && !mp.value) mp.value = monStr;
-    const [yy, mm] = monStr.split("-").map(Number);
-    let sum = 0;
-    for (let d = 1; d <= endOfMonth(new Date(yy, mm - 1, 1)).getDate(); d++) {
-        const dt = new Date(yy, mm - 1, d);
-        const doc = await getJournalRef(teamId, viewingMemberId, dt).get();
-        const j = doc.data() || {};
-        sum += Number(j.dist || 0);
-        const row = document.createElement("div"); row.className = "row";
-        const tags = j.tags || []; let tagsHtml = '';
-        if (tags.length) {
-            const classMap = { ジョグ: "jog", ポイント: "point", 補強: "sup", オフ: "off", その他: "other" };
-            tagsHtml = `<div class="month-tags">` + tags.map(tag => `<span class="cat-tag ${classMap[tag] || ''}">${tag}</span>`).join('') + `</div>`;
-        }
-        const cond = j.condition; let condHtml = '';
-        if (cond) {
-            condHtml = `<div class="condition-display">` + Array(cond).fill(0).map((_, i) => `<span class="star c${cond}">★</span>`).join('') + `</div>`;
-        }
-        row.innerHTML = `<div class="dow">${["SU", "MO", "TU", "WE", "TH", "FR", "SA"][dt.getDay()]}<br>${d}</div>
-                     <div class="txt">${tagsHtml}${condHtml}<div>${(j.train || "—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span></div></div>`;
-        row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
-        box.appendChild(row);
-    }
-    $("#monthSum").textContent = `月間走行距離: ${sum.toFixed(1)} km`;
-    const monthStr = $("#monthPick").value;
-    const goalDoc = await getGoalsRef(teamId, viewingMemberId, monthStr).get();
-    $("#monthGoalInput").value = goalDoc.data()?.goal || "";
+function renderMemoItem(m) {
+  const div = document.createElement("div");
+  div.className = "msg";
+  const time = new Date(m.ts).toLocaleString("ja-JP");
+  div.innerHTML = `<span class="name">${m.mem}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
+  return div;
 }
+
+
+async function renderMemo() {
+  // 既存の購読を解除
+  if (unsubscribeMemo) { try { unsubscribeMemo(); } catch(_){} }
+  if (memoLiveUnsub) { try { memoLiveUnsub(); } catch(_){} memoLiveUnsub = null; }
+
+  const box = $("#memoChatLog");
+  if (!box) return;
+
+  box.innerHTML = "";
+  memoOldestDoc = null;
+  memoLatestTs = 0;
+
+  const col = getTeamMemoCollectionRef(teamId);
+
+  // 1) 初期は「最新 memoPageSize 件」だけ取得（降順→表示は昇順にして下端へ）
+  const initSnap = await col.orderBy('ts', 'desc').limit(memoPageSize).get();
+  if (initSnap.empty) {
+    box.innerHTML = `<div class="muted">まだメモはありません</div>`;
+  } else {
+    const docsDesc = initSnap.docs; // desc
+    memoOldestDoc = docsDesc[docsDesc.length - 1];          // いちばん古い
+    memoLatestTs  = (docsDesc[0].data().ts) || 0;           // いちばん新しい
+
+    // 表示は昇順で並べたいので reverse して append
+    docsDesc.slice().reverse().forEach(d => {
+      box.appendChild( renderMemoItem(d.data()) );
+    });
+
+    // 初期は一番下までスクロール
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // 2) 上にスクロールしたらさらに過去を読み足し（ページング）
+  box.onscroll = async () => {
+    if (box.scrollTop <= 0 && !memoLoadingOlder && memoOldestDoc) {
+      memoLoadingOlder = true;
+      const prevHeight = box.scrollHeight;
+
+      const olderSnap = await col
+        .orderBy('ts', 'desc')
+        .startAfter(memoOldestDoc)     // さらに古いページへ
+        .limit(memoPageSize)
+        .get();
+
+      if (!olderSnap.empty) {
+        // 受け取るのは降順なので、表示は昇順で「先頭に」挿入
+        const frag = document.createDocumentFragment();
+        olderSnap.docs.slice().reverse().forEach(d => {
+          frag.appendChild( renderMemoItem(d.data()) );
+        });
+        box.insertBefore(frag, box.firstChild);
+        // 次のページング用に「今回の最古」を更新
+        memoOldestDoc = olderSnap.docs[olderSnap.docs.length - 1];
+
+        // スクロール位置を維持（ジャンプしないように）
+        const newHeight = box.scrollHeight;
+        box.scrollTop = newHeight - prevHeight;
+      }
+      memoLoadingOlder = false;
+    }
+  };
+
+  // 3) 最新1件はライブ購読して、増えたら末尾に追記
+  memoLiveUnsub = col.orderBy('ts', 'desc').limit(1).onSnapshot(snap => {
+    const d = snap.docs[0];
+    if (!d) return;
+    const data = d.data();
+    if (data.ts > memoLatestTs) {
+      box.appendChild( renderMemoItem(data) );
+      memoLatestTs = data.ts;
+      box.scrollTop = box.scrollHeight; // 新着は下端へ
+    }
+  });
+
+  // タブ切替時に後始末できるように束ねる
+  unsubscribeMemo = () => {
+    if (memoLiveUnsub) { try { memoLiveUnsub(); } catch(_){} memoLiveUnsub = null; }
+    box.onscroll = null;
+  };
+}
+
 
 // ===== PLANS (Schedule) =====
 function createPlanTagHtml(type) {
@@ -931,6 +991,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
 
