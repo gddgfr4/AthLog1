@@ -43,7 +43,7 @@ async function sumWeekKm(d) {
 async function weekAIComment(d) {
     const wkm = await sumWeekKm(d);
     const dates = getWeekDates(d);
-    let fatigueScore = 0; const fatigueAreas = {};
+    let fatigueScore = 0; 
     
     for(const dt of dates) {
         const doc = await getJournalRef(teamId, viewingMemberId, dt).get();
@@ -234,8 +234,8 @@ function initJournal() {
             const doc = await transaction.get(docRef);
             const j = doc.data() || { tags: [] };
             const tag = b.textContent.trim();
-            if (j.tags && j.tags.includes(tag)) j.tags = j.tags.filter(t => t !== tag);
-            else { if (!j.tags) j.tags = []; if (j.tags.length >= 2) j.tags.shift(); j.tags.push(tag); }
+            if (j.tags.includes(tag)) j.tags = j.tags.filter(t => t !== tag);
+            else { if (j.tags.length >= 2) j.tags.shift(); j.tags.push(tag); }
             transaction.set(docRef, { tags: j.tags }, { merge: true });
         });
     }));
