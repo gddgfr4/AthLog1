@@ -386,6 +386,8 @@ $$(".qbtn").forEach(b => b.addEventListener("click", async () => {
 async function renderJournal() {
     if (unsubscribeJournal) unsubscribeJournal();
 
+    if (!viewingMemberId) viewingMemberId = memberId;
+
     dirty = { dist:false, train:false, feel:false };
 
     const isReadOnly = viewingMemberId !== memberId;
@@ -1112,7 +1114,11 @@ async function populateMemberSelect() {
         option.textContent = mem;
         select.appendChild(option);
     });
-    select.value = viewingMemberId;
+    
+    const want = viewingMemberId || memberId;
+    const exists = [...select.options].some(o => o.value === want);
+    select.value = exists ? want : memberId;
+    viewingMemberId = select.value; 
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1121,6 +1127,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
 
