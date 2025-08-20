@@ -10,6 +10,7 @@
 <body>
 <div id="app" class="app hidden">
   <header class="topbar">
+    <button class="ghost" id="openHelpBtn">？ヘルプ</button>
     <div class="brand">AthLog</div>
     <div class="teamuser">
       <span>Team: <b id="teamLabel"></b></span>
@@ -200,6 +201,17 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 <!-- Your app's script -->
 <script src="app.js?v=20250820"></script>
+<div id="helpOverlay" class="login hidden">
+  <div class="login-card" style="max-width:860px; width:min(96vw,860px); max-height:85vh; overflow:auto;">
+    <div class="logo">AthLog1 クイックガイド</div>
+    <div class="desc">最短で使い始めるための要点まとめ</div>
+    <div id="helpBody" class="doc"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+      <button class="ghost" id="helpClose">閉じる</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
+
 
