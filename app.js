@@ -381,7 +381,10 @@ async function renderMonth() {
 
     const box = $("#monthList"); if (!box) return;
     box.innerHTML = "";
-    const [yy, mm] = $("#monthPick").value.split("-").map(Number);
+    const mp = $("#monthPick");
+    const monStr = (mp && mp.value) ? mp.value : getMonthStr(new Date());
+    if (mp && !mp.value) mp.value = monStr;
+    const [yy, mm] = monStr.split("-").map(Number);
     let sum = 0;
     for (let d = 1; d <= endOfMonth(new Date(yy, mm - 1, 1)).getDate(); d++) {
         const dt = new Date(yy, mm - 1, d);
@@ -452,6 +455,8 @@ function renderPlans() {
   if (unsubscribePlans) unsubscribePlans();
   // 月文字列（YYYY-MM）。空なら現在月。
   const mon = $("#planMonthPick")?.value || getMonthStr(new Date());
+  // ピッカーが空だった場合はUIにも反映
+  if ($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value = mon;
 
   // 描画先を準備
   const box = $("#planList");
@@ -889,6 +894,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
 
