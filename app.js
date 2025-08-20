@@ -16,12 +16,55 @@ const db = firebase.firestore();
 const $ = (q, el = document) => el.querySelector(q);
 const $$ = (q, el = document) => Array.from(el.querySelectorAll(q));
 
-function ymd(d) { return d.toISOString().slice(0, 10); }
+function ymd(d) { 
+    const date = new Date(d.getTime() - (d.getTimezoneOffset() * 60000));
+    return date.toISOString().slice(0, 10);
+}
 function startOfWeek(d) { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0, 0, 0, 0); return x; }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
-function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
-function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
 function getMonthStr(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+function getWeekDates(d) {
+    const s = startOfWeek(d);
+    return [...Array(7).keys()].map(i => addDays(s, i));
+}
+async function sumWeekKm(d) {
+    const dates = getWeekDates(d);
+    let s = 0;
+    for(const dt of dates) {
+        const doc = await getJournalRef(teamId, viewingMemberId, dt).get();
+        if (doc.exists) {
+            s += Number(doc.data().dist || 0);
+        }
+    }
+    return s;
+}
+
+async function weekAIComment(d) {
+    const wkm = await sumWeekKm(d);
+    const dates = getWeekDates(d);
+    let fatigueScore = 0; 
+    
+    for(const dt of dates) {
+        const doc = await getJournalRef(teamId, viewingMemberId, dt).get();
+        if (!doc.exists) continue;
+        const j = doc.data();
+        if (!j || !j.paint) continue;
+        j.paint.forEach(stroke => {
+            if (stroke.erase) return;
+            fatigueScore += (stroke.lvl || 1);
+        });
+    }
+
+    let distMsg = wkm > 80 ? "走行距離が多く、ハイボリュームな週でした。" : wkm > 50 ? "良いペースで走行距離を積めています。" : "走行距離は控えめでした。";
+    let fatigueMsg = "";
+    if (fatigueScore > 40) fatigueMsg = "また、強い筋肉疲労が蓄積しているようです。回復を最優先に考えましょう。";
+    else if (fatigueScore > 20) fatigueMsg = "筋肉の疲労感も見られるため、ストレッチなどのケアを意識すると良いでしょう。";
+    else if (wkm > 10) fatigueMsg = "身体のコンディションは良好のようです。";
+    
+    return `【週分析AI】総距離は${wkm.toFixed(1)}km。${distMsg} ${fatigueMsg}`;
+}
+
 
 // ===== App State =====
 let teamId = null, memberId = null, viewingMemberId = null;
@@ -298,7 +341,8 @@ async function renderWeek() {
         btn.addEventListener("click", () => { selDate = d; renderJournal(); });
         chips.appendChild(btn);
     }
-    $("#weekSum").textContent = `週 走行距離: ${sumWeekKm(selDate).toFixed(1)} km`;
+    const sum = await sumWeekKm(selDate);
+    $("#weekSum").textContent = `週 走行距離: ${sum.toFixed(1)} km`;
     $("#weekMonthLabel").textContent = `${selDate.getMonth() + 1}月`;
 }
 
