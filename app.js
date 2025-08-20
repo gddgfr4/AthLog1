@@ -91,6 +91,11 @@ async function showApp() {
     $("#memberLabel").textContent = viewingMemberId;
     $("#login").classList.add("hidden");
     $("#app").classList.remove("hidden");
+        // 月ピッカー初期化（空なら現在月を入れる）
+    const __nowMon = getMonthStr(new Date());
+    if ($("#monthPick") && !$("#monthPick").value) $("#monthPick").value = __nowMon;
+    if ($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value = __nowMon;
+
 
     await populateMemberSelect();
     const memberSelect = $("#memberSelect");
@@ -442,54 +447,86 @@ function initPlans() {
 }
 
 function renderPlans() {
-    populatePlanScopeSelect();
-    if (unsubscribePlans) unsubscribePlans();
-    const mon = $("#planMonthPick").value;
-    unsubscribePlans = db.collectionGroup('events')
-      .where('month', '==', mon)
+  populatePlanScopeSelect();
+  // 既存の購読を解除
+  if (unsubscribePlans) unsubscribePlans();
+  // 月文字列（YYYY-MM）。空なら現在月。
+  const mon = $("#planMonthPick")?.value || getMonthStr(new Date());
+
+  // 描画先を準備
+  const box = $("#planList");
+  if (!box) return;
+  box.innerHTML = "";
+
+  // 年月→その月の日数
+  const [yy, mm] = mon.split("-").map(Number);
+  const daysInMonth = endOfMonth(new Date(yy, mm - 1, 1)).getDate();
+
+  // ここで per-day のサブ購読を束ねるための配列を用意
+  const unsubs = [];
+  unsubscribePlans = () => { unsubs.forEach(fn => { try { fn && fn(); } catch(_){} }); };
+
+  // 右肩のフィルタ値はリスナー内で毎回読む（動的反映のため）
+  const classMap = { ジョグ: "jog", ポイント: "point", 補強: "sup", オフ: "off", その他: "other" };
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dt = new Date(yy, mm - 1, d);
+    const dayKey = ymd(dt);                // ← 空にならない（必ず 'YYYY-MM-DD'）
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <div class="dow">${["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()]}<br>${d}</div>
+      <div class="txt" id="pl_${dayKey}" style="flex-wrap: wrap; flex-direction: row; align-items: center;">—</div>
+    `;
+    row.addEventListener("click", () => openPlanModal(dt));
+    box.appendChild(row);
+
+    // 日別の events サブコレにリアルタイム購読を張る（インデックス不要）
+    const unsub = getPlansCollectionRef(teamId)
+      .doc(dayKey)                     // ← empty path にならない（上で dayKey を必ず生成）
+      .collection('events')
+      .orderBy('mem')                  // 任意。不要なら外してもOK
       .onSnapshot(snapshot => {
-        const allPlans = {};
-snapshot.docs.forEach(doc => {
-  const data = doc.data();
-  // 既存データ互換：team フィールドがあるものは現在の teamId に一致する場合のみ採用
-  if (data.team && data.team !== teamId) return;
-  const dayKey = data.day; // 'YYYY-MM-DD'
-  if (!allPlans[dayKey]) allPlans[dayKey] = [];
-  allPlans[dayKey].push({ id: doc.id, ...data });
-});
-
-
-        
-        const box = $("#planList"); if(!box) return;
-        box.innerHTML = "";
-        const [yy, mm] = mon.split("-").map(Number);
-        const scope = $("#planScope").value;
-        const tagText = $("#tagFilter").value.trim();
+        const scope = $("#planScope")?.value || "all";
+        const tagText = $("#tagFilter")?.value.trim() || "";
         const tagSet = new Set(tagText ? tagText.split(",").map(s => s.trim()).filter(Boolean) : []);
-        for (let d = 1; d <= endOfMonth(new Date(yy, mm - 1, 1)).getDate(); d++) {
-            const dt = new Date(yy, mm - 1, d);
-            const dayKey = ymd(dt);
-            const row = document.createElement("div"); row.className = "row";
-            row.innerHTML = `<div class="dow">${["SU", "MO", "TU", "WE", "TH", "FR", "SA"][dt.getDay()]}<br>${d}</div>
-                         <div class="txt" id="pl_${dayKey}" style="flex-wrap: wrap; flex-direction: row; align-items: center;">—</div>`;
-            row.addEventListener("click", () => openPlanModal(dt));
-            box.appendChild(row);
-            
-            const arr = allPlans[dayKey] || [];
-            const list = arr.filter(it => {
-                if (scope === "team" && it.scope !== "team") return false;
-                if (scope !== 'all' && scope !== 'team' && it.mem !== scope) return false;
-                if (tagSet.size && !(it.tags || []).some(t => tagSet.has(t))) return false;
-                return true;
-            });
 
-            const targetEl = $("#pl_" + dayKey);
-            if (list.length) targetEl.innerHTML = list.map(x => `<span style="display:inline-flex; align-items:center; gap:6px; margin: 2px 8px 2px 0;">${createPlanTagHtml(x.type)}<span>${x.content}</span></span>`).join("");
-            else targetEl.textContent = '—';
+        const arr = [];
+        snapshot.docs.forEach(doc => {
+          const it = doc.data();
+          // フィルタ：scope
+          if (scope === "team" && it.scope !== "team") return;
+          if (scope !== "all" && scope !== "team" && it.mem !== scope) return;
+          // フィルタ：tag
+          if (tagSet.size && !(it.tags || []).some(t => tagSet.has(t))) return;
+          arr.push(it);
+        });
+
+        const targetEl = document.getElementById("pl_" + dayKey);
+        if (!targetEl) return;
+
+        if (arr.length) {
+          targetEl.innerHTML = arr.map(x =>
+            `<span style="display:inline-flex; align-items:center; gap:6px; margin: 2px 8px 2px 0;">
+               <span class="cat-tag ${classMap[x.type] || ""}">${x.type}</span>
+               <span>${x.content}</span>
+             </span>`
+          ).join("");
+        } else {
+          targetEl.textContent = "—";
         }
-    });
+      }, (err) => {
+        // エラー時も UI を落とさない
+        const targetEl = document.getElementById("pl_" + dayKey);
+        if (targetEl) targetEl.textContent = "—";
+        console.error("plans onSnapshot error:", err);
+      });
 
-    renderChat();
+    unsubs.push(unsub);
+  }
+
+  // 月コメント（チャット）は既存ロジックのまま
+  renderChat();
 }
 
 function renderChat() {
@@ -842,5 +879,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
