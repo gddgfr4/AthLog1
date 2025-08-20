@@ -166,9 +166,9 @@ function initJournal() {
     };
     if (imgEl && $(".canvas-wrap")) new ResizeObserver(fit).observe($(".canvas-wrap"));
     fit();  // 入力したら未保存フラグON（1回だけ登録）
-  $("#distInput")?.addEventListener("input", () => { dirty.dist  = true; });
-  $("#trainInput")?.addEventListener("input", () => { dirty.train = true; });
-  $("#feelInput")?.addEventListener("input", () => { dirty.feel  = true; });
+    $("#distInput")?.addEventListener("input", () => { dirty.dist  = true; });
+    $("#trainInput")?.addEventListener("input", () => { dirty.train = true; });
+    $("#feelInput")?.addEventListener("input", () => { dirty.feel  = true; });
 
 
     
@@ -239,45 +239,45 @@ function initJournal() {
         canvas.addEventListener("touchmove", move, { passive: false });
         window.addEventListener("touchend", end);
     }
+// --- Quick ボタン（ジョグ/ポイント/補強/オフ/その他）
+$$(".qbtn").forEach(b => b.addEventListener("click", async () => {
+  const docRef = getJournalRef(teamId, memberId, selDate);
+
+  // 下書き保存 + タグ更新を 1 回のトランザクションでまとめる
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(docRef);
+    const base = snap.data() || {};
+    const curr = Array.isArray(base.tags) ? [...base.tags] : [];
+
+    const tag = b.textContent.trim();
+    const idx = curr.indexOf(tag);
+    if (idx >= 0) {
+      curr.splice(idx, 1);                    // トグルOFF
+    } else {
+      if (curr.length >= 2) curr.shift();     // 最大2件
+      curr.push(tag);                         // トグルON
+    }
+
+    const activeCondBtn = $('#conditionBtns button.active');
+    tx.set(docRef, {
+      dist: Number($("#distInput").value || 0),
+      train: $("#trainInput").value,
+      feel:  $("#feelInput").value,
+      condition: activeCondBtn ? Number(activeCondBtn.dataset.val) : null,
+      tags: curr
+    }, { merge: true });
+  });
+
+  // 保存できたので dirty をリセット
+  dirty = { dist: false, train: false, feel: false };
+}));
 
     $("#weekPrev")?.addEventListener("click", () => { selDate = addDays(selDate, -7); renderJournal(); });
     $("#weekNext")?.addEventListener("click", () => { selDate = addDays(selDate, 7); renderJournal(); });
     $("#gotoToday")?.addEventListener("click", () => { selDate = new Date(); renderJournal(); });
     $("#datePicker")?.addEventListener("change", (e) => { selDate = new Date(e.target.value); renderJournal(); });
 
-        $$(".qbtn").forEach(b => b.addEventListener("click", async () => {
-        const docRef = getJournalRef(teamId, memberId, selDate);
-
-        // 先に現在の入力ドラフトを保存（タグ操作で未保存が消えないように）
-        const activeCondBtn = $('#conditionBtns button.active');
-        await docRef.set({
-          dist: Number($("#distInput").value || 0),
-          train: $("#trainInput").value,
-          feel: $("#feelInput").value,
-          condition: activeCondBtn ? Number(activeCondBtn.dataset.val) : null,
-        }, { merge: true });
-
-        // タグのトグルはトランザクションで安全に処理
-        await db.runTransaction(async (transaction) => {
-          const snap = await transaction.get(docRef);
-          const base = snap.data() || {};
-          const curr = Array.isArray(base.tags) ? [...base.tags] : []; // ★ ここで安全に配列化
-          const tag = b.textContent.trim();
-          const idx = curr.indexOf(tag);
-          if (idx >= 0) {
-            curr.splice(idx, 1);
-          } else {
-            if (curr.length >= 2) curr.shift();
-            curr.push(tag);
-          }
-          transaction.set(docRef, { tags: curr }, { merge: true });
-        });
-
-        // 入力は上で保存済みなので dirty を降ろす
-        dirty = { dist: false, train: false, feel: false };
-        renderWeek();
-    }));
-
+        
     $("#mergeBtn")?.addEventListener("click", async () => {
         const scope = $("#mergeScope").value;
         const text = await collectPlansTextForDay(selDate, scope);
@@ -386,7 +386,6 @@ async function renderWeek() {
     }
     const sum = await sumWeekKm(selDate);
     $("#weekSum").textContent = `週 走行距離: ${sum.toFixed(1)} km`;
-    $("#weekMonthLabel").textContent = `${selDate.getMonth() + 1}月`;
 }
 
 function renderQuickButtons(j) {
@@ -932,6 +931,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
 
