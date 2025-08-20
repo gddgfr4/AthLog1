@@ -976,22 +976,7 @@ function initMemo() {
     if(sendBtn) sendBtn.onclick = sendMessage;
 }
 
-function renderMemo() {
-    if (unsubscribeMemo) unsubscribeMemo();
-    unsubscribeMemo = getTeamMemoCollectionRef(teamId).orderBy('ts').onSnapshot(snapshot => {
-        const box = $("#memoChatLog"); if(!box) return;
-        box.innerHTML = "";
-        snapshot.docs.forEach(doc => {
-            const m = doc.data();
-            const div = document.createElement("div");
-            div.className = "msg";
-            const time = new Date(m.ts).toLocaleString("ja-JP");
-            div.innerHTML = `<span class="name">${m.mem}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
-            box.appendChild(div);
-        });
-        box.scrollTop = box.scrollHeight;
-    });
-}
+
 
 async function checkNewMemo() {
     const lastView = localStorage.getItem(`athlog:${teamId}:lastMemoView`) || 0;
@@ -1066,6 +1051,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
 
 
