@@ -445,16 +445,19 @@ function renderPlans() {
     populatePlanScopeSelect();
     if (unsubscribePlans) unsubscribePlans();
     const mon = $("#planMonthPick").value;
-    unsubscribePlans = db.collectionGroup('events').where('month', '==', mon).onSnapshot(snapshot => {
+    unsubscribePlans = db.collectionGroup('events')
+      .where('month', '==', mon)
+      .onSnapshot(snapshot => {
         const allPlans = {};
 snapshot.docs.forEach(doc => {
-    const data = doc.data();
-    // 既存データとの後方互換: team フィールドがある場合のみチームを一致で絞る
-    if (data.team && data.team !== teamId) return;
-    const dayKey = data.day;  // ex) '2025-08-20'
-    if (!allPlans[dayKey]) allPlans[dayKey] = [];
-    allPlans[dayKey].push({ id: doc.id, ...data });
+  const data = doc.data();
+  // 既存データ互換：team フィールドがあるものは現在の teamId に一致する場合のみ採用
+  if (data.team && data.team !== teamId) return;
+  const dayKey = data.day; // 'YYYY-MM-DD'
+  if (!allPlans[dayKey]) allPlans[dayKey] = [];
+  allPlans[dayKey].push({ id: doc.id, ...data });
 });
+
 
         
         const box = $("#planList"); if(!box) return;
@@ -839,4 +842,5 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
 
