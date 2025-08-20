@@ -1126,7 +1126,30 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btn) { btn.onclick = doLogin; }
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
+    // === ヘルプ本文を流し込み ===
+const helpBody = document.getElementById("helpBody");
+if (helpBody) {
+  helpBody.innerHTML = `
+    <!-- キャンバスで作った「AthLog1 クイックガイド」の本文をここにコピペ -->
+    <!-- 例: <h2>はじめに</h2><p>…</p> など -->
+  `;
+}
+
+// === 開閉イベント ===
+document.getElementById("openHelpBtn")?.addEventListener("click", () => {
+  document.getElementById("helpOverlay")?.classList.remove("hidden");
 });
+document.getElementById("helpClose")?.addEventListener("click", () => {
+  document.getElementById("helpOverlay")?.classList.add("hidden");
+});
+document.getElementById("helpOverlay")?.addEventListener("click", (e) => {
+  if (e.target.id === "helpOverlay") e.currentTarget.classList.add("hidden");
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
+});
+});
+
 
 
 
