@@ -28,6 +28,43 @@ function getWeekDates(d) {
     const s = startOfWeek(d);
     return [...Array(7).keys()].map(i => addDays(s, i));
 }
+async function sumWeekKm(d) {
+    const dates = getWeekDates(d);
+    let s = 0;
+    for(const dt of dates) {
+        const doc = await getJournalRef(teamId, viewingMemberId, dt).get();
+        if (doc.exists) {
+            s += Number(doc.data().dist || 0);
+        }
+    }
+    return s;
+}
+
+async function weekAIComment(d) {
+    const wkm = await sumWeekKm(d);
+    const dates = getWeekDates(d);
+    let fatigueScore = 0; const fatigueAreas = {};
+    
+    for(const dt of dates) {
+        const doc = await getJournalRef(teamId, viewingMemberId, dt).get();
+        if (!doc.exists) continue;
+        const j = doc.data();
+        if (!j || !j.paint) continue;
+        j.paint.forEach(stroke => {
+            if (stroke.erase) return;
+            fatigueScore += (stroke.lvl || 1);
+        });
+    }
+
+    let distMsg = wkm > 80 ? "走行距離が多く、ハイボリュームな週でした。" : wkm > 50 ? "良いペースで走行距離を積めています。" : "走行距離は控えめでした。";
+    let fatigueMsg = "";
+    if (fatigueScore > 40) fatigueMsg = "また、強い筋肉疲労が蓄積しているようです。回復を最優先に考えましょう。";
+    else if (fatigueScore > 20) fatigueMsg = "筋肉の疲労感も見られるため、ストレッチなどのケアを意識すると良いでしょう。";
+    else if (wkm > 10) fatigueMsg = "身体のコンディションは良好のようです。";
+    
+    return `【週分析AI】総距離は${wkm.toFixed(1)}km。${distMsg} ${fatigueMsg}`;
+}
+
 
 // ===== App State =====
 let teamId = null, memberId = null, viewingMemberId = null;
@@ -197,8 +234,8 @@ function initJournal() {
             const doc = await transaction.get(docRef);
             const j = doc.data() || { tags: [] };
             const tag = b.textContent.trim();
-            if (j.tags.includes(tag)) j.tags = j.tags.filter(t => t !== tag);
-            else { if (j.tags.length >= 2) j.tags.shift(); j.tags.push(tag); }
+            if (j.tags && j.tags.includes(tag)) j.tags = j.tags.filter(t => t !== tag);
+            else { if (!j.tags) j.tags = []; if (j.tags.length >= 2) j.tags.shift(); j.tags.push(tag); }
             transaction.set(docRef, { tags: j.tags }, { merge: true });
         });
     }));
@@ -304,7 +341,8 @@ async function renderWeek() {
         btn.addEventListener("click", () => { selDate = d; renderJournal(); });
         chips.appendChild(btn);
     }
-    $("#weekSum").textContent = `週 走行距離: ${sumWeekKm(selDate).toFixed(1)} km`;
+    const sum = await sumWeekKm(selDate);
+    $("#weekSum").textContent = `週 走行距離: ${sum.toFixed(1)} km`;
     $("#weekMonthLabel").textContent = `${selDate.getMonth() + 1}月`;
 }
 
