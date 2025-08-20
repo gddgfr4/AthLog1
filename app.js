@@ -445,13 +445,17 @@ function renderPlans() {
     populatePlanScopeSelect();
     if (unsubscribePlans) unsubscribePlans();
     const mon = $("#planMonthPick").value;
-    unsubscribePlans = getPlansCollectionRef(teamId).where('month', '==', mon).onSnapshot(snapshot => {
+    unsubscribePlans = db.collectionGroup('events').where('month', '==', mon).onSnapshot(snapshot => {
         const allPlans = {};
-        snapshot.docs.forEach(doc => {
-            const data = doc.data();
-            if (!allPlans[data.day]) allPlans[data.day] = [];
-            allPlans[data.day].push({ id: doc.id, ...data });
-        });
+snapshot.docs.forEach(doc => {
+    const data = doc.data();
+    // 既存データとの後方互換: team フィールドがある場合のみチームを一致で絞る
+    if (data.team && data.team !== teamId) return;
+    const dayKey = data.day;  // ex) '2025-08-20'
+    if (!allPlans[dayKey]) allPlans[dayKey] = [];
+    allPlans[dayKey].push({ id: doc.id, ...data });
+});
+
         
         const box = $("#planList"); if(!box) return;
         box.innerHTML = "";
@@ -835,3 +839,4 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
 });
+
