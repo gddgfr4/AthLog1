@@ -927,7 +927,11 @@ function initDashboard() {
     const prevBtn = $("#distChartPrev");
     const nextBtn = $("#distChartNext");
     if (toggleBtn) toggleBtn.addEventListener('click', () => {
-        dashboardMode = dashboardMode === 'month' ? 'week' : 'month';
+        dashboardMode = (dashboardMode === 'month')
+          ? 'week'
+          : (dashboardMode === 'week')
+            ? 'day'
+            : 'month';
         dashboardOffset = 0;
         renderDashboard();
     });
@@ -991,6 +995,24 @@ async function renderDistanceChart() {
             chartData.unshift(weeklyTotal.toFixed(1));
         }
     }
+
+    } else { // 'day'：日別ビュー
+      $("#distChartTitle").textContent = "日別走行距離グラフ";
+      const windowLen = 14; // 表示本数（必要なら 30 などに変更可）
+
+      const today = new Date();
+  // dashboardOffset に応じて 14 日ずつページ送り
+      const end = addDays(today, dashboardOffset * windowLen);
+      const start = addDays(end, -windowLen + 1);
+
+      for (let i = 0; i < windowLen; i++) {
+      const d = addDays(start, i);
+      labels.push(`${d.getMonth() + 1}/${d.getDate()}`);
+      const dayData = journal[ymd(d)];
+      chartData.push(Number(dayData?.dist || 0).toFixed(1));
+    }
+  }
+
 
     if (distanceChart) distanceChart.destroy();
     distanceChart = new Chart(ctx, {
@@ -1208,6 +1230,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
 });
 });
+
 
 
 
