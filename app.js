@@ -1075,7 +1075,11 @@ window.addEventListener("hashchange", () => { closePlanModal(); });
             memberId = last.member;
             viewingMemberId = last.member;
             await getMembersRef(teamId).doc(memberId).set({ name: memberId }, { merge: true });
-            showApp();
+            await showApp();
+            selDate = new Date();
+            const dp = document.getElementById("datePicker");
+            if (dp) dp.value = ymd(selDate);
+            renderJournal();
         }
     } catch (e) {
         console.error("Failed to auto-login from saved session:", e);
@@ -1095,7 +1099,12 @@ async function doLogin() {
     const lg = $("#login"); if (lg) { lg.classList.add("hidden"); lg.style.display = "none"; }
     const app = $("#app"); if (app) { app.classList.remove("hidden"); }
     try {
-        showApp();
+      await showApp();
+
+      selDate = new Date();
+      const dp = document.getElementById("datePicker");
+      if (dp) dp.value = ymd(selDate);
+      renderJournal();
     } catch (e) {
         console.error("Error during app initialization:", e);
         alert("アプリの起動中にエラーが発生しました。HTMLファイルが最新でない可能性があります。");
@@ -1199,6 +1208,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
 });
 });
+
 
 
 
