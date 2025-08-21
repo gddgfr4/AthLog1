@@ -950,77 +950,88 @@ function renderDashboard() {
 }
 
 async function renderDistanceChart() {
-    const ctx = $('#distanceChart')?.getContext('2d');
-    if (!ctx) return;
-    
-    const toggleBtn = $("#distChartToggle");
-    toggleBtn.textContent = dashboardMode === 'month' ? '月' : '週';
-    
-    const labels = [];
-    const chartData = [];
-    const journalSnaps = await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
-    const journal = {};
-    journalSnaps.forEach(doc => journal[doc.id] = doc.data());
-    
-    if (dashboardMode === 'month') {
-        $("#distChartTitle").textContent = "月間走行距離グラフ";
-        const monthlyTotals = {};
-        for (const ymdStr in journal) {
-            const monthStr = ymdStr.substring(0, 7);
-            monthlyTotals[monthStr] = (monthlyTotals[monthStr] || 0) + Number(journal[ymdStr].dist || 0);
-        }
-        const targetMonth = new Date();
-        targetMonth.setMonth(targetMonth.getMonth() + dashboardOffset);
-        for (let i = 5; i >= 0; i--) {
-            const d = new Date(targetMonth);
-            d.setMonth(d.getMonth() - i);
-            const month = getMonthStr(d);
-            labels.push(month);
-            chartData.push((monthlyTotals[month] || 0).toFixed(1));
-        }
-    } else { // week mode
-        $("#distChartTitle").textContent = "週間走行距離グラフ";
-        const today = new Date();
-        const currentWeekStart = startOfWeek(today);
-        const targetWeekStart = addDays(currentWeekStart, dashboardOffset * 7);
-        for (let i = 5; i >= 0; i--) {
-            const weekStart = addDays(targetWeekStart, -i * 7);
-            labels.unshift(`${ymd(weekStart).slice(5)}~`);
-            let weeklyTotal = 0;
-            for (let j = 0; j < 7; j++) {
-                const day = addDays(weekStart, j);
-                const dayData = journal[ymd(day)];
-                if (dayData) weeklyTotal += Number(dayData.dist || 0);
-            }
-            chartData.unshift(weeklyTotal.toFixed(1));
-        }
+  const ctx = $('#distanceChart')?.getContext('2d');
+  if (!ctx) return;
+
+  // トグルボタンの表示（現在モード）
+  const toggleBtn = $("#distChartToggle");
+  toggleBtn.textContent =
+    (dashboardMode === 'month') ? '月' :
+    (dashboardMode === 'week')  ? '週' : '日';
+
+  const labels = [];
+  const chartData = [];
+
+  // 全日誌を一度取得してから集計
+  const journalSnaps = await db.collection('teams')
+    .doc(teamId).collection('members').doc(viewingMemberId)
+    .collection('journal').get();
+  const journal = {};
+  journalSnaps.forEach(doc => journal[doc.id] = doc.data());
+
+  if (dashboardMode === 'month') {
+    $("#distChartTitle").textContent = "月間走行距離グラフ";
+    const monthlyTotals = {};
+    for (const ymdStr in journal) {
+      const mon = ymdStr.substring(0, 7);
+      monthlyTotals[mon] = (monthlyTotals[mon] || 0) + Number(journal[ymdStr].dist || 0);
+    }
+    const targetMonth = new Date();
+    targetMonth.setMonth(targetMonth.getMonth() + dashboardOffset);
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(targetMonth);
+      d.setMonth(d.getMonth() - i);
+      const mon = getMonthStr(d);
+      labels.push(mon);
+      chartData.push((monthlyTotals[mon] || 0).toFixed(1));
     }
 
-    } else { // 'day'：日別ビュー
-      $("#distChartTitle").textContent = "日別走行距離グラフ";
-      const windowLen = 14; // 表示本数（必要なら 30 などに変更可）
+  } else if (dashboardMode === 'week') {
+    $("#distChartTitle").textContent = "週間走行距離グラフ";
+    const today = new Date();
+    const currentWeekStart = startOfWeek(today);
+    const targetWeekStart = addDays(currentWeekStart, dashboardOffset * 7);
+    for (let i = 5; i >= 0; i--) {
+      const weekStart = addDays(targetWeekStart, -i * 7);
+      labels.push(`${ymd(weekStart).slice(5)}~`);
+      let weeklyTotal = 0;
+      for (let j = 0; j < 7; j++) {
+        const day = addDays(weekStart, j);
+        weeklyTotal += Number(journal[ymd(day)]?.dist || 0);
+      }
+      chartData.push(weeklyTotal.toFixed(1));
+    }
 
-      const today = new Date();
-  // dashboardOffset に応じて 14 日ずつページ送り
-      const end = addDays(today, dashboardOffset * windowLen);
-      const start = addDays(end, -windowLen + 1);
-
-      for (let i = 0; i < windowLen; i++) {
+  } else { // 'day' 日別ビュー
+    $("#distChartTitle").textContent = "日別走行距離グラフ";
+    const windowLen = 14; // 本数（必要なら 30 などへ）
+    const today = new Date();
+    const end = addDays(today, dashboardOffset * windowLen);
+    const start = addDays(end, -windowLen + 1);
+    for (let i = 0; i < windowLen; i++) {
       const d = addDays(start, i);
       labels.push(`${d.getMonth() + 1}/${d.getDate()}`);
-      const dayData = journal[ymd(d)];
-      chartData.push(Number(dayData?.dist || 0).toFixed(1));
+      chartData.push(Number(journal[ymd(d)]?.dist || 0).toFixed(1));
     }
   }
 
-
-    if (distanceChart) distanceChart.destroy();
-    distanceChart = new Chart(ctx, {
-        type: 'bar',
-        data: { labels, datasets: [{ label: '走行距離 (km)', data: chartData, backgroundColor: 'rgba(79, 70, 229, 0.5)', borderColor: 'rgba(79, 70, 229, 1)', borderWidth: 1 }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-    });
+  if (distanceChart) distanceChart.destroy();
+  distanceChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: '走行距離 (km)',
+        data: chartData,
+        backgroundColor: 'rgba(79, 70, 229, 0.5)',
+        borderColor: 'rgba(79, 70, 229, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+  });
 }
+
 
 async function renderConditionChart() {
     const ctx = $('#conditionChart')?.getContext('2d');
@@ -1230,6 +1241,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
 });
 });
+
 
 
 
