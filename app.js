@@ -79,30 +79,96 @@ async function sumWeekKm(d) {
     return s;
 }
 
-async function weekAIComment(d) {
-    const wkm = await sumWeekKm(d);
-    const dates = getWeekDates(d);
-    let fatigueScore = 0; 
-    
-    for(const dt of dates) {
-        const doc = await getJournalRef(teamId, viewingMemberId, dt).get();
-        if (!doc.exists) continue;
-        const j = doc.data();
-        if (!j || !j.paint) continue;
-        j.paint.forEach(stroke => {
-            if (stroke.erase) return;
-            fatigueScore += (stroke.lvl || 1);
-        });
+async function weekAIComment(d){
+  const start = startOfWeek(d);
+  const end   = addDays(start, 6);
+  return await makeAICommentForPeriod({ teamId, memberId: viewingMemberId, start, end, label: '週' });
+}
+
+
+async function renderDistanceChart() {
+  const ctx = $('#distanceChart')?.getContext('2d');
+  if (!ctx) return;
+
+  // トグルボタンの表示（現在モード）
+  const toggleBtn = $("#distChartToggle");
+  toggleBtn.textContent =
+    (dashboardMode === 'month') ? '月' :
+    (dashboardMode === 'week')  ? '週' : '日';
+
+  const labels = [];
+  const chartData = [];
+
+  // 全日誌を一度取得してから集計
+  const journalSnaps = await db.collection('teams')
+    .doc(teamId).collection('members').doc(viewingMemberId)
+    .collection('journal').get();
+  const journal = {};
+  journalSnaps.forEach(doc => journal[doc.id] = doc.data());
+
+  if (dashboardMode === 'month') {
+    $("#distChartTitle").textContent = "月間走行距離グラフ";
+    const monthlyTotals = {};
+    for (const ymdStr in journal) {
+      const mon = ymdStr.substring(0, 7);
+      monthlyTotals[mon] = (monthlyTotals[mon] || 0) + Number(journal[ymdStr].dist || 0);
+    }
+    const targetMonth = new Date();
+    targetMonth.setMonth(targetMonth.getMonth() + dashboardOffset);
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(targetMonth);
+      d.setMonth(d.getMonth() - i);
+      const mon = getMonthStr(d);
+      labels.push(mon);
+      chartData.push((monthlyTotals[mon] || 0).toFixed(1));
     }
 
-    let distMsg = wkm > 80 ? "走行距離が多く、ハイボリュームな週でした。" : wkm > 50 ? "良いペースで走行距離を積めています。" : "走行距離は控えめでした。";
-    let fatigueMsg = "";
-    if (fatigueScore > 40) fatigueMsg = "また、強い筋肉疲労が蓄積しているようです。回復を最優先に考えましょう。";
-    else if (fatigueScore > 20) fatigueMsg = "筋肉の疲労感も見られるため、ストレッチなどのケアを意識すると良いでしょう。";
-    else if (wkm > 10) fatigueMsg = "身体のコンディションは良好のようです。";
-    
-    return `【週分析AI】総距離は${wkm.toFixed(1)}km。${distMsg} ${fatigueMsg}`;
+  } else if (dashboardMode === 'week') {
+    $("#distChartTitle").textContent = "週間走行距離グラフ";
+    const today = new Date();
+    const currentWeekStart = startOfWeek(today);
+    const targetWeekStart = addDays(currentWeekStart, dashboardOffset * 7);
+    for (let i = 5; i >= 0; i--) {
+      const weekStart = addDays(targetWeekStart, -i * 7);
+      labels.push(`${ymd(weekStart).slice(5)}~`);
+      let weeklyTotal = 0;
+      for (let j = 0; j < 7; j++) {
+        const day = addDays(weekStart, j);
+        weeklyTotal += Number(journal[ymd(day)]?.dist || 0);
+      }
+      chartData.push(weeklyTotal.toFixed(1));
+    }
+
+  } else { // 'day' 日別ビュー
+    $("#distChartTitle").textContent = "日別走行距離グラフ";
+    const windowLen = 14; // 本数（必要なら 30 などへ）
+    const today = new Date();
+    const end = addDays(today, dashboardOffset * windowLen);
+    const start = addDays(end, -windowLen + 1);
+    for (let i = 0; i < windowLen; i++) {
+      const d = addDays(start, i);
+      labels.push(`${d.getMonth() + 1}/${d.getDate()}`);
+      chartData.push(Number(journal[ymd(d)]?.dist || 0).toFixed(1));
+    }
+  }
+
+  if (distanceChart) distanceChart.destroy();
+  distanceChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: '走行距離 (km)',
+        data: chartData,
+        backgroundColor: 'rgba(79, 70, 229, 0.5)',
+        borderColor: 'rgba(79, 70, 229, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+  });
 }
+
 
 // ---- Team Memo paging state ----
 let memoPageSize = 30;        // 1ページ(表示初期/追加読込)の件数
@@ -950,22 +1016,22 @@ function renderDashboard() {
 }
 
 async function renderDistanceChart() {
-  const ctx = $('#distanceChart')?.getContext('2d');
-  if (!ctx) return;
+  const cvs = document.getElementById('distanceChart');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
 
-  // トグルボタンの表示（現在モード）
   const toggleBtn = $("#distChartToggle");
-  toggleBtn.textContent =
-    (dashboardMode === 'month') ? '月' :
-    (dashboardMode === 'week')  ? '週' : '日';
+  if (toggleBtn) {
+    toggleBtn.textContent = (dashboardMode === 'month') ? '週に切替'
+                         : (dashboardMode === 'week')  ? '日に切替'
+                         : '月に切替';
+  }
 
   const labels = [];
   const chartData = [];
-
-  // 全日誌を一度取得してから集計
-  const journalSnaps = await db.collection('teams')
-    .doc(teamId).collection('members').doc(viewingMemberId)
-    .collection('journal').get();
+  const journalSnaps = await db.collection('teams').doc(teamId)
+      .collection('members').doc(viewingMemberId)
+      .collection('journal').get();
   const journal = {};
   journalSnaps.forEach(doc => journal[doc.id] = doc.data());
 
@@ -973,19 +1039,18 @@ async function renderDistanceChart() {
     $("#distChartTitle").textContent = "月間走行距離グラフ";
     const monthlyTotals = {};
     for (const ymdStr in journal) {
-      const mon = ymdStr.substring(0, 7);
-      monthlyTotals[mon] = (monthlyTotals[mon] || 0) + Number(journal[ymdStr].dist || 0);
+      const monthStr = ymdStr.substring(0, 7);
+      monthlyTotals[monthStr] = (monthlyTotals[monthStr] || 0) + Number(journal[ymdStr].dist || 0);
     }
     const targetMonth = new Date();
     targetMonth.setMonth(targetMonth.getMonth() + dashboardOffset);
     for (let i = 5; i >= 0; i--) {
       const d = new Date(targetMonth);
       d.setMonth(d.getMonth() - i);
-      const mon = getMonthStr(d);
-      labels.push(mon);
-      chartData.push((monthlyTotals[mon] || 0).toFixed(1));
+      const month = getMonthStr(d);
+      labels.push(month);
+      chartData.push(Number(monthlyTotals[month] || 0).toFixed(1));
     }
-
   } else if (dashboardMode === 'week') {
     $("#distChartTitle").textContent = "週間走行距離グラフ";
     const today = new Date();
@@ -997,39 +1062,34 @@ async function renderDistanceChart() {
       let weeklyTotal = 0;
       for (let j = 0; j < 7; j++) {
         const day = addDays(weekStart, j);
-        weeklyTotal += Number(journal[ymd(day)]?.dist || 0);
+        const dayData = journal[ymd(day)];
+        if (dayData) weeklyTotal += Number(dayData.dist || 0);
       }
       chartData.push(weeklyTotal.toFixed(1));
     }
-
-  } else { // 'day' 日別ビュー
+  } else { // 'day'
     $("#distChartTitle").textContent = "日別走行距離グラフ";
-    const windowLen = 14; // 本数（必要なら 30 などへ）
+    const windowLen = 14;
     const today = new Date();
     const end = addDays(today, dashboardOffset * windowLen);
     const start = addDays(end, -windowLen + 1);
     for (let i = 0; i < windowLen; i++) {
       const d = addDays(start, i);
       labels.push(`${d.getMonth() + 1}/${d.getDate()}`);
-      chartData.push(Number(journal[ymd(d)]?.dist || 0).toFixed(1));
+      const dayData = journal[ymd(d)];
+      chartData.push(Number(dayData?.dist || 0).toFixed(1));
     }
   }
 
   if (distanceChart) distanceChart.destroy();
   distanceChart = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: '走行距離 (km)',
-        data: chartData,
-        backgroundColor: 'rgba(79, 70, 229, 0.5)',
-        borderColor: 'rgba(79, 70, 229, 1)',
-        borderWidth: 1
-      }]
-    },
+    data: { labels, datasets: [{ label: '走行距離 (km)', data: chartData, backgroundColor: 'rgba(79, 70, 229, 0.5)', borderColor: 'rgba(79, 70, 229, 1)', borderWidth: 1 }] },
     options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
   });
+
+  // 可視範囲のAI要約（＆自動メモ投稿）
+  renderDashboardInsight();
 }
 
 
@@ -1241,6 +1301,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
 });
 });
+
 
 
 
