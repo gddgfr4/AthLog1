@@ -79,94 +79,65 @@ async function sumWeekKm(d) {
     return s;
 }
 
+
+// === Insight helpers（AIコメント用の最小実装） ===
+async function getPeriodStats({ teamId, memberId, start, end }) {
+  let distance = 0;
+  let fatigueScore = 0;
+  let condSum = 0, condCount = 0;
+  const tagCount = {};
+
+  for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
+    const snap = await getJournalRef(teamId, memberId, d).get();
+    if (!snap.exists) continue;
+    const j = snap.data() || {};
+    distance += Number(j.dist || 0);
+
+    if (Array.isArray(j.paint)) {
+      fatigueScore += j.paint.reduce((acc, s) => acc + (s.erase ? 0 : (s.lvl || 1)), 0);
+    }
+    if (Array.isArray(j.tags)) {
+      j.tags.forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; });
+    }
+    if (typeof j.condition === 'number') {
+      condSum += j.condition; condCount++;
+    }
+  }
+
+  const topTags = Object.entries(tagCount).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([t])=>t);
+  const avgCond = condCount ? (condSum/condCount) : null;
+  return { distance, fatigueScore, topTags, avgCond };
+}
+
+function fatigueLevel(score) {
+  if (score > 40) return '高';
+  if (score > 20) return '中';
+  if (score > 0)  return '低';
+  return 'なし';
+}
+
+async function makeAICommentForPeriod({ teamId, memberId, start, end, label='期間' }) {
+  const { distance, fatigueScore, topTags, avgCond } = await getPeriodStats({ teamId, memberId, start, end });
+
+  const distMsg =
+    distance > 80 ? 'ハイボリューム' :
+    distance > 50 ? '良い積み上げ'   : '距離は控えめ';
+
+  const condMsg = (avgCond != null) ? `平均コンディション${avgCond.toFixed(1)}。` : '';
+  const tagMsg  = topTags.length ? `主な内容：${topTags.join(' / ')}。` : '';
+  let fatigueMsg = '';
+  if (fatigueScore > 40) fatigueMsg = '強い疲労の兆候。回復を最優先に。';
+  else if (fatigueScore > 20) fatigueMsg = 'やや疲労。ストレッチ等のケアを。';
+  else if (distance > 10)     fatigueMsg = '概ね良好。';
+
+  return `【${label}分析AI】総距離${distance.toFixed(1)}km（${distMsg}）。${condMsg}${tagMsg} 疲労度:${fatigueLevel(fatigueScore)}。${fatigueMsg}`;
+}
+
+
 async function weekAIComment(d){
   const start = startOfWeek(d);
   const end   = addDays(start, 6);
   return await makeAICommentForPeriod({ teamId, memberId: viewingMemberId, start, end, label: '週' });
-}
-
-
-async function renderDistanceChart() {
-  const ctx = $('#distanceChart')?.getContext('2d');
-  if (!ctx) return;
-
-  // トグルボタンの表示（現在モード）
-  const toggleBtn = $("#distChartToggle");
-  toggleBtn.textContent =
-    (dashboardMode === 'month') ? '月' :
-    (dashboardMode === 'week')  ? '週' : '日';
-
-  const labels = [];
-  const chartData = [];
-
-  // 全日誌を一度取得してから集計
-  const journalSnaps = await db.collection('teams')
-    .doc(teamId).collection('members').doc(viewingMemberId)
-    .collection('journal').get();
-  const journal = {};
-  journalSnaps.forEach(doc => journal[doc.id] = doc.data());
-
-  if (dashboardMode === 'month') {
-    $("#distChartTitle").textContent = "月間走行距離グラフ";
-    const monthlyTotals = {};
-    for (const ymdStr in journal) {
-      const mon = ymdStr.substring(0, 7);
-      monthlyTotals[mon] = (monthlyTotals[mon] || 0) + Number(journal[ymdStr].dist || 0);
-    }
-    const targetMonth = new Date();
-    targetMonth.setMonth(targetMonth.getMonth() + dashboardOffset);
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(targetMonth);
-      d.setMonth(d.getMonth() - i);
-      const mon = getMonthStr(d);
-      labels.push(mon);
-      chartData.push((monthlyTotals[mon] || 0).toFixed(1));
-    }
-
-  } else if (dashboardMode === 'week') {
-    $("#distChartTitle").textContent = "週間走行距離グラフ";
-    const today = new Date();
-    const currentWeekStart = startOfWeek(today);
-    const targetWeekStart = addDays(currentWeekStart, dashboardOffset * 7);
-    for (let i = 5; i >= 0; i--) {
-      const weekStart = addDays(targetWeekStart, -i * 7);
-      labels.push(`${ymd(weekStart).slice(5)}~`);
-      let weeklyTotal = 0;
-      for (let j = 0; j < 7; j++) {
-        const day = addDays(weekStart, j);
-        weeklyTotal += Number(journal[ymd(day)]?.dist || 0);
-      }
-      chartData.push(weeklyTotal.toFixed(1));
-    }
-
-  } else { // 'day' 日別ビュー
-    $("#distChartTitle").textContent = "日別走行距離グラフ";
-    const windowLen = 14; // 本数（必要なら 30 などへ）
-    const today = new Date();
-    const end = addDays(today, dashboardOffset * windowLen);
-    const start = addDays(end, -windowLen + 1);
-    for (let i = 0; i < windowLen; i++) {
-      const d = addDays(start, i);
-      labels.push(`${d.getMonth() + 1}/${d.getDate()}`);
-      chartData.push(Number(journal[ymd(d)]?.dist || 0).toFixed(1));
-    }
-  }
-
-  if (distanceChart) distanceChart.destroy();
-  distanceChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: '走行距離 (km)',
-        data: chartData,
-        backgroundColor: 'rgba(79, 70, 229, 0.5)',
-        borderColor: 'rgba(79, 70, 229, 1)',
-        borderWidth: 1
-      }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-  });
 }
 
 
@@ -987,6 +958,19 @@ async function collectPlansTextForDay(day, scopeSel) {
     return list.join("\n");
 }
 
+async function collectPlansTypesForDay(day, scopeSel) {
+  const dayKey = ymd(day);
+  let q = getPlansCollectionRef(teamId).doc(dayKey).collection('events');
+  if (scopeSel === memberId) q = q.where('mem', '==', memberId);
+  if (scopeSel === 'team')   q = q.where('scope', '==', 'team');
+
+  const snap = await q.get();
+  const set = new Set();
+  snap.docs.forEach(d => { const it = d.data(); if (it?.type) set.add(it.type); });
+  return Array.from(set);
+}
+
+
 // ===== NEW: Dashboard =====
 function initDashboard() {
     const toggleBtn = $("#distChartToggle");
@@ -1301,6 +1285,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
 });
 });
+
 
 
 
