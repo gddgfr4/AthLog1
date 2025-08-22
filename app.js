@@ -67,16 +67,81 @@ function getWeekDates(d) {
     const s = startOfWeek(d);
     return [...Array(7).keys()].map(i => addDays(s, i));
 }
+
 async function sumWeekKm(d) {
-    const dates = getWeekDates(d);
-    let s = 0;
-    for(const dt of dates) {
-        const doc = await getJournalRef(teamId, viewingMemberId, dt).get();
-        if (doc.exists) {
-            s += Number(doc.data().dist || 0);
-        }
+  const dates = getWeekDates(d);
+  let s = 0;
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  for (const dt of dates) {
+    const doc = await getJournalRef(srcTeam, viewingMemberId, dt).get(); // ★ここ
+    if (doc.exists) s += Number(doc.data().dist || 0);
+  }
+  return s;
+}
+
+
+// ===== Main/Sub helpers =====
+// 複数所属プロファイルをローカルに保持（[{team, member}]）
+function getProfiles() {
+  try { return JSON.parse(localStorage.getItem('athlog:profiles') || '[]'); }
+  catch { return []; }
+}
+function upsertProfile(team, member) {
+  const arr = getProfiles();
+  if (!arr.some(p => p.team === team && p.member === member)) {
+    arr.push({ team, member });
+    localStorage.setItem('athlog:profiles', JSON.stringify(arr));
+  }
+}
+
+function getMainTeamOf(user) {
+  try {
+    const map = JSON.parse(localStorage.getItem('athlog:mainTeamByUser') || '{}');
+    return map[user] || null;
+  } catch { return null; }
+}
+function setMainTeamOf(user, team) {
+  const map = JSON.parse(localStorage.getItem('athlog:mainTeamByUser') || '{}');
+  map[user] = team;
+  localStorage.setItem('athlog:mainTeamByUser', JSON.stringify(map));
+}
+
+// サブ側のメンバーDocに mirrorFromTeamId を付ける（既知の所属に対して）
+async function applyMirrorFlagsForUser(user, mainTeam) {
+  const myTeams = getProfiles().filter(p => p.member === user).map(p => p.team);
+  for (const t of myTeams) {
+    const ref = getMembersRef(t).doc(user);
+    if (t === mainTeam) {
+      await ref.set({ mirrorFromTeamId: firebase.firestore.FieldValue.delete() }, { merge: true });
+    } else {
+      await ref.set({ mirrorFromTeamId: mainTeam }, { merge: true });
     }
-    return s;
+  }
+}
+
+// 表示元チーム（サブなら mirror 先、なければ現在チーム）
+async function getViewSourceTeamId(currTeam, member) {
+  try {
+    const snap = await getMembersRef(currTeam).doc(member).get();
+    return snap.data()?.mirrorFromTeamId || currTeam;
+  } catch { return currTeam; }
+}
+
+// ここで編集可否を一発判定
+function isEditableHere(currTeam, myUser, viewingUser) {
+  if (viewingUser !== myUser) return false;           // 自分以外を見ている
+  const main = getMainTeamOf(myUser);
+  if (!main) return true;                              // まだ未設定なら従来どおり編集可
+  return currTeam === main;                            // メインのチームでのみ編集可
+}
+
+// メイン切替のエントリ（UIから呼ぶ想定）
+async function chooseMainTeam(newMainTeam) {
+  if (!memberId || !newMainTeam) return;
+  setMainTeamOf(memberId, newMainTeam);
+  await applyMirrorFlagsForUser(memberId, newMainTeam);
+  // 再描画（購読の付け直し）
+  switchTab($(".tab.active")?.dataset.tab, true);
 }
 
 
@@ -216,6 +281,37 @@ async function showApp() {
     switchTab("journal");
     checkNewMemo();
 }
+
+function initTeamSwitcher() {
+  const sel = document.getElementById('teamSwitchSelect');
+  const btn = document.getElementById('setAsMainBtn');
+  if (!sel || !btn) return;
+
+  const profiles = getProfiles().filter(p => p.member === memberId);
+  sel.innerHTML = profiles.map(p => {
+    const isMain = getMainTeamOf(memberId) === p.team;
+    return `<option value="${p.team}" ${p.team===teamId?'selected':''}>
+      ${p.team}${isMain?'（メイン）':''}
+    </option>`;
+  }).join('');
+
+  sel.onchange = async (e) => {
+    // チーム切替：購読付け直し
+    teamId = e.target.value;
+    $("#teamLabel").textContent = teamId;
+    await populateMemberSelect();     // 既存
+    switchTab($(".tab.active")?.dataset.tab, true);
+  };
+
+  btn.onclick = async () => {
+    const newMain = sel.value;
+    await chooseMainTeam(newMain);
+    initTeamSwitcher(); // 表示更新
+  };
+}
+// showApp() の最後で
+initTeamSwitcher();
+
 
 function switchTab(id, forceRender = false) {
     if (!forceRender && $(".tab.active")?.dataset.tab === id) return;
@@ -436,42 +532,52 @@ $$(".qbtn").forEach(b => b.addEventListener("click", async () => {
 }
 
 async function renderJournal() {
-    if (unsubscribeJournal) unsubscribeJournal();
+  if (unsubscribeJournal) unsubscribeJournal();
+  if (!viewingMemberId) viewingMemberId = memberId;
 
-    if (!viewingMemberId) viewingMemberId = memberId;
+  dirty = { dist:false, train:false, feel:false };
 
-    dirty = { dist:false, train:false, feel:false };
-
-    const isReadOnly = viewingMemberId !== memberId;
-    $$('#journal input, #journal textarea, #journal .qbtn, #saveBtn, #mergeBtn, #conditionBtns button, .palette button').forEach(el => {
-        const isNavControl = ['weekPrev', 'weekNext', 'gotoToday', 'datePicker'].includes(el.id);
-        if (!isNavControl) el.disabled = isReadOnly;
+  // ★ メイン/サブに基づく編集可否
+  const editableHere = isEditableHere(teamId, memberId, viewingMemberId);
+  $$('#journal input, #journal textarea, #journal .qbtn, #saveBtn, #mergeBtn, #conditionBtns button, .palette button')
+    .forEach(el => {
+      const isNavControl = ['weekPrev','weekNext','gotoToday','datePicker'].includes(el.id);
+      if (!isNavControl) el.disabled = !editableHere;
     });
-    if ($('#paint')) $('#paint').style.pointerEvents = isReadOnly ? 'none' : 'auto';
-    
-    const mergeScopeSelect = $("#mergeScope");
-    if (mergeScopeSelect) {
-        mergeScopeSelect.innerHTML = `<option value="auto">予定から追加(自動)</option><option value="${memberId}">${memberId}の予定</option><option value="team">全員の予定</option>`;
-    }
+  if ($('#paint')) $('#paint').style.pointerEvents = editableHere ? 'auto' : 'none';
 
-    $("#datePicker").value = ymd(selDate);
-    renderWeek();
+  const mergeScopeSelect = $("#mergeScope");
+  if (mergeScopeSelect) {
+    mergeScopeSelect.innerHTML =
+      `<option value="auto">予定から追加(自動)</option>
+       <option value="${memberId}">${memberId}の予定</option>
+       <option value="team">全員の予定</option>`;
+  }
 
-    unsubscribeJournal = getJournalRef(teamId, viewingMemberId, selDate).onSnapshot(doc => {
-        const j = doc.data() || { dist: 0, train: "", feel: "", tags: [], paint: [], condition: null };
-        if (!dirty.dist)  { $("#distInput").value  = j.dist ?? ""; }
-        if (!dirty.train) { $("#trainInput").value = j.train ?? ""; }
-        if (!dirty.feel)  { $("#feelInput").value  = j.feel ?? ""; }
+  $("#datePicker").value = ymd(selDate);
 
-        
-        $$('#conditionBtns button').forEach(b => b.classList.remove('active'));
-        if (j.condition) $(`#conditionBtns button[data-val="${j.condition}"]`)?.classList.add('active');
-        
-        renderPaint(j); 
-        renderQuickButtons(j);
-        weekAIComment(selDate).then(comment => $("#aiBox").textContent = comment);
-    });
+  // ★ この週の集計/ボタン描画も「表示元チーム」で
+  await renderWeek();
+
+  // ★ 表示元チームで購読
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  unsubscribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc => {
+    const j = doc.data() || { dist: 0, train: "", feel: "", tags: [], paint: [], condition: null };
+    if (!dirty.dist)  { $("#distInput").value  = j.dist ?? ""; }
+    if (!dirty.train) { $("#trainInput").value = j.train ?? ""; }
+    if (!dirty.feel)  { $("#feelInput").value  = j.feel ?? ""; }
+
+    $$('#conditionBtns button').forEach(b => b.classList.remove('active'));
+    if (j.condition) $(`#conditionBtns button[data-val="${j.condition}"]`)?.classList.add('active');
+
+    renderPaint(j);
+    renderQuickButtons(j);
+
+    // 週コメント（現状版）
+    weekAIComment(selDate).then(comment => $("#aiBox").textContent = comment);
+  });
 }
+
 
 function renderPaint(j) {
     if (!ctx) return;
@@ -494,30 +600,34 @@ function renderPaint(j) {
 function drawLive() { renderPaint(); }
 
 async function renderWeek() {
-    const chips = $("#weekChips"); if (!chips) return;
-    chips.innerHTML = "";
-    const days = getWeekDates(selDate);
-    for (const d of days) {
-        const key = ymd(d);
-        const doc = await getJournalRef(teamId, viewingMemberId, d).get();
-        const j = doc.data() || {};
-        const btn = document.createElement("button");
-        btn.className = "chip" + (ymd(selDate) === key ? " active" : "");
-        const tags = j.tags || [];
-        btn.innerHTML = `<div>${["日", "月", "火", "水", "木", "金", "土"][d.getDay()]} ${d.getDate()}</div><div class="km">${(j.dist || 0)}km</div>`;
-        btn.style.background = ''; btn.style.color = '';
-        if (tags.length) {
-            const map = { ジョグ: "var(--q-jog)", ポイント: "var(--q-point)", 補強: "var(--q-sup)", オフ: "var(--q-off)", その他: "var(--q-other)" };
-            btn.style.color = '#1f2937';
-            if (tags.length == 1) btn.style.backgroundColor = map[tags[0]];
-            else btn.style.background = `linear-gradient(90deg, ${map[tags[0]]} 50%, ${map[tags[1]]} 50%)`;
-        }
-        btn.addEventListener("click", () => { selDate = d; renderJournal(); });
-        chips.appendChild(btn);
+  const chips = $("#weekChips"); if (!chips) return;
+  chips.innerHTML = "";
+  const days = getWeekDates(selDate);
+
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+
+  for (const d of days) {
+    const key = ymd(d);
+    const doc = await getJournalRef(srcTeam, viewingMemberId, d).get(); // ★ここ
+    const j = doc.data() || {};
+    const btn = document.createElement("button");
+    btn.className = "chip" + (ymd(selDate) === key ? " active" : "");
+    const tags = j.tags || [];
+    btn.innerHTML = `<div>${["日","月","火","水","木","金","土"][d.getDay()]} ${d.getDate()}</div><div class="km">${(j.dist || 0)}km</div>`;
+    btn.style.background = ''; btn.style.color = '';
+    if (tags.length) {
+      const map = { ジョグ:"var(--q-jog)", ポイント:"var(--q-point)", 補強:"var(--q-sup)", オフ:"var(--q-off)", その他:"var(--q-other)" };
+      btn.style.color = '#1f2937';
+      if (tags.length == 1) btn.style.backgroundColor = map[tags[0]];
+      else btn.style.background = `linear-gradient(90deg, ${map[tags[0]]} 50%, ${map[tags[1]]} 50%)`;
     }
-    const sum = await sumWeekKm(selDate);
-    $("#weekSum").textContent = `週 走行距離: ${sum.toFixed(1)} km`;
+    btn.addEventListener("click", () => { selDate = d; renderJournal(); });
+    chips.appendChild(btn);
+  }
+  const sum = await sumWeekKm(selDate); // ← sumWeekKm は viewingMemberId/srcTeam を内部で参照するなら合わせて調整（下に差分あり）
+  $("#weekSum").textContent = `週 走行距離: ${sum.toFixed(1)} km`;
 }
+
 
 function renderQuickButtons(j) {
     const currentTags = j?.tags || [];
@@ -543,17 +653,14 @@ function initMonth() {
 }
 
 async function renderMonth() {
-  // 編集可否
-  const isReadOnly = viewingMemberId !== memberId;
-  $("#monthGoalInput").disabled = isReadOnly;
-  $("#saveMonthGoalBtn").disabled = isReadOnly;
+  // ★編集可：メイン/サブで決める
+  const editableHere = isEditableHere(teamId, memberId, viewingMemberId);
+  $("#monthGoalInput").disabled = !editableHere;
+  $("#saveMonthGoalBtn").disabled = !editableHere;
 
-  // コンテナ
-  const box = $("#monthList"); 
-  if (!box) return;
+  const box = $("#monthList"); if (!box) return;
   box.innerHTML = "";
 
-  // 月決定（空なら現在月をUIにも反映）
   const mp = $("#monthPick");
   const monStr = (mp && mp.value) ? mp.value : getMonthStr(new Date());
   if (mp && !mp.value) mp.value = monStr;
@@ -561,51 +668,44 @@ async function renderMonth() {
   const [yy, mm] = monStr.split("-").map(Number);
   const lastDay = endOfMonth(new Date(yy, mm - 1, 1)).getDate();
 
-  // 先に全行を置く（失敗しても表示が残る）
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId); // ★追加
+
   let sum = 0;
   for (let d = 1; d <= lastDay; d++) {
-    const dt  = new Date(yy, mm - 1, d);
+    const dt = new Date(yy, mm - 1, d);
     const dow = ["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()];
-
     const row = document.createElement("div");
     row.className = "row";
-    row.innerHTML = `
-      <div class="dow">${dow}<br>${d}</div>
-      <div class="txt"><div>—</div></div>
-    `;
+    row.innerHTML = `<div class="dow">${dow}<br>${d}</div><div class="txt"><div>—</div></div>`;
     row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
     box.appendChild(row);
 
-    // 非同期でデータを埋める（失敗しても無視）
     (async () => {
       try {
-        const snap = await getJournalRef(teamId, viewingMemberId, dt).get();
+        const snap = await getJournalRef(srcTeam, viewingMemberId, dt).get(); // ★ここ
         const j = snap.data() || {};
-
-        // 合計距離を都度更新
         sum += Number(j.dist || 0);
         $("#monthSum").textContent = `月間走行距離: ${sum.toFixed(1)} km`;
 
         const classMap = { ジョグ:"jog", ポイント:"point", 補強:"sup", オフ:"off", その他:"other" };
         const tags = Array.isArray(j.tags) ? j.tags : [];
-        const tagsHtml = tags.length
-          ? `<div class="month-tags">${tags.map(t => `<span class="cat-tag ${classMap[t]||""}">${t}</span>`).join("")}</div>`
-          : "";
-
+        const tagsHtml = tags.length ? `<div class="month-tags">${tags.map(t => `<span class="cat-tag ${classMap[t]||""}">${t}</span>`).join("")}</div>` : "";
         const cond = j.condition;
-        const condHtml = cond
-          ? `<div class="condition-display">${Array(cond).fill(0).map(() => `<span class="star c${cond}">★</span>`).join("")}</div>`
-          : "";
+        const condHtml = cond ? `<div class="condition-display">${Array(cond).fill(0).map(() => `<span class="star c${cond}">★</span>`).join("")}</div>` : "";
 
         const txt = row.querySelector(".txt");
-        txt.innerHTML = `${tagsHtml}${condHtml}
-          <div>${(j.train || "—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span></div>`;
-      } catch (err) {
-        console.error("renderMonth day read error:", err);
-        // 取得に失敗しても row は残す（— のまま）
-      }
+        txt.innerHTML = `${tagsHtml}${condHtml}<div>${(j.train || "—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span></div>`;
+      } catch (err) { console.error("renderMonth day read error:", err); }
     })();
   }
+
+  // ★目標の読みは表示元チーム
+  try {
+    const goalDoc = await getGoalsRef(srcTeam, viewingMemberId, monStr).get(); // ★ここ
+    $("#monthGoalInput").value = goalDoc.data()?.goal || "";
+  } catch (e) { console.error("read goal error:", e); }
+}
+
 
   // 月間目標の読み込み（安全にラップ）
   try {
@@ -952,31 +1052,29 @@ function renderPlanListInModal(mon, dayKey, editCallback) {
 
 function closePlanModal() { if (modalDiv) { modalDiv.remove(); modalDiv = null; } }
 
-// 置き換え版：タイプ文字（ジョグ/ポイント…）はコピーしない
+// 予定本文取り込み（読みは表示元チーム）
 async function collectPlansTextForDay(day, scopeSel) {
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId); // ★追加
   const dayKey = ymd(day);
-  const plansRef = getPlansCollectionRef(teamId).doc(dayKey).collection('events');
-
+  const plansRef = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events'); // ★ここ
   let query = plansRef;
   if (scopeSel === memberId) query = query.where('mem', '==', memberId);
-  if (scopeSel === 'team')   query = query.where('scope', '==', 'team');
+  if (scopeSel === 'team') query = query.where('scope', '==', 'team');
 
   const snapshot = await query.get();
-
   const list = [];
   snapshot.docs.forEach(doc => {
     const it = doc.data();
     if (scopeSel === "auto") {
-      // 自動：自分の予定 + チーム共有の予定の「内容」だけを入れる
-      if (it.mem === memberId || it.scope === "team") list.push(it.content);
+      if (it.mem === memberId) list.push(`[${memberId}] ${it.type} ${it.content}`);
+      else if (it.scope === "team") list.push(`[全員] ${it.type} ${it.content}`);
     } else {
-      list.push(it.content);
+      list.push(`${it.type} ${it.content}`);
     }
   });
-
-  // 同じ内容が重複していたら削除（任意）
-  return Array.from(new Set(list)).join("\n");
+  return list.join("\n");
 }
+
 
 // 追加：その日の予定の type を集約してタグに使う
 async function collectPlansTypesForDay(day, scopeSel) {
@@ -1199,7 +1297,8 @@ async function doLogin() {
     viewingMemberId = memberId;
     if (!teamId || !memberId) { alert("Team / Member を入力"); return; }
     localStorage.setItem("athlog:last", JSON.stringify({ team: teamId, member: memberId }));
-    
+    upsertProfile(teamId, memberId);
+    if (!getMainTeamOf(memberId)) setMainTeamOf(memberId, teamId);
     await getMembersRef(teamId).doc(memberId).set({ name: memberId }, { merge: true });
     
     const lg = $("#login"); if (lg) { lg.classList.add("hidden"); lg.style.display = "none"; }
@@ -1313,6 +1412,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
 });
 });
+
 
 
 
