@@ -170,7 +170,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
   padding: 12px;
   color: var(--text);
 }
+
+/* 日誌：練習内容／感想の初期高さを約1.5倍に */
+#trainInput,
+#feelInput {
+  min-height: 7.5em;   /* 目安：元の5em相当 → 1.5倍 */
+}
+
 #helpBody h2, #helpBody h3 { margin: 12px 0 6px; }
 #helpBody p, #helpBody li { line-height: 1.6; }
 #helpBody ul { padding-left: 1.2em; }
+
 
