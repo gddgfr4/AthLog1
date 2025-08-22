@@ -12,6 +12,45 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// === 追加：正規化/復元のユーティリティ ===
+function clientToNorm(e, el) {
+  const rect = el.getBoundingClientRect();
+  const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+  const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+  return { nx: cx / rect.width, ny: cy / rect.height };
+}
+function ptToPx(pt, cw, ch) {
+  // 新データ（正規化）: {nx,ny} / 旧データ: {x,y}
+  if (pt && typeof pt.nx === 'number') return { x: pt.nx * cw, y: pt.ny * ch };
+  return { x: pt.x, y: pt.y };
+}
+// 線分と点の距離（px）
+function distPointToSegPx(P, A, B) {
+  const vx = B.x - A.x, vy = B.y - A.y;
+  const wx = P.x - A.x, wy = P.y - A.y;
+  const c1 = vx * wx + vy * wy;
+  const c2 = vx * vx + vy * vy;
+  let t = c2 ? (c1 / c2) : 0;
+  t = Math.max(0, Math.min(1, t));
+  const dx = A.x + t * vx - P.x;
+  const dy = A.y + t * vy - P.y;
+  return Math.hypot(dx, dy);
+}
+// タップ地点に当たるストロークを末尾側から1本だけ探す
+function findHitStrokeIndex(paint, Ppx, cw, ch, thresholdPx = 14) {
+  for (let i = paint.length - 1; i >= 0; i--) {
+    const s = paint[i];
+    if (!s || !Array.isArray(s.pts) || s.pts.length < 2) continue;
+    for (let k = 0; k < s.pts.length - 1; k++) {
+      const A = ptToPx(s.pts[k], cw, ch);
+      const B = ptToPx(s.pts[k + 1], cw, ch);
+      if (distPointToSegPx(Ppx, A, B) <= thresholdPx) return i;
+    }
+  }
+  return -1;
+}
+
+
 // ===== Utilities =====
 const $ = (q, el = document) => el.querySelector(q);
 const $$ = (q, el = document) => Array.from(el.querySelectorAll(q));
@@ -40,29 +79,85 @@ async function sumWeekKm(d) {
     return s;
 }
 
-async function weekAIComment(d) {
-    const wkm = await sumWeekKm(d);
-    const dates = getWeekDates(d);
-    let fatigueScore = 0; 
-    
-    for(const dt of dates) {
-        const doc = await getJournalRef(teamId, viewingMemberId, dt).get();
-        if (!doc.exists) continue;
-        const j = doc.data();
-        if (!j || !j.paint) continue;
-        j.paint.forEach(stroke => {
-            if (stroke.erase) return;
-            fatigueScore += (stroke.lvl || 1);
-        });
-    }
 
-    let distMsg = wkm > 80 ? "走行距離が多く、ハイボリュームな週でした。" : wkm > 50 ? "良いペースで走行距離を積めています。" : "走行距離は控えめでした。";
-    let fatigueMsg = "";
-    if (fatigueScore > 40) fatigueMsg = "また、強い筋肉疲労が蓄積しているようです。回復を最優先に考えましょう。";
-    else if (fatigueScore > 20) fatigueMsg = "筋肉の疲労感も見られるため、ストレッチなどのケアを意識すると良いでしょう。";
-    else if (wkm > 10) fatigueMsg = "身体のコンディションは良好のようです。";
-    
-    return `【週分析AI】総距離は${wkm.toFixed(1)}km。${distMsg} ${fatigueMsg}`;
+// === Insight helpers（AIコメント用の最小実装） ===
+async function getPeriodStats({ teamId, memberId, start, end }) {
+  let distance = 0;
+  let fatigueScore = 0;
+  let condSum = 0, condCount = 0;
+  const tagCount = {};
+
+  for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
+    const snap = await getJournalRef(teamId, memberId, d).get();
+    if (!snap.exists) continue;
+    const j = snap.data() || {};
+    distance += Number(j.dist || 0);
+
+    if (Array.isArray(j.paint)) {
+      fatigueScore += j.paint.reduce((acc, s) => acc + (s.erase ? 0 : (s.lvl || 1)), 0);
+    }
+    if (Array.isArray(j.tags)) {
+      j.tags.forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; });
+    }
+    if (typeof j.condition === 'number') {
+      condSum += j.condition; condCount++;
+    }
+  }
+
+  const topTags = Object.entries(tagCount).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([t])=>t);
+  const avgCond = condCount ? (condSum/condCount) : null;
+  return { distance, fatigueScore, topTags, avgCond };
+}
+
+function fatigueLevel(score) {
+  if (score > 40) return '高';
+  if (score > 20) return '中';
+  if (score > 0)  return '低';
+  return 'なし';
+}
+
+async function makeAICommentForPeriod({ teamId, memberId, start, end, label='期間' }) {
+  const { distance, fatigueScore, topTags, avgCond } = await getPeriodStats({ teamId, memberId, start, end });
+
+  const distMsg =
+    distance > 80 ? 'ハイボリューム' :
+    distance > 50 ? '良い積み上げ'   : '距離は控えめ';
+
+  const condMsg = (avgCond != null) ? `平均コンディション${avgCond.toFixed(1)}。` : '';
+  const tagMsg  = topTags.length ? `主な内容：${topTags.join(' / ')}。` : '';
+  let fatigueMsg = '';
+  if (fatigueScore > 40) fatigueMsg = '強い疲労の兆候。回復を最優先に。';
+  else if (fatigueScore > 20) fatigueMsg = 'やや疲労。ストレッチ等のケアを。';
+  else if (distance > 10)     fatigueMsg = '概ね良好。';
+
+  return `【${label}分析AI】総距離${distance.toFixed(1)}km（${distMsg}）。${condMsg}${tagMsg} 疲労度:${fatigueLevel(fatigueScore)}。${fatigueMsg}`;
+}
+
+
+async function weekAIComment(d){
+  const start = startOfWeek(d);
+  const end   = addDays(start, 6);
+  return await makeAICommentForPeriod({ teamId, memberId: viewingMemberId, start, end, label: '週' });
+}
+
+
+// ---- Team Memo paging state ----
+let memoPageSize = 30;        // 1ページ(表示初期/追加読込)の件数
+let memoOldestDoc = null;     // いま表示している中で最古のドキュメント
+let memoLatestTs = 0;         // いま表示している中で最新のタイムスタンプ
+let memoLiveUnsub = null;     // 最新1件のライブ購読解除用
+let memoLoadingOlder = false; // 追加読込中フラグ
+
+// 既読印の保存先キー（チーム×ログイン中メンバーで分離）
+const memoLastViewKey = () => `athlog:${teamId}:${memberId}:lastMemoView`;
+
+// メモタブを開いたら既読にする（最新メッセージの ts を保存）
+async function markMemoRead() {
+  const snap = await getTeamMemoCollectionRef(teamId).orderBy('ts', 'desc').limit(1).get();
+  const latestTs = snap.empty ? Date.now() : (snap.docs[0].data().ts || Date.now());
+  localStorage.setItem(memoLastViewKey(), String(latestTs));
+  const memoTab = document.querySelector('[data-tab="memo"]');
+  memoTab?.classList.remove('new-message');
 }
 
 
@@ -76,6 +171,8 @@ let distanceChart = null, conditionChart = null;
 let dashboardOffset = 0, dashboardMode = 'month';
 let conditionChartOffset = 0;
 let unsubscribePlans, unsubscribeMemo, unsubscribeMonthChat, unsubscribeJournal;
+// 入力中フラグ（未保存の上書き防止）
+let dirty = { dist: false, train: false, feel: false };
 
 // ===== Data Access Layer (Firestore) =====
 const getJournalRef = (team, member, day) => db.collection('teams').doc(team).collection('members').doc(member).collection('journal').doc(ymd(day));
@@ -91,16 +188,31 @@ async function showApp() {
     $("#memberLabel").textContent = viewingMemberId;
     $("#login").classList.add("hidden");
     $("#app").classList.remove("hidden");
+        // 月ピッカー初期化（空なら現在月を入れる）
+    const __nowMon = getMonthStr(new Date());
+    if ($("#monthPick") && !$("#monthPick").value) $("#monthPick").value = __nowMon;
+    if ($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value = __nowMon;
+
 
     await populateMemberSelect();
     const memberSelect = $("#memberSelect");
     if (memberSelect) memberSelect.addEventListener('change', () => {
         viewingMemberId = $("#memberSelect").value;
         $("#memberLabel").textContent = viewingMemberId;
+
+        selDate = new Date();
+        const dp = $("#datePicker");
+        if (dp) dp.value = ymd(selDate);
+        
         switchTab($(".tab.active")?.dataset.tab, true);
     });
 
     initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
+
+    selDate = new Date();
+    const dp = $("#datePicker");
+    if (dp) dp.value = ymd(selDate);
+    
     switchTab("journal");
     checkNewMemo();
 }
@@ -119,7 +231,10 @@ function switchTab(id, forceRender = false) {
     if (id === "month") renderMonth();
     if (id === "plans") renderPlans();
     if (id === "dashboard") renderDashboard();
-    if (id === "memo") renderMemo();
+    if (id === "memo") {            // ★ ここを追加/修正
+      renderMemo();
+      markMemoRead();               // タブ表示時に既読化
+    }
 }
 
 // ===== Login & Logout =====
@@ -143,6 +258,10 @@ async function saveJournal() {
         condition: activeCond ? Number(activeCond.dataset.val) : null,
     };
     await docRef.set(journalData, { merge: true });
+      // 保存完了 → 未保存フラグを下ろす
+    dirty = { dist: false, train: false, feel: false };
+    renderWeek();
+
 }
 
 function initJournal() {
@@ -153,8 +272,35 @@ function initJournal() {
         canvas.width = imgEl.clientWidth; canvas.height = imgEl.clientHeight;
         ctx = canvas.getContext("2d"); renderPaint();
     };
+
+    // 追加：タップ地点のストロークを1本削除
+async function eraseStrokeAtEvent(e) {
+  if (!canvas) return;
+  const { nx, ny } = clientToNorm(e, canvas);
+  const Ppx = { x: nx * canvas.width, y: ny * canvas.height };
+  const docRef = getJournalRef(teamId, memberId, selDate);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(docRef);
+    const base = snap.data() || {};
+    const paint = Array.isArray(base.paint) ? [...base.paint] : [];
+    const idx = findHitStrokeIndex(paint, Ppx, canvas.width, canvas.height, 14);
+    if (idx >= 0) {
+      paint.splice(idx, 1);
+      tx.set(docRef, { paint }, { merge: true });
+    }
+  });
+}
+
+    
     if (imgEl && $(".canvas-wrap")) new ResizeObserver(fit).observe($(".canvas-wrap"));
-    fit();
+    fit();  // 入力したら未保存フラグON（1回だけ登録）
+    $("#distInput")?.addEventListener("input", () => { dirty.dist  = true; });
+    $("#trainInput")?.addEventListener("input", () => { dirty.train = true; });
+    $("#feelInput")?.addEventListener("input", () => { dirty.feel  = true; });
+
+
+    
 
     const brushBtns = $$('.palette .lvl, .palette #eraser');
     brushBtns.forEach(b => b.addEventListener('click', () => {
@@ -222,24 +368,45 @@ function initJournal() {
         canvas.addEventListener("touchmove", move, { passive: false });
         window.addEventListener("touchend", end);
     }
+// --- Quick ボタン（ジョグ/ポイント/補強/オフ/その他）
+$$(".qbtn").forEach(b => b.addEventListener("click", async () => {
+  const docRef = getJournalRef(teamId, memberId, selDate);
+
+  // 下書き保存 + タグ更新を 1 回のトランザクションでまとめる
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(docRef);
+    const base = snap.data() || {};
+    const curr = Array.isArray(base.tags) ? [...base.tags] : [];
+
+    const tag = b.textContent.trim();
+    const idx = curr.indexOf(tag);
+    if (idx >= 0) {
+      curr.splice(idx, 1);                    // トグルOFF
+    } else {
+      if (curr.length >= 2) curr.shift();     // 最大2件
+      curr.push(tag);                         // トグルON
+    }
+
+    const activeCondBtn = $('#conditionBtns button.active');
+    tx.set(docRef, {
+      dist: Number($("#distInput").value || 0),
+      train: $("#trainInput").value,
+      feel:  $("#feelInput").value,
+      condition: activeCondBtn ? Number(activeCondBtn.dataset.val) : null,
+      tags: curr
+    }, { merge: true });
+  });
+
+  // 保存できたので dirty をリセット
+  dirty = { dist: false, train: false, feel: false };
+}));
 
     $("#weekPrev")?.addEventListener("click", () => { selDate = addDays(selDate, -7); renderJournal(); });
     $("#weekNext")?.addEventListener("click", () => { selDate = addDays(selDate, 7); renderJournal(); });
     $("#gotoToday")?.addEventListener("click", () => { selDate = new Date(); renderJournal(); });
     $("#datePicker")?.addEventListener("change", (e) => { selDate = new Date(e.target.value); renderJournal(); });
 
-    $$(".qbtn").forEach(b => b.addEventListener("click", async () => {
-        const docRef = getJournalRef(teamId, memberId, selDate);
-        await db.runTransaction(async (transaction) => {
-            const doc = await transaction.get(docRef);
-            const j = doc.data() || { tags: [] };
-            const tag = b.textContent.trim();
-            if (j.tags.includes(tag)) j.tags = j.tags.filter(t => t !== tag);
-            else { if (j.tags.length >= 2) j.tags.shift(); j.tags.push(tag); }
-            transaction.set(docRef, { tags: j.tags }, { merge: true });
-        });
-    }));
-
+        
     $("#mergeBtn")?.addEventListener("click", async () => {
         const scope = $("#mergeScope").value;
         const text = await collectPlansTextForDay(selDate, scope);
@@ -248,10 +415,12 @@ function initJournal() {
         if (types.length) {
             const docRef = getJournalRef(teamId, memberId, selDate);
             await docRef.set({ tags: types.slice(0, 2) }, { merge: true });
+            renderWeek();
         }
     });
 
     $$('#conditionBtns button').forEach(btn => {
+         
         btn.addEventListener('click', () => {
             $$('#conditionBtns button').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -269,6 +438,10 @@ function initJournal() {
 async function renderJournal() {
     if (unsubscribeJournal) unsubscribeJournal();
 
+    if (!viewingMemberId) viewingMemberId = memberId;
+
+    dirty = { dist:false, train:false, feel:false };
+
     const isReadOnly = viewingMemberId !== memberId;
     $$('#journal input, #journal textarea, #journal .qbtn, #saveBtn, #mergeBtn, #conditionBtns button, .palette button').forEach(el => {
         const isNavControl = ['weekPrev', 'weekNext', 'gotoToday', 'datePicker'].includes(el.id);
@@ -282,17 +455,18 @@ async function renderJournal() {
     }
 
     $("#datePicker").value = ymd(selDate);
+    renderWeek();
 
     unsubscribeJournal = getJournalRef(teamId, viewingMemberId, selDate).onSnapshot(doc => {
         const j = doc.data() || { dist: 0, train: "", feel: "", tags: [], paint: [], condition: null };
-        $("#distInput").value = j.dist || "";
-        $("#trainInput").value = j.train || "";
-        $("#feelInput").value = j.feel || "";
+        if (!dirty.dist)  { $("#distInput").value  = j.dist ?? ""; }
+        if (!dirty.train) { $("#trainInput").value = j.train ?? ""; }
+        if (!dirty.feel)  { $("#feelInput").value  = j.feel ?? ""; }
+
         
         $$('#conditionBtns button').forEach(b => b.classList.remove('active'));
         if (j.condition) $(`#conditionBtns button[data-val="${j.condition}"]`)?.classList.add('active');
         
-        renderWeek(); 
         renderPaint(j); 
         renderQuickButtons(j);
         weekAIComment(selDate).then(comment => $("#aiBox").textContent = comment);
@@ -343,7 +517,6 @@ async function renderWeek() {
     }
     const sum = await sumWeekKm(selDate);
     $("#weekSum").textContent = `週 走行距離: ${sum.toFixed(1)} km`;
-    $("#weekMonthLabel").textContent = `${selDate.getMonth() + 1}月`;
 }
 
 function renderQuickButtons(j) {
@@ -370,39 +543,170 @@ function initMonth() {
 }
 
 async function renderMonth() {
-    const isReadOnly = viewingMemberId !== memberId;
-    $("#monthGoalInput").disabled = isReadOnly;
-    $("#saveMonthGoalBtn").disabled = isReadOnly;
+  // 編集可否
+  const isReadOnly = viewingMemberId !== memberId;
+  $("#monthGoalInput").disabled = isReadOnly;
+  $("#saveMonthGoalBtn").disabled = isReadOnly;
 
-    const box = $("#monthList"); if (!box) return;
-    box.innerHTML = "";
-    const [yy, mm] = $("#monthPick").value.split("-").map(Number);
-    let sum = 0;
-    for (let d = 1; d <= endOfMonth(new Date(yy, mm - 1, 1)).getDate(); d++) {
-        const dt = new Date(yy, mm - 1, d);
-        const doc = await getJournalRef(teamId, viewingMemberId, dt).get();
-        const j = doc.data() || {};
+  // コンテナ
+  const box = $("#monthList"); 
+  if (!box) return;
+  box.innerHTML = "";
+
+  // 月決定（空なら現在月をUIにも反映）
+  const mp = $("#monthPick");
+  const monStr = (mp && mp.value) ? mp.value : getMonthStr(new Date());
+  if (mp && !mp.value) mp.value = monStr;
+
+  const [yy, mm] = monStr.split("-").map(Number);
+  const lastDay = endOfMonth(new Date(yy, mm - 1, 1)).getDate();
+
+  // 先に全行を置く（失敗しても表示が残る）
+  let sum = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    const dt  = new Date(yy, mm - 1, d);
+    const dow = ["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()];
+
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <div class="dow">${dow}<br>${d}</div>
+      <div class="txt"><div>—</div></div>
+    `;
+    row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
+    box.appendChild(row);
+
+    // 非同期でデータを埋める（失敗しても無視）
+    (async () => {
+      try {
+        const snap = await getJournalRef(teamId, viewingMemberId, dt).get();
+        const j = snap.data() || {};
+
+        // 合計距離を都度更新
         sum += Number(j.dist || 0);
-        const row = document.createElement("div"); row.className = "row";
-        const tags = j.tags || []; let tagsHtml = '';
-        if (tags.length) {
-            const classMap = { ジョグ: "jog", ポイント: "point", 補強: "sup", オフ: "off", その他: "other" };
-            tagsHtml = `<div class="month-tags">` + tags.map(tag => `<span class="cat-tag ${classMap[tag] || ''}">${tag}</span>`).join('') + `</div>`;
-        }
-        const cond = j.condition; let condHtml = '';
-        if (cond) {
-            condHtml = `<div class="condition-display">` + Array(cond).fill(0).map((_, i) => `<span class="star c${cond}">★</span>`).join('') + `</div>`;
-        }
-        row.innerHTML = `<div class="dow">${["SU", "MO", "TU", "WE", "TH", "FR", "SA"][dt.getDay()]}<br>${d}</div>
-                     <div class="txt">${tagsHtml}${condHtml}<div>${(j.train || "—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span></div></div>`;
-        row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
-        box.appendChild(row);
-    }
-    $("#monthSum").textContent = `月間走行距離: ${sum.toFixed(1)} km`;
-    const monthStr = $("#monthPick").value;
-    const goalDoc = await getGoalsRef(teamId, viewingMemberId, monthStr).get();
+        $("#monthSum").textContent = `月間走行距離: ${sum.toFixed(1)} km`;
+
+        const classMap = { ジョグ:"jog", ポイント:"point", 補強:"sup", オフ:"off", その他:"other" };
+        const tags = Array.isArray(j.tags) ? j.tags : [];
+        const tagsHtml = tags.length
+          ? `<div class="month-tags">${tags.map(t => `<span class="cat-tag ${classMap[t]||""}">${t}</span>`).join("")}</div>`
+          : "";
+
+        const cond = j.condition;
+        const condHtml = cond
+          ? `<div class="condition-display">${Array(cond).fill(0).map(() => `<span class="star c${cond}">★</span>`).join("")}</div>`
+          : "";
+
+        const txt = row.querySelector(".txt");
+        txt.innerHTML = `${tagsHtml}${condHtml}
+          <div>${(j.train || "—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span></div>`;
+      } catch (err) {
+        console.error("renderMonth day read error:", err);
+        // 取得に失敗しても row は残す（— のまま）
+      }
+    })();
+  }
+
+  // 月間目標の読み込み（安全にラップ）
+  try {
+    const goalDoc = await getGoalsRef(teamId, viewingMemberId, monStr).get();
     $("#monthGoalInput").value = goalDoc.data()?.goal || "";
+  } catch (e) {
+    console.error("read goal error:", e);
+  }
 }
+
+
+function renderMemoItem(m) {
+  const div = document.createElement("div");
+  div.className = "msg";
+  const time = new Date(m.ts).toLocaleString("ja-JP");
+  div.innerHTML = `<span class="name">${m.mem}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
+  return div;
+}
+
+
+async function renderMemo() {
+  // 既存の購読を解除
+  if (unsubscribeMemo) { try { unsubscribeMemo(); } catch(_){} }
+  if (memoLiveUnsub) { try { memoLiveUnsub(); } catch(_){} memoLiveUnsub = null; }
+
+  const box = $("#memoChatLog");
+  if (!box) return;
+
+  box.innerHTML = "";
+  memoOldestDoc = null;
+  memoLatestTs = 0;
+
+  const col = getTeamMemoCollectionRef(teamId);
+
+  // 1) 初期は「最新 memoPageSize 件」だけ取得（降順→表示は昇順にして下端へ）
+  const initSnap = await col.orderBy('ts', 'desc').limit(memoPageSize).get();
+  if (initSnap.empty) {
+    box.innerHTML = `<div class="muted">まだメモはありません</div>`;
+  } else {
+    const docsDesc = initSnap.docs; // desc
+    memoOldestDoc = docsDesc[docsDesc.length - 1];          // いちばん古い
+    memoLatestTs  = (docsDesc[0].data().ts) || 0;           // いちばん新しい
+
+    // 表示は昇順で並べたいので reverse して append
+    docsDesc.slice().reverse().forEach(d => {
+      box.appendChild( renderMemoItem(d.data()) );
+    });
+
+    // 初期は一番下までスクロール
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // 2) 上にスクロールしたらさらに過去を読み足し（ページング）
+  box.onscroll = async () => {
+    if (box.scrollTop <= 0 && !memoLoadingOlder && memoOldestDoc) {
+      memoLoadingOlder = true;
+      const prevHeight = box.scrollHeight;
+
+      const olderSnap = await col
+        .orderBy('ts', 'desc')
+        .startAfter(memoOldestDoc)     // さらに古いページへ
+        .limit(memoPageSize)
+        .get();
+
+      if (!olderSnap.empty) {
+        // 受け取るのは降順なので、表示は昇順で「先頭に」挿入
+        const frag = document.createDocumentFragment();
+        olderSnap.docs.slice().reverse().forEach(d => {
+          frag.appendChild( renderMemoItem(d.data()) );
+        });
+        box.insertBefore(frag, box.firstChild);
+        // 次のページング用に「今回の最古」を更新
+        memoOldestDoc = olderSnap.docs[olderSnap.docs.length - 1];
+
+        // スクロール位置を維持（ジャンプしないように）
+        const newHeight = box.scrollHeight;
+        box.scrollTop = newHeight - prevHeight;
+      }
+      memoLoadingOlder = false;
+    }
+  };
+
+  // 3) 最新1件はライブ購読して、増えたら末尾に追記
+  memoLiveUnsub = col.orderBy('ts', 'desc').limit(1).onSnapshot(snap => {
+    const d = snap.docs[0];
+    if (!d) return;
+    const data = d.data();
+    if (data.ts > memoLatestTs) {
+      box.appendChild( renderMemoItem(data) );
+      memoLatestTs = data.ts;
+      box.scrollTop = box.scrollHeight; // 新着は下端へ
+    }
+  });
+
+  // タブ切替時に後始末できるように束ねる
+  unsubscribeMemo = () => {
+    if (memoLiveUnsub) { try { memoLiveUnsub(); } catch(_){} memoLiveUnsub = null; }
+    box.onscroll = null;
+  };
+}
+
 
 // ===== PLANS (Schedule) =====
 function createPlanTagHtml(type) {
@@ -442,47 +746,88 @@ function initPlans() {
 }
 
 function renderPlans() {
-    populatePlanScopeSelect();
-    if (unsubscribePlans) unsubscribePlans();
-    const mon = $("#planMonthPick").value;
-    unsubscribePlans = getPlansCollectionRef(teamId).where('month', '==', mon).onSnapshot(snapshot => {
-        const allPlans = {};
-        snapshot.docs.forEach(doc => {
-            const data = doc.data();
-            if (!allPlans[data.day]) allPlans[data.day] = [];
-            allPlans[data.day].push({ id: doc.id, ...data });
-        });
-        
-        const box = $("#planList"); if(!box) return;
-        box.innerHTML = "";
-        const [yy, mm] = mon.split("-").map(Number);
-        const scope = $("#planScope").value;
-        const tagText = $("#tagFilter").value.trim();
+  populatePlanScopeSelect();
+  // 既存の購読を解除
+  if (unsubscribePlans) unsubscribePlans();
+  // 月文字列（YYYY-MM）。空なら現在月。
+  const mon = $("#planMonthPick")?.value || getMonthStr(new Date());
+  // ピッカーが空だった場合はUIにも反映
+  if ($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value = mon;
+
+  // 描画先を準備
+  const box = $("#planList");
+  if (!box) return;
+  box.innerHTML = "";
+
+  // 年月→その月の日数
+  const [yy, mm] = mon.split("-").map(Number);
+  const daysInMonth = endOfMonth(new Date(yy, mm - 1, 1)).getDate();
+
+  // ここで per-day のサブ購読を束ねるための配列を用意
+  const unsubs = [];
+  unsubscribePlans = () => { unsubs.forEach(fn => { try { fn && fn(); } catch(_){} }); };
+
+  // 右肩のフィルタ値はリスナー内で毎回読む（動的反映のため）
+  const classMap = { ジョグ: "jog", ポイント: "point", 補強: "sup", オフ: "off", その他: "other" };
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dt = new Date(yy, mm - 1, d);
+    const dayKey = ymd(dt);                // ← 空にならない（必ず 'YYYY-MM-DD'）
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <div class="dow">${["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()]}<br>${d}</div>
+      <div class="txt" id="pl_${dayKey}" style="flex-wrap: wrap; flex-direction: row; align-items: center;">—</div>
+    `;
+    row.addEventListener("click", () => openPlanModal(dt));
+    box.appendChild(row);
+
+    // 日別の events サブコレにリアルタイム購読を張る（インデックス不要）
+    const unsub = getPlansCollectionRef(teamId)
+      .doc(dayKey)                     // ← empty path にならない（上で dayKey を必ず生成）
+      .collection('events')
+      .orderBy('mem')                  // 任意。不要なら外してもOK
+      .onSnapshot(snapshot => {
+        const scope = $("#planScope")?.value || "all";
+        const tagText = $("#tagFilter")?.value.trim() || "";
         const tagSet = new Set(tagText ? tagText.split(",").map(s => s.trim()).filter(Boolean) : []);
-        for (let d = 1; d <= endOfMonth(new Date(yy, mm - 1, 1)).getDate(); d++) {
-            const dt = new Date(yy, mm - 1, d);
-            const dayKey = ymd(dt);
-            const row = document.createElement("div"); row.className = "row";
-            row.innerHTML = `<div class="dow">${["SU", "MO", "TU", "WE", "TH", "FR", "SA"][dt.getDay()]}<br>${d}</div>
-                         <div class="txt" id="pl_${dayKey}" style="flex-wrap: wrap; flex-direction: row; align-items: center;">—</div>`;
-            row.addEventListener("click", () => openPlanModal(dt));
-            box.appendChild(row);
-            
-            const arr = allPlans[dayKey] || [];
-            const list = arr.filter(it => {
-                if (scope === "team" && it.scope !== "team") return false;
-                if (scope !== 'all' && scope !== 'team' && it.mem !== scope) return false;
-                if (tagSet.size && !(it.tags || []).some(t => tagSet.has(t))) return false;
-                return true;
-            });
 
-            const targetEl = $("#pl_" + dayKey);
-            if (list.length) targetEl.innerHTML = list.map(x => `<span style="display:inline-flex; align-items:center; gap:6px; margin: 2px 8px 2px 0;">${createPlanTagHtml(x.type)}<span>${x.content}</span></span>`).join("");
-            else targetEl.textContent = '—';
+        const arr = [];
+        snapshot.docs.forEach(doc => {
+          const it = doc.data();
+          // フィルタ：scope
+          if (scope === "team" && it.scope !== "team") return;
+          if (scope !== "all" && scope !== "team" && it.mem !== scope) return;
+          // フィルタ：tag
+          if (tagSet.size && !(it.tags || []).some(t => tagSet.has(t))) return;
+          arr.push(it);
+        });
+
+        const targetEl = document.getElementById("pl_" + dayKey);
+        if (!targetEl) return;
+
+        if (arr.length) {
+          targetEl.innerHTML = arr.map(x =>
+            `<span style="display:inline-flex; align-items:center; gap:6px; margin: 2px 8px 2px 0;">
+               <span class="cat-tag ${classMap[x.type] || ""}">${x.type}</span>
+               <span>${x.content}</span>
+             </span>`
+          ).join("");
+        } else {
+          targetEl.textContent = "—";
         }
-    });
+      }, (err) => {
+        // エラー時も UI を落とさない
+        const targetEl = document.getElementById("pl_" + dayKey);
+        if (targetEl) targetEl.textContent = "—";
+        console.error("plans onSnapshot error:", err);
+      });
 
-    renderChat();
+    unsubs.push(unsub);
+  }
+
+  // 月コメント（チャット）は既存ロジックのまま
+  renderChat();
 }
 
 function renderChat() {
@@ -562,7 +907,17 @@ function openPlanModal(dt) {
     });
     pActionBtn.addEventListener("click", async () => {
         const content = pContent.value.trim(); if (!content) return;
-        const planData = { type: pType.value, scope: pScope.value, content, mem: memberId, tags: (pTags.value || "").split(",").map(s => s.trim()).filter(Boolean), month: mon, day: dayKey };
+                const planData = {
+          type: pType.value,
+          scope: pScope.value,
+          content,
+          mem: memberId,
+          tags: (pTags.value || "").split(",").map(s => s.trim()).filter(Boolean),
+          month: mon,
+          day: dayKey,
+          team: teamId
+        };
+
         if (editingId) {
             await getPlansCollectionRef(teamId).doc(dayKey).collection('events').doc(editingId).set(planData);
         } else {
@@ -597,26 +952,52 @@ function renderPlanListInModal(mon, dayKey, editCallback) {
 
 function closePlanModal() { if (modalDiv) { modalDiv.remove(); modalDiv = null; } }
 
+// 置き換え版：タイプ文字（ジョグ/ポイント…）はコピーしない
 async function collectPlansTextForDay(day, scopeSel) {
-    const dayKey = ymd(day);
-    const plansRef = getPlansCollectionRef(teamId).doc(dayKey).collection('events');
-    let query = plansRef;
-    if (scopeSel === memberId) query = query.where('mem', '==', memberId);
-    if (scopeSel === 'team') query = query.where('scope', '==', 'team');
-    
-    const snapshot = await query.get();
-    const list = [];
-    snapshot.docs.forEach(doc => {
-        const it = doc.data();
-        if (scopeSel === "auto") {
-            if (it.mem === memberId) list.push(`[${memberId}] ${it.type} ${it.content}`);
-            else if (it.scope === "team") list.push(`[全員] ${it.type} ${it.content}`);
-        } else {
-            list.push(`${it.type} ${it.content}`);
-        }
-    });
-    return list.join("\n");
+  const dayKey = ymd(day);
+  const plansRef = getPlansCollectionRef(teamId).doc(dayKey).collection('events');
+
+  let query = plansRef;
+  if (scopeSel === memberId) query = query.where('mem', '==', memberId);
+  if (scopeSel === 'team')   query = query.where('scope', '==', 'team');
+
+  const snapshot = await query.get();
+
+  const list = [];
+  snapshot.docs.forEach(doc => {
+    const it = doc.data();
+    if (scopeSel === "auto") {
+      // 自動：自分の予定 + チーム共有の予定の「内容」だけを入れる
+      if (it.mem === memberId || it.scope === "team") list.push(it.content);
+    } else {
+      list.push(it.content);
+    }
+  });
+
+  // 同じ内容が重複していたら削除（任意）
+  return Array.from(new Set(list)).join("\n");
 }
+
+// 追加：その日の予定の type を集約してタグに使う
+async function collectPlansTypesForDay(day, scopeSel) {
+  const dayKey = ymd(day);
+  const plansRef = getPlansCollectionRef(teamId).doc(dayKey).collection('events');
+
+  let query = plansRef;
+  if (scopeSel === memberId) query = query.where('mem', '==', memberId);
+  if (scopeSel === 'team')   query = query.where('scope', '==', 'team');
+
+  const snapshot = await query.get();
+
+  const types = [];
+  snapshot.docs.forEach(doc => {
+    const t = doc.data().type;
+    if (t && !types.includes(t)) types.push(t);
+  });
+
+  return types; // 例: ["ジョグ","ポイント"]
+}
+
 
 // ===== NEW: Dashboard =====
 function initDashboard() {
@@ -624,7 +1005,11 @@ function initDashboard() {
     const prevBtn = $("#distChartPrev");
     const nextBtn = $("#distChartNext");
     if (toggleBtn) toggleBtn.addEventListener('click', () => {
-        dashboardMode = dashboardMode === 'month' ? 'week' : 'month';
+        dashboardMode = (dashboardMode === 'month')
+          ? 'week'
+          : (dashboardMode === 'week')
+            ? 'day'
+            : 'month';
         dashboardOffset = 0;
         renderDashboard();
     });
@@ -643,59 +1028,82 @@ function renderDashboard() {
 }
 
 async function renderDistanceChart() {
-    const ctx = $('#distanceChart')?.getContext('2d');
-    if (!ctx) return;
-    
-    const toggleBtn = $("#distChartToggle");
-    toggleBtn.textContent = dashboardMode === 'month' ? '月' : '週';
-    
-    const labels = [];
-    const chartData = [];
-    const journalSnaps = await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
-    const journal = {};
-    journalSnaps.forEach(doc => journal[doc.id] = doc.data());
-    
-    if (dashboardMode === 'month') {
-        $("#distChartTitle").textContent = "月間走行距離グラフ";
-        const monthlyTotals = {};
-        for (const ymdStr in journal) {
-            const monthStr = ymdStr.substring(0, 7);
-            monthlyTotals[monthStr] = (monthlyTotals[monthStr] || 0) + Number(journal[ymdStr].dist || 0);
-        }
-        const targetMonth = new Date();
-        targetMonth.setMonth(targetMonth.getMonth() + dashboardOffset);
-        for (let i = 5; i >= 0; i--) {
-            const d = new Date(targetMonth);
-            d.setMonth(d.getMonth() - i);
-            const month = getMonthStr(d);
-            labels.push(month);
-            chartData.push((monthlyTotals[month] || 0).toFixed(1));
-        }
-    } else { // week mode
-        $("#distChartTitle").textContent = "週間走行距離グラフ";
-        const today = new Date();
-        const currentWeekStart = startOfWeek(today);
-        const targetWeekStart = addDays(currentWeekStart, dashboardOffset * 7);
-        for (let i = 5; i >= 0; i--) {
-            const weekStart = addDays(targetWeekStart, -i * 7);
-            labels.unshift(`${ymd(weekStart).slice(5)}~`);
-            let weeklyTotal = 0;
-            for (let j = 0; j < 7; j++) {
-                const day = addDays(weekStart, j);
-                const dayData = journal[ymd(day)];
-                if (dayData) weeklyTotal += Number(dayData.dist || 0);
-            }
-            chartData.unshift(weeklyTotal.toFixed(1));
-        }
-    }
+  const cvs = document.getElementById('distanceChart');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
 
-    if (distanceChart) distanceChart.destroy();
-    distanceChart = new Chart(ctx, {
-        type: 'bar',
-        data: { labels, datasets: [{ label: '走行距離 (km)', data: chartData, backgroundColor: 'rgba(79, 70, 229, 0.5)', borderColor: 'rgba(79, 70, 229, 1)', borderWidth: 1 }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-    });
+  const toggleBtn = $("#distChartToggle");
+  if (toggleBtn) {
+    toggleBtn.textContent = (dashboardMode === 'month') ? '週に切替'
+                         : (dashboardMode === 'week')  ? '日に切替'
+                         : '月に切替';
+  }
+
+  const labels = [];
+  const chartData = [];
+  const journalSnaps = await db.collection('teams').doc(teamId)
+      .collection('members').doc(viewingMemberId)
+      .collection('journal').get();
+  const journal = {};
+  journalSnaps.forEach(doc => journal[doc.id] = doc.data());
+
+  if (dashboardMode === 'month') {
+    $("#distChartTitle").textContent = "月間走行距離グラフ";
+    const monthlyTotals = {};
+    for (const ymdStr in journal) {
+      const monthStr = ymdStr.substring(0, 7);
+      monthlyTotals[monthStr] = (monthlyTotals[monthStr] || 0) + Number(journal[ymdStr].dist || 0);
+    }
+    const targetMonth = new Date();
+    targetMonth.setMonth(targetMonth.getMonth() + dashboardOffset);
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(targetMonth);
+      d.setMonth(d.getMonth() - i);
+      const month = getMonthStr(d);
+      labels.push(month);
+      chartData.push(Number(monthlyTotals[month] || 0).toFixed(1));
+    }
+  } else if (dashboardMode === 'week') {
+    $("#distChartTitle").textContent = "週間走行距離グラフ";
+    const today = new Date();
+    const currentWeekStart = startOfWeek(today);
+    const targetWeekStart = addDays(currentWeekStart, dashboardOffset * 7);
+    for (let i = 5; i >= 0; i--) {
+      const weekStart = addDays(targetWeekStart, -i * 7);
+      labels.push(`${ymd(weekStart).slice(5)}~`);
+      let weeklyTotal = 0;
+      for (let j = 0; j < 7; j++) {
+        const day = addDays(weekStart, j);
+        const dayData = journal[ymd(day)];
+        if (dayData) weeklyTotal += Number(dayData.dist || 0);
+      }
+      chartData.push(weeklyTotal.toFixed(1));
+    }
+  } else { // 'day'
+    $("#distChartTitle").textContent = "日別走行距離グラフ";
+    const windowLen = 14;
+    const today = new Date();
+    const end = addDays(today, dashboardOffset * windowLen);
+    const start = addDays(end, -windowLen + 1);
+    for (let i = 0; i < windowLen; i++) {
+      const d = addDays(start, i);
+      labels.push(`${d.getMonth() + 1}/${d.getDate()}`);
+      const dayData = journal[ymd(d)];
+      chartData.push(Number(dayData?.dist || 0).toFixed(1));
+    }
+  }
+
+  if (distanceChart) distanceChart.destroy();
+  distanceChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: '走行距離 (km)', data: chartData, backgroundColor: 'rgba(79, 70, 229, 0.5)', borderColor: 'rgba(79, 70, 229, 1)', borderWidth: 1 }] },
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+  });
+
+  // 可視範囲のAI要約（＆自動メモ投稿）
+  renderDashboardInsight();
 }
+
 
 async function renderConditionChart() {
     const ctx = $('#conditionChart')?.getContext('2d');
@@ -745,36 +1153,22 @@ function initMemo() {
     if(sendBtn) sendBtn.onclick = sendMessage;
 }
 
-function renderMemo() {
-    if (unsubscribeMemo) unsubscribeMemo();
-    unsubscribeMemo = getTeamMemoCollectionRef(teamId).orderBy('ts').onSnapshot(snapshot => {
-        const box = $("#memoChatLog"); if(!box) return;
-        box.innerHTML = "";
-        snapshot.docs.forEach(doc => {
-            const m = doc.data();
-            const div = document.createElement("div");
-            div.className = "msg";
-            const time = new Date(m.ts).toLocaleString("ja-JP");
-            div.innerHTML = `<span class="name">${m.mem}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
-            box.appendChild(div);
-        });
-        box.scrollTop = box.scrollHeight;
-    });
-}
+
 
 async function checkNewMemo() {
-    const lastView = localStorage.getItem(`athlog:${teamId}:lastMemoView`) || 0;
-    const snapshot = await getTeamMemoCollectionRef(teamId).orderBy('ts', 'desc').limit(1).get();
-    const memoTab = $('[data-tab="memo"]');
-    if (!snapshot.empty) {
-        const lastMessage = snapshot.docs[0].data();
-        if (memoTab && lastMessage.ts > lastView) {
-            memoTab.classList.add('new-message');
-        } else if (memoTab) {
-            memoTab.classList.remove('new-message');
-        }
+  const lastView = Number(localStorage.getItem(memoLastViewKey()) || 0);
+  const snapshot = await getTeamMemoCollectionRef(teamId).orderBy('ts', 'desc').limit(1).get();
+  const memoTab = document.querySelector('[data-tab="memo"]');
+  if (!snapshot.empty) {
+    const lastMessage = snapshot.docs[0].data();
+    if (memoTab && lastMessage.ts > lastView) {
+      memoTab.classList.add('new-message');
+    } else if (memoTab) {
+      memoTab.classList.remove('new-message');
     }
+  }
 }
+
 
 // ===== Boot and Login =====
 window.addEventListener("hashchange", () => { closePlanModal(); });
@@ -787,7 +1181,11 @@ window.addEventListener("hashchange", () => { closePlanModal(); });
             memberId = last.member;
             viewingMemberId = last.member;
             await getMembersRef(teamId).doc(memberId).set({ name: memberId }, { merge: true });
-            showApp();
+            await showApp();
+            selDate = new Date();
+            const dp = document.getElementById("datePicker");
+            if (dp) dp.value = ymd(selDate);
+            renderJournal();
         }
     } catch (e) {
         console.error("Failed to auto-login from saved session:", e);
@@ -807,7 +1205,12 @@ async function doLogin() {
     const lg = $("#login"); if (lg) { lg.classList.add("hidden"); lg.style.display = "none"; }
     const app = $("#app"); if (app) { app.classList.remove("hidden"); }
     try {
-        showApp();
+      await showApp();
+
+      selDate = new Date();
+      const dp = document.getElementById("datePicker");
+      if (dp) dp.value = ymd(selDate);
+      renderJournal();
     } catch (e) {
         console.error("Error during app initialization:", e);
         alert("アプリの起動中にエラーが発生しました。HTMLファイルが最新でない可能性があります。");
@@ -826,7 +1229,11 @@ async function populateMemberSelect() {
         option.textContent = mem;
         select.appendChild(option);
     });
-    select.value = viewingMemberId;
+    
+    const want = viewingMemberId || memberId;
+    const exists = [...select.options].some(o => o.value === want);
+    select.value = exists ? want : memberId;
+    viewingMemberId = select.value; 
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -834,4 +1241,99 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btn) { btn.onclick = doLogin; }
     const t = $("#teamId"), m = $("#memberName");
     if (t && m) [t, m].forEach(inp => inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); }));
+    // === ヘルプ本文を流し込み ===
+const helpBody = document.getElementById("helpBody");
+if (helpBody) {
+  helpBody.innerHTML = `
+    <!-- キャンバスで作った「AthLog1 クイックガイド」の本文をここにコピペ -->
+    <!-- 例: <h2>はじめに</h2><p>…</p> など -->
+    <h2>1. はじめに</h2>
+<ul>
+  <li>URL：<code>https://gddgfr4.github.io/AthLog1/</code></li>
+  <li>データ保存：Firebase Firestore。ログインはチームID / メンバー名。</li>
+  <li>右上の表示中メンバーを切替えると他メンバーは閲覧のみ。</li>
+</ul>
+<h2>2. 画面構成</h2>
+<ul>
+  <li><b>日誌</b>：日々の記録（週カレンダー、クイック分類、距離/内容/調子、AIコメント）</li>
+  <li><b>月一覧</b>：月の一覧／月目標／合計距離</li>
+  <li><b>予定表</b>：月の計画（自分/全員）。モーダルで追加・更新・削除</li>
+  <li><b>ダッシュボード</b>：距離（週/月）・調子（直近14日）</li>
+  <li><b>チームメモ</b>：LINE風。上スクロールで過去を追加読込</li>
+</ul>
+<h2>3. 日誌の使い方</h2>
+<ol>
+  <li>日付操作（← → 今日へ / ピッカー）</li>
+  <li>クイック分類（ジョグ/ポイント/補強/オフ/その他）※最大2つ。3つ目で古い方が外れる</li>
+  <li>距離・内容・感想、調子(1〜5) を入れる → <b>この日を保存</b></li>
+</ol>
+<p>週カレンダーの色：ジョグ(水) / ポイント(橙) / 補強(緑) / オフ(灰) / その他(桃)。2つ選ぶと左右ツートン。</p>
+<h3>画像メモ</h3>
+<ul>
+  <li>人体画像にペン3段階でメモ</li>
+  <li>元に戻す＝最後の1本を取り消し</li>
+  <li>消しゴム＝<b>1タップで1本消える</b>（スマホ対応）</li>
+</ul>
+<h2>4. 月一覧</h2>
+<ul>
+  <li>月ピッカーで切替・行クリックで該当日を日誌で開く</li>
+  <li>月間合計距離が右上に自動更新、月間目標は編集→保存</li>
+</ul>
+<h2>5. 予定表</h2>
+<ul>
+  <li>日クリックで編集モーダル。種別/対象(自分or全員)/タグ/内容</li>
+  <li>右肩でスコープ＆タグフィルタ</li>
+  <li>日誌の「反映」で計画を本文に取り込み可</li>
+</ul>
+<h2>6. ダッシュボード & メモ</h2>
+<ul>
+  <li>距離：日/週/月切替・左右で期間移動</li>
+  <li>調子：直近14日</li>
+  <li>メモ：下に新着、上スクロールで過去</li>
+</ul>
+<h2>7. 困ったとき</h2>
+<ul>
+  <li>編集できない→右上の表示中メンバーが自分か確認</li>
+  <li>色が変わらない→その日を保存</li>
+</ul>
+  `;
+}
+
+// === 開閉イベント ===
+document.getElementById("openHelpBtn")?.addEventListener("click", () => {
+  document.getElementById("helpOverlay")?.classList.remove("hidden");
 });
+document.getElementById("helpClose")?.addEventListener("click", () => {
+  document.getElementById("helpOverlay")?.classList.add("hidden");
+});
+document.getElementById("helpOverlay")?.addEventListener("click", (e) => {
+  if (e.target.id === "helpOverlay") e.currentTarget.classList.add("hidden");
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
+});
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
