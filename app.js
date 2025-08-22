@@ -845,8 +845,10 @@ function initPlans() {
     });
 }
 
-function renderPlans() {
+async function renderPlans() {
   populatePlanScopeSelect();
+  const editableHere = isEditableHere(teamId, memberId, viewingMemberId);
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   // 既存の購読を解除
   if (unsubscribePlans) unsubscribePlans();
   // 月文字列（YYYY-MM）。空なら現在月。
@@ -879,11 +881,11 @@ function renderPlans() {
       <div class="dow">${["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()]}<br>${d}</div>
       <div class="txt" id="pl_${dayKey}" style="flex-wrap: wrap; flex-direction: row; align-items: center;">—</div>
     `;
-    row.addEventListener("click", () => openPlanModal(dt));
+    if (editableHere) row.addEventListener("click", () => openPlanModal(dt));
     box.appendChild(row);
 
     // 日別の events サブコレにリアルタイム購読を張る（インデックス不要）
-    const unsub = getPlansCollectionRef(teamId)
+    const unsub = getPlansCollectionRef(srcTeam)
       .doc(dayKey)                     // ← empty path にならない（上で dayKey を必ず生成）
       .collection('events')
       .orderBy('mem')                  // 任意。不要なら外してもOK
@@ -1412,6 +1414,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
 });
 });
+
 
 
 
