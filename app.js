@@ -952,37 +952,50 @@ function renderPlanListInModal(mon, dayKey, editCallback) {
 
 function closePlanModal() { if (modalDiv) { modalDiv.remove(); modalDiv = null; } }
 
+// 置き換え版：タイプ文字（ジョグ/ポイント…）はコピーしない
 async function collectPlansTextForDay(day, scopeSel) {
-    const dayKey = ymd(day);
-    const plansRef = getPlansCollectionRef(teamId).doc(dayKey).collection('events');
-    let query = plansRef;
-    if (scopeSel === memberId) query = query.where('mem', '==', memberId);
-    if (scopeSel === 'team') query = query.where('scope', '==', 'team');
-    
-    const snapshot = await query.get();
-    const list = [];
-    snapshot.docs.forEach(doc => {
-        const it = doc.data();
-        if (scopeSel === "auto") {
-            if (it.mem === memberId) list.push(`[${memberId}] ${it.type} ${it.content}`);
-            else if (it.scope === "team") list.push(`[全員] ${it.type} ${it.content}`);
-        } else {
-            list.push(`${it.type} ${it.content}`);
-        }
-    });
-    return list.join("\n");
+  const dayKey = ymd(day);
+  const plansRef = getPlansCollectionRef(teamId).doc(dayKey).collection('events');
+
+  let query = plansRef;
+  if (scopeSel === memberId) query = query.where('mem', '==', memberId);
+  if (scopeSel === 'team')   query = query.where('scope', '==', 'team');
+
+  const snapshot = await query.get();
+
+  const list = [];
+  snapshot.docs.forEach(doc => {
+    const it = doc.data();
+    if (scopeSel === "auto") {
+      // 自動：自分の予定 + チーム共有の予定の「内容」だけを入れる
+      if (it.mem === memberId || it.scope === "team") list.push(it.content);
+    } else {
+      list.push(it.content);
+    }
+  });
+
+  // 同じ内容が重複していたら削除（任意）
+  return Array.from(new Set(list)).join("\n");
 }
 
+// 追加：その日の予定の type を集約してタグに使う
 async function collectPlansTypesForDay(day, scopeSel) {
   const dayKey = ymd(day);
-  let q = getPlansCollectionRef(teamId).doc(dayKey).collection('events');
-  if (scopeSel === memberId) q = q.where('mem', '==', memberId);
-  if (scopeSel === 'team')   q = q.where('scope', '==', 'team');
+  const plansRef = getPlansCollectionRef(teamId).doc(dayKey).collection('events');
 
-  const snap = await q.get();
-  const set = new Set();
-  snap.docs.forEach(d => { const it = d.data(); if (it?.type) set.add(it.type); });
-  return Array.from(set);
+  let query = plansRef;
+  if (scopeSel === memberId) query = query.where('mem', '==', memberId);
+  if (scopeSel === 'team')   query = query.where('scope', '==', 'team');
+
+  const snapshot = await query.get();
+
+  const types = [];
+  snapshot.docs.forEach(doc => {
+    const t = doc.data().type;
+    if (t && !types.includes(t)) types.push(t);
+  });
+
+  return types; // 例: ["ジョグ","ポイント"]
 }
 
 
@@ -1301,6 +1314,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
 });
 });
+
 
 
 
