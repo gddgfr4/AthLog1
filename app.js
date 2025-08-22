@@ -280,35 +280,49 @@ async function showApp() {
     
     switchTab("journal");
     checkNewMemo();
+    initTeamSwitcher();
 }
 
 function initTeamSwitcher() {
-  const sel = document.getElementById('teamSwitchSelect');
-  const btn = document.getElementById('setAsMainBtn');
-  if (!sel || !btn) return;
+  const wrap = document.getElementById('teamSwitchWrap');
+  const sel  = document.getElementById('teamSwitchSelect');
+  const btn  = document.getElementById('setAsMainBtn');
+  if (!wrap || !sel || !btn) return;
 
+  // この端末/ブラウザに保存してある「同一メンバー名で所属するチーム」一覧
   const profiles = getProfiles().filter(p => p.member === memberId);
+
+  // 1チーム以下ならUIを隠す
+  if (profiles.length <= 1) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'flex';
+
+  // セレクトを構築（メインには印を付ける）
   sel.innerHTML = profiles.map(p => {
     const isMain = getMainTeamOf(memberId) === p.team;
-    return `<option value="${p.team}" ${p.team===teamId?'selected':''}>
-      ${p.team}${isMain?'（メイン）':''}
+    return `<option value="${p.team}" ${p.team===teamId ? 'selected' : ''}>
+      ${p.team}${isMain ? '（メイン）' : ''}
     </option>`;
   }).join('');
 
+  // チーム切替：teamId を更新して再描画
   sel.onchange = async (e) => {
-    // チーム切替：購読付け直し
     teamId = e.target.value;
     $("#teamLabel").textContent = teamId;
-    await populateMemberSelect();     // 既存
+    await populateMemberSelect();
     switchTab($(".tab.active")?.dataset.tab, true);
   };
 
+  // メインに設定：mirror フラグの付け直し → 表示更新
   btn.onclick = async () => {
     const newMain = sel.value;
     await chooseMainTeam(newMain);
-    initTeamSwitcher(); // 表示更新
+    initTeamSwitcher(); // ラベルの（メイン）表示を更新
   };
 }
+
 // showApp() の最後で
 initTeamSwitcher();
 
@@ -1418,4 +1432,5 @@ window.addEventListener("keydown", (e) => {
 });
 
 function renderDashboardInsight() {}
+
 
