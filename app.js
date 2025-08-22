@@ -199,11 +199,26 @@ async function makeAICommentForPeriod({ teamId, memberId, start, end, label='期
 }
 
 
-async function weekAIComment(d){
-  const start = startOfWeek(d);
-  const end   = addDays(start, 6);
-  return await makeAICommentForPeriod({ teamId, memberId: viewingMemberId, start, end, label: '週' });
+// 置き換え：週AI → 直近7日AI
+async function weekAIComment(d) {
+  // 期間：選択日を終端にした rolling 7 days
+  const end = new Date(d); 
+  end.setHours(0, 0, 0, 0);
+  const start = addDays(end, -6);
+
+  // 表示元チーム（サブ所属での閲覧にも対応）
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+
+  // ラベルも直近7日に変更
+  return await makeAICommentForPeriod({
+    teamId: srcTeam,
+    memberId: viewingMemberId,
+    start,
+    end,
+    label: '直近7日'
+  });
 }
+
 
 
 // ---- Team Memo paging state ----
@@ -1474,6 +1489,7 @@ window.addEventListener("keydown", (e) => {
 });
 
 function renderDashboardInsight() {}
+
 
 
 
