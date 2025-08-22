@@ -1287,7 +1287,7 @@ if (helpBody) {
 </ul>
 <h2>6. ダッシュボード & メモ</h2>
 <ul>
-  <li>距離：週/月切替・左右で期間移動</li>
+  <li>距離：日/週/月切替・左右で期間移動</li>
   <li>調子：直近14日</li>
   <li>メモ：下に新着、上スクロールで過去</li>
 </ul>
@@ -1295,7 +1295,6 @@ if (helpBody) {
 <ul>
   <li>編集できない→右上の表示中メンバーが自分か確認</li>
   <li>色が変わらない→その日を保存</li>
-  <li>月一覧が空→月を確認/再読み込み</li>
 </ul>
   `;
 }
@@ -1314,6 +1313,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
 });
 });
+
 
 
 
