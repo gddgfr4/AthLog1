@@ -1,218 +1,263 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AthLog</title>
-<link rel="stylesheet" href="style.css" />
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AthLog</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- 追加: 最低限の補助CSS（未読ドット/バッジ/hidden） -->
+  <style>
+    /* タブ：チームメモ未読ドット */
+    .tab.new-message::after {
+      content: "";
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 9999px;
+      background: #ef4444; /* 赤 */
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    /* バッジ（MAIN / 閲覧のみ） */
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1;
+      border: 1px solid rgba(0,0,0,.08);
+    }
+    .badge.primary { background: #2563eb; color: #fff; }
+    .badge.warn { background: #f59e0b; color: #1f2937; }
+    .hidden { display: none !important; }
+  </style>
 </head>
 <body>
-<div id="app" class="app hidden">
-  <header class="topbar">
-    <button class="ghost" id="openHelpBtn">？ヘルプ</button>
-    <div class="brand">AthLog</div>
-    <div class="teamuser">
-      <span>Team: <b id="teamLabel"></b></span>
-      <span style="display: flex; align-items: center; gap: 8px;">
-        表示中: <b id="memberLabel"></b>
-        <select id="memberSelect" class="ghost" style="padding: 4px 6px;"></select>
-      </span>
-      <button id="logoutBtn" class="ghost">ログアウト</button>
-    </div>
-  </header>
-  <nav class="tabs">
-    <button data-tab="journal" class="tab active">日誌</button>
-    <button data-tab="month" class="tab">月一覧</button>
-    <button data-tab="plans" class="tab">予定表</button>
-    <button data-tab="dashboard" class="tab">ダッシュボード</button>
-    <button data-tab="memo" class="tab">チームメモ</button>
-  </nav>
-
-  <!-- JOURNAL -->
-  <section id="journal" class="tabpanel active">
-    <div class="journal-grid">
-      <div class="panel">
-        <h3>筋疲労マップ</h3>
-        <div class="palette">
-          <button class="lvl" data-lvl="1"><span class="dot dot1"></span>1</button>
-          <button class="lvl" data-lvl="2"><span class="dot dot2"></span>2</button>
-          <button class="lvl" data-lvl="3"><span class="dot dot3"></span>3</button>
-          <button id="eraser" class="ghost">消しゴム</button>
-          <button id="undoBtn" class="ghost">Undo</button>
-          <button id="copyPrev" class="ghost">前日コピー(マップ)</button>
-        </div>
-        <div class="canvas-wrap">
-          <img id="humanImg" alt="human" src="human.webp.png" />
-          <canvas id="paint"></canvas>
-        </div>
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <button class="ghost" id="openHelpBtn">ヘルプ</button>
+      <div class="brand">AthLog</div>
+      <div class="teamuser" style="display:flex; align-items:center; gap:12px;">
+        <span>Team: <b id="teamLabel"></b></span>
+        <span style="display:flex; align-items:center; gap:8px;">
+          表示中: <b id="memberLabel"></b>
+          <!-- 追加: バッジ（JSで表示/非表示） -->
+          <span id="mainTeamBadge" class="badge primary hidden" title="このチームはあなたのメインです">MAIN</span>
+          <span id="readonlyBadge" class="badge warn hidden" title="このチームでは編集できません">閲覧のみ</span>
+          <select id="memberSelect" class="ghost" style="padding: 4px 6px;"></select>
+        </span>
+        <button id="logoutBtn" class="ghost">ログアウト</button>
       </div>
-      <div class="panel right">
-        <div class="weekbar">
-          <button id="weekPrev" class="ghost">&larr;</button>
-          <div id="weekChips" class="chips"></div>
-          <button id="weekNext" class="ghost">&rarr;</button>
-          <span id="weekMonthLabel" class="muted"></span>
-          <input type="date" id="datePicker" />
-          <button id="gotoToday" class="ghost">今日へ</button>
+    </header>
+
+    <nav class="tabs">
+      <button data-tab="journal" class="tab active">日誌</button>
+      <button data-tab="month" class="tab">月一覧</button>
+      <button data-tab="plans" class="tab">予定表</button>
+      <button data-tab="dashboard" class="tab">ダッシュボード</button>
+      <button data-tab="memo" class="tab">チームメモ</button>
+    </nav>
+
+    <!-- JOURNAL -->
+    <section id="journal" class="tabpanel active">
+      <div class="journal-grid">
+        <div class="panel">
+          <h3>筋疲労マップ</h3>
+          <div class="palette">
+            <button class="lvl" data-lvl="1"><span class="dot dot1"></span>1</button>
+            <button class="lvl" data-lvl="2"><span class="dot dot2"></span>2</button>
+            <button class="lvl" data-lvl="3"><span class="dot dot3"></span>3</button>
+            <button id="eraser" class="ghost">消しゴム</button>
+            <button id="undoBtn" class="ghost">Undo</button>
+            <button id="copyPrev" class="ghost">前日コピー(マップ)</button>
+          </div>
+          <div class="canvas-wrap">
+            <img id="humanImg" alt="human" src="human.webp.png" />
+            <canvas id="paint"></canvas>
+          </div>
         </div>
-        <div class="quick" style="justify-content: center;">
-          <button class="qbtn jog">ジョグ</button>
-          <button class="qbtn point">ポイント</button>
-          <button class="qbtn sup">補強</button>
-          <button class="qbtn off">オフ</button>
-          <button class="qbtn other">その他</button>
-        </div>
-        <div class="formcol">
-          <div style="display: flex; gap: 12px; align-items: flex-start;">
-            <div style="flex: 1;">
-              <label>走行距離(km)</label>
-              <input type="number" id="distInput" step="0.1" min="0" />
-            </div>
-            <div>
-              <label>今日の調子</label>
-              <div id="conditionBtns" class="condition-rating">
-                <button data-val="1">1</button> <button data-val="2">2</button>
-                <button data-val="3">3</button> <button data-val="4">4</button>
-                <button data-val="5">5</button>
+
+        <div class="panel right">
+          <div class="weekbar">
+            <button id="weekPrev" class="ghost">&larr;</button>
+            <div id="weekChips" class="chips"></div>
+            <button id="weekNext" class="ghost">&rarr;</button>
+            <span id="weekMonthLabel" class="muted"></span>
+            <input type="date" id="datePicker" />
+            <button id="gotoToday" class="ghost">今日へ</button>
+          </div>
+
+          <div class="quick" style="justify-content: center;">
+            <button class="qbtn jog">ジョグ</button>
+            <button class="qbtn point">ポイント</button>
+            <button class="qbtn sup">補強</button>
+            <button class="qbtn off">オフ</button>
+            <button class="qbtn other">その他</button>
+          </div>
+
+          <div class="formcol">
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+              <div style="flex: 1;">
+                <label>走行距離(km)</label>
+                <input type="number" id="distInput" step="0.1" min="0" />
+              </div>
+              <div>
+                <label>今日の調子</label>
+                <div id="conditionBtns" class="condition-rating">
+                  <button data-val="1">1</button>
+                  <button data-val="2">2</button>
+                  <button data-val="3">3</button>
+                  <button data-val="4">4</button>
+                  <button data-val="5">5</button>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="note">
-            <label>練習内容</label>
-            <textarea id="trainInput" rows="3"></textarea>
-            <div class="merge">
-              <select id="mergeScope" class="ghost"></select>
-              <button id="mergeBtn" class="ghost">反映</button>
+
+            <div class="note">
+              <label>練習内容</label>
+              <textarea id="trainInput" rows="3"></textarea>
+              <div class="merge">
+                <select id="mergeScope" class="ghost"></select>
+                <button id="mergeBtn" class="ghost">反映</button>
+              </div>
+            </div>
+
+            <div class="note">
+              <label>タイム・感想</label>
+              <!-- 感想欄だけ1.5倍相当へ（rows=5） -->
+              <textarea id="feelInput" rows="5"></textarea>
+            </div>
+
+            <div class="savebar">
+              <div id="weekSum" class="muted">週 走行距離: 0 km</div>
+              <button id="saveBtn" class="primary">この日を保存</button>
+            </div>
+
+            <div class="aibox">
+              <div class="muted">AIコメント</div>
+              <div id="aiBox" class="aiout"></div>
             </div>
           </div>
-          <div class="note">
-            <label>タイム・感想</label>
-            <textarea id="feelInput" rows="3"></textarea>
-          </div>
-          <div class="savebar">
-            <div id="weekSum" class="muted">週 走行距離: 0 km</div>
-            <button id="saveBtn" class="primary">この日を保存</button>
-          </div>
-          <div class="aibox">
-            <div class="muted">AIコメント</div>
-            <div id="aiBox" class="aiout"></div>
-          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- MONTH LIST -->
-  <section id="month" class="tabpanel">
-    <div class="monthbar">
-      <button id="mPrev" class="ghost">&larr;</button>
-      <input type="month" id="monthPick" />
-      <button id="mNext" class="ghost">&rarr;</button>
-      <div id="monthSum" class="muted"></div>
-    </div>
-    <div class="panel" style="margin-bottom: 12px;">
-      <label for="monthGoalInput"><strong>月間目標</strong></label>
-      <textarea id="monthGoalInput" class="form-control" rows="2" style="width:100%; margin-top: 4px;"></textarea>
-      <div style="text-align: right; margin-top: 6px;">
-        <button id="saveMonthGoalBtn" class="primary">目標を保存</button>
+    <!-- MONTH LIST -->
+    <section id="month" class="tabpanel">
+      <div class="monthbar">
+        <button id="mPrev" class="ghost">&larr;</button>
+        <input type="month" id="monthPick" />
+        <button id="mNext" class="ghost">&rarr;</button>
+        <div id="monthSum" class="muted"></div>
       </div>
-    </div>
-    <div id="monthList" class="list"></div>
-  </section>
 
-  <!-- PLANS -->
-  <section id="plans" class="tabpanel">
-    <div class="monthbar">
-      <button id="pPrev" class="ghost">&larr;</button>
-      <input type="month" id="planMonthPick" />
-      <button id="pNext" class="ghost">&rarr;</button>
-      <div class="filters" style="margin-left: auto;">
-        <select id="planScope" class="ghost"></select>
-        <input id="tagFilter" placeholder="タグ(,区切り)" />
-      </div>
-    </div>
-    <div class="chatwrap" style="margin-bottom: 12px;">
-      <button id="toggleChat" class="ghost">月コメント</button>
-      <div id="chatBox" class="chat hidden">
-        <div id="chatLog" class="chatlog"></div>
-        <input id="chatInput" placeholder="コメント..." />
-      </div>
-    </div>
-    <div id="planList" class="list"></div>
-  </section>
-
-  <!-- DASHBOARD -->
-  <section id="dashboard" class="tabpanel">
-    <div class="panel" style="margin-bottom: 12px;">
-      <div class="dash-header">
-        <h3 id="distChartTitle">走行距離グラフ</h3>
-        <div class="dash-controls">
-          <button id="distChartPrev" class="ghost">&larr;</button>
-          <button id="distChartToggle" class="ghost">月</button>
-          <button id="distChartNext" class="ghost">&rarr;</button>
+      <div class="panel" style="margin-bottom: 12px;">
+        <label for="monthGoalInput"><strong>月間目標</strong></label>
+        <textarea id="monthGoalInput" class="form-control" rows="2" style="width:100%; margin-top: 4px;"></textarea>
+        <div style="text-align: right; margin-top: 6px;">
+          <button id="saveMonthGoalBtn" class="primary">目標を保存</button>
         </div>
       </div>
-      <div style="height: 300px;"><canvas id="distanceChart"></canvas></div>
-    </div>
-    <div class="panel">
-      <div class="dash-header">
-        <h3>コンディション推移</h3>
-        <div class="dash-controls">
-          <button id="condChartPrev" class="ghost">&larr;</button>
-          <span id="condChartRange" class="muted"></span>
-          <button id="condChartNext" class="ghost">&rarr;</button>
+
+      <div id="monthList" class="list"></div>
+    </section>
+
+    <!-- PLANS -->
+    <section id="plans" class="tabpanel">
+      <div class="monthbar">
+        <button id="pPrev" class="ghost">&larr;</button>
+        <input type="month" id="planMonthPick" />
+        <button id="pNext" class="ghost">&rarr;</button>
+        <div class="filters" style="margin-left: auto;">
+          <select id="planScope" class="ghost"></select>
+          <input id="tagFilter" placeholder="タグ(,区切り)" />
         </div>
       </div>
-      <div style="height: 250px;"><canvas id="conditionChart"></canvas></div>
-    </div>
-  </section>
 
-  <!-- TEAM MEMO -->
-  <section id="memo" class="tabpanel">
-    <div class="panel">
-      <h3>チームメモ</h3>
-      <div id="memoChatBox" class="chat">
-        <div id="memoChatLog" class="chatlog" style="max-height: 400px;"></div>
-        <div class="chat-input-area">
+      <div class="chatwrap" style="margin-bottom: 12px;">
+        <button id="toggleChat" class="ghost">月コメント</button>
+        <div id="chatBox" class="chat hidden">
+          <div id="chatLog" class="chatlog"></div>
+          <input id="chatInput" placeholder="コメント..." />
+        </div>
+      </div>
+
+      <div id="planList" class="list"></div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section id="dashboard" class="tabpanel">
+      <div class="panel" style="margin-bottom: 12px;">
+        <div class="dash-header">
+          <h3 id="distChartTitle">走行距離グラフ</h3>
+          <div class="dash-controls">
+            <button id="distChartPrev" class="ghost">&larr;</button>
+            <button id="distChartToggle" class="ghost">月</button>
+            <button id="distChartNext" class="ghost">&rarr;</button>
+          </div>
+        </div>
+        <div style="height: 300px;"><canvas id="distanceChart"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <div class="dash-header">
+          <h3>コンディション推移</h3>
+          <div class="dash-controls">
+            <button id="condChartPrev" class="ghost">&larr;</button>
+            <span id="condChartRange" class="muted"></span>
+            <button id="condChartNext" class="ghost">&rarr;</button>
+          </div>
+        </div>
+        <div style="height: 250px;"><canvas id="conditionChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- TEAM MEMO -->
+    <section id="memo" class="tabpanel">
+      <div class="panel">
+        <h3>チームメモ</h3>
+        <div id="memoChatBox" class="chat">
+          <div id="memoChatLog" class="chatlog" style="max-height: 400px;"></div>
+          <div class="chat-input-area">
             <input id="memoChatInput" class="form-control" placeholder="チーム全体へのメッセージ..." />
             <button id="memoSendBtn" class="primary">送信</button>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
-</div>
-
-<!-- LOGIN DIALOG -->
-<div id="login" class="login">
-  <div class="login-card">
-    <div class="logo">AthLog</div>
-    <div class="desc">中長距離のための日誌</div>
-    <label>Team ID</label>
-    <input id="teamId" value="" />
-    <label>Member</label>
-    <input id="memberName" value="" />
-    <button id="loginBtn" class="primary wide">はじめる</button>
+    </section>
   </div>
-</div>
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-<!-- Your app's script -->
-<script src="app.js?v=20250820"></script>
-<div id="helpOverlay" class="login hidden">
-  <div class="login-card" style="max-width:860px; width:min(96vw,860px); max-height:85vh; overflow:auto;">
-    <div class="logo">AthLog クイックガイド</div>
-    <div class="desc">最短で使い始めるための要点まとめ</div>
-    <div id="helpBody" class="doc"></div>
-    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
-      <button class="ghost" id="helpClose">閉じる</button>
+  <!-- LOGIN DIALOG -->
+  <div id="login" class="login">
+    <div class="login-card">
+      <div class="logo">AthLog</div>
+      <div class="desc">中長距離のための日誌</div>
+      <label>Team ID</label>
+      <input id="teamId" value="" />
+      <label>Member</label>
+      <input id="memberName" value="" />
+      <button id="loginBtn" class="primary wide">はじめる</button>
     </div>
   </div>
-</div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+  <!-- Your app's script -->
+  <script src="app.js?v=20250820"></script>
+
+  <!-- ヘルプオーバーレイ（JSが中身を流し込み、開閉を制御） -->
+  <div id="helpOverlay" class="login hidden">
+    <div class="login-card" style="max-width:860px; width:min(96vw,860px); max-height:85vh; overflow:auto;">
+      <div class="logo">AthLog クイックガイド</div>
+      <div class="desc">最短で使い始めるための要点まとめ</div>
+      <div id="helpBody" class="doc"></div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button class="ghost" id="helpClose">閉じる</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
-
-
-
