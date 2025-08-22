@@ -181,6 +181,32 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 #helpBody ul { padding-left: 1.2em; }
 
 
+/* --- スマホ縦で日誌の並び替え（フォーム → 筋マップ） --- */
+@media (max-width: 768px) {
+  /* グリッド指定があっても上書きするため flex に切替 */
+  .journal-grid {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+  /* デフォは後ろへ */
+  .journal-grid .panel {
+    order: 2;
+  }
+  /* 右側パネル（フォーム）を先頭に */
+  .journal-grid .panel.right {
+    order: 1;
+  }
+
+  /* キャンバス周りは幅いっぱいに */
+  .canvas-wrap,
+  #humanImg,
+  #paint {
+    width: 100%;
+    height: auto;
+  }
+}
+
 
 
 
