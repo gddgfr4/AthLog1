@@ -225,6 +225,9 @@ async function markMemoRead() {
   memoTab?.classList.remove('new-message');
 }
 
+// 直近に読んだ日誌データ（再描画用）
+let lastJournal = null;
+
 
 // ===== App State =====
 let teamId = null, memberId = null, viewingMemberId = null;
@@ -378,9 +381,11 @@ function initJournal() {
     imgEl = $("#humanImg");
     canvas = $("#paint");
     const fit = () => {
-        if (!canvas || !imgEl) return;
-        canvas.width = imgEl.clientWidth; canvas.height = imgEl.clientHeight;
-        ctx = canvas.getContext("2d"); renderPaint();
+      if (!canvas || !imgEl) return;
+      canvas.width  = imgEl.clientWidth;
+      canvas.height = imgEl.clientHeight;
+      ctx = canvas.getContext("2d");
+      renderPaint(lastJournal); // ★ 直近データで再描画
     };
 
     // 追加：タップ地点のストロークを1本削除
@@ -461,15 +466,25 @@ async function eraseStrokeAtEvent(e) {
         e.preventDefault();
     };
     const end = async () => {
-        if (!painting) return;
-        painting = false; if (rafId) cancelAnimationFrame(rafId); rafId = null;
-        const currentStroke = strokes.pop();
-        if (currentStroke && currentStroke.pts.length > 1) {
-            await getJournalRef(teamId, memberId, selDate).set({ 
-                paint: firebase.firestore.FieldValue.arrayUnion(currentStroke) 
-            }, { merge: true });
-        }
+      if (!painting) return;
+      painting = false;
+      if (rafId) cancelAnimationFrame(rafId); rafId = null;
+
+      const currentStroke = strokes.pop();
+      if (currentStroke && currentStroke.pts.length > 1) {
+    // ★ 正規化して保存
+        const normPts = currentStroke.pts.map(p => ({
+          nx: p.x / canvas.width,
+          ny: p.y / canvas.height,
+        }));
+        const strokeToSave = { lvl: currentStroke.lvl, erase: currentStroke.erase, pts: normPts };
+
+        await getJournalRef(teamId, memberId, selDate).set({
+           paint: firebase.firestore.FieldValue.arrayUnion(strokeToSave)
+        }, { merge: true });
+      }
     };
+
     if (canvas) {
         canvas.addEventListener("mousedown", start);
         canvas.addEventListener("mousemove", move);
@@ -577,6 +592,18 @@ async function renderJournal() {
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   unsubscribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc => {
     const j = doc.data() || { dist: 0, train: "", feel: "", tags: [], paint: [], condition: null };
+    lastJournal = j;
+      // ★任意：古い {x,y} だけのストロークがあれば正規化して保存し直す
+    if (j.paint && j.paint.some(st => st.pts?.[0] && st.pts[0].nx === undefined) && canvas?.width) {
+      const migrated = j.paint.map(st => ({
+        ...st,
+        pts: (st.pts || []).map(p =>
+          (p && p.nx !== undefined) ? p : { nx: p.x / canvas.width, ny: p.y / canvas.height }
+        )
+      }));
+      getJournalRef(srcTeam, viewingMemberId, selDate).set({ paint: migrated }, { merge: true });
+    }
+
     if (!dirty.dist)  { $("#distInput").value  = j.dist ?? ""; }
     if (!dirty.train) { $("#trainInput").value = j.train ?? ""; }
     if (!dirty.feel)  { $("#feelInput").value  = j.feel ?? ""; }
@@ -592,24 +619,39 @@ async function renderJournal() {
   });
 }
 
+function renderPaint(j = null) {
+  if (!ctx || !canvas) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-function renderPaint(j) {
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const allStrokes = (j?.paint || []).concat(strokes);
-    const drawStroke = (s) => {
-        if (!s || s.pts.length < 1) return;
-        const col = s.erase ? "rgba(0,0,0,1)" : (s.lvl == 1 ? "rgba(245, 158, 11,0.6)" : s.lvl == 2 ? "rgba(239, 68, 68,0.6)" : "rgba(217, 70, 239,0.6)");
-        ctx.lineWidth = 18; ctx.lineCap = "round";
-        ctx.globalCompositeOperation = s.erase ? "destination-out" : "source-over";
-        ctx.strokeStyle = col;
-        ctx.beginPath(); ctx.moveTo(s.pts[0].x, s.pts[0].y);
-        for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i].x, s.pts[i].y);
-        ctx.stroke();
-    };
-    allStrokes.forEach(drawStroke);
-    ctx.globalCompositeOperation = "source-over";
+  const baseStrokes = (j?.paint || []);
+  const allStrokes  = baseStrokes.concat(strokes); // strokes はライブ(px)のまま
+
+  const drawStroke = (s) => {
+    if (!s || !Array.isArray(s.pts) || s.pts.length < 1) return;
+
+    // ★ {nx,ny} でも {x,y} でも現在サイズのpxに変換
+    const P = s.pts.map(pt => ptToPx(pt, canvas.width, canvas.height));
+
+    const col = s.erase ? "rgba(0,0,0,1)"
+              : (s.lvl == 1 ? "rgba(245,158,11,0.6)"
+              : (s.lvl == 2 ? "rgba(239,68,68,0.6)"
+              :                "rgba(217,70,239,0.6)"));
+    ctx.lineWidth = 18;
+    ctx.lineCap   = "round";
+    ctx.globalCompositeOperation = s.erase ? "destination-out" : "source-over";
+    ctx.strokeStyle = col;
+
+    ctx.beginPath();
+    ctx.moveTo(P[0].x, P[0].y);
+    for (let i = 1; i < P.length; i++) ctx.lineTo(P[i].x, P[i].y);
+    ctx.stroke();
+  };
+
+  allStrokes.forEach(drawStroke);
+  ctx.globalCompositeOperation = "source-over";
 }
+
+
 
 function drawLive() { renderPaint(); }
 
@@ -1432,5 +1474,6 @@ window.addEventListener("keydown", (e) => {
 });
 
 function renderDashboardInsight() {}
+
 
 
