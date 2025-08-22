@@ -148,6 +148,18 @@ let memoLatestTs = 0;         // いま表示している中で最新のタイ�
 let memoLiveUnsub = null;     // 最新1件のライブ購読解除用
 let memoLoadingOlder = false; // 追加読込中フラグ
 
+// 既読印の保存先キー（チーム×ログイン中メンバーで分離）
+const memoLastViewKey = () => `athlog:${teamId}:${memberId}:lastMemoView`;
+
+// メモタブを開いたら既読にする（最新メッセージの ts を保存）
+async function markMemoRead() {
+  const snap = await getTeamMemoCollectionRef(teamId).orderBy('ts', 'desc').limit(1).get();
+  const latestTs = snap.empty ? Date.now() : (snap.docs[0].data().ts || Date.now());
+  localStorage.setItem(memoLastViewKey(), String(latestTs));
+  const memoTab = document.querySelector('[data-tab="memo"]');
+  memoTab?.classList.remove('new-message');
+}
+
 
 // ===== App State =====
 let teamId = null, memberId = null, viewingMemberId = null;
@@ -219,7 +231,10 @@ function switchTab(id, forceRender = false) {
     if (id === "month") renderMonth();
     if (id === "plans") renderPlans();
     if (id === "dashboard") renderDashboard();
-    if (id === "memo") renderMemo();
+    if (id === "memo") {            // ★ ここを追加/修正
+      renderMemo();
+      markMemoRead();               // タブ表示時に既読化
+    }
 }
 
 // ===== Login & Logout =====
@@ -1128,18 +1143,19 @@ function initMemo() {
 
 
 async function checkNewMemo() {
-    const lastView = localStorage.getItem(`athlog:${teamId}:lastMemoView`) || 0;
-    const snapshot = await getTeamMemoCollectionRef(teamId).orderBy('ts', 'desc').limit(1).get();
-    const memoTab = $('[data-tab="memo"]');
-    if (!snapshot.empty) {
-        const lastMessage = snapshot.docs[0].data();
-        if (memoTab && lastMessage.ts > lastView) {
-            memoTab.classList.add('new-message');
-        } else if (memoTab) {
-            memoTab.classList.remove('new-message');
-        }
+  const lastView = Number(localStorage.getItem(memoLastViewKey()) || 0);
+  const snapshot = await getTeamMemoCollectionRef(teamId).orderBy('ts', 'desc').limit(1).get();
+  const memoTab = document.querySelector('[data-tab="memo"]');
+  if (!snapshot.empty) {
+    const lastMessage = snapshot.docs[0].data();
+    if (memoTab && lastMessage.ts > lastView) {
+      memoTab.classList.add('new-message');
+    } else if (memoTab) {
+      memoTab.classList.remove('new-message');
     }
+  }
 }
+
 
 // ===== Boot and Login =====
 window.addEventListener("hashchange", () => { closePlanModal(); });
@@ -1285,6 +1301,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.getElementById("helpOverlay")?.classList.add("hidden");
 });
 });
+
 
 
 
