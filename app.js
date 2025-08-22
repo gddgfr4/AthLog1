@@ -652,13 +652,15 @@ function initMonth() {
     });
 }
 
+
 async function renderMonth() {
-  // ★編集可：メイン/サブで決める
+  // 編集可否：メイン/サブで決める
   const editableHere = isEditableHere(teamId, memberId, viewingMemberId);
   $("#monthGoalInput").disabled = !editableHere;
   $("#saveMonthGoalBtn").disabled = !editableHere;
 
-  const box = $("#monthList"); if (!box) return;
+  const box = $("#monthList"); 
+  if (!box) return;
   box.innerHTML = "";
 
   const mp = $("#monthPick");
@@ -668,7 +670,7 @@ async function renderMonth() {
   const [yy, mm] = monStr.split("-").map(Number);
   const lastDay = endOfMonth(new Date(yy, mm - 1, 1)).getDate();
 
-  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId); // ★追加
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
 
   let sum = 0;
   for (let d = 1; d <= lastDay; d++) {
@@ -682,34 +684,34 @@ async function renderMonth() {
 
     (async () => {
       try {
-        const snap = await getJournalRef(srcTeam, viewingMemberId, dt).get(); // ★ここ
+        const snap = await getJournalRef(srcTeam, viewingMemberId, dt).get();
         const j = snap.data() || {};
         sum += Number(j.dist || 0);
         $("#monthSum").textContent = `月間走行距離: ${sum.toFixed(1)} km`;
 
         const classMap = { ジョグ:"jog", ポイント:"point", 補強:"sup", オフ:"off", その他:"other" };
         const tags = Array.isArray(j.tags) ? j.tags : [];
-        const tagsHtml = tags.length ? `<div class="month-tags">${tags.map(t => `<span class="cat-tag ${classMap[t]||""}">${t}</span>`).join("")}</div>` : "";
+        const tagsHtml = tags.length
+          ? `<div class="month-tags">${tags.map(t => `<span class="cat-tag ${classMap[t]||""}">${t}</span>`).join("")}</div>`
+          : "";
+
         const cond = j.condition;
-        const condHtml = cond ? `<div class="condition-display">${Array(cond).fill(0).map(() => `<span class="star c${cond}">★</span>`).join("")}</div>` : "";
+        const condHtml = cond
+          ? `<div class="condition-display">${Array(cond).fill(0).map(() => `<span class="star c${cond}">★</span>`).join("")}</div>`
+          : "";
 
         const txt = row.querySelector(".txt");
-        txt.innerHTML = `${tagsHtml}${condHtml}<div>${(j.train || "—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span></div>`;
-      } catch (err) { console.error("renderMonth day read error:", err); }
+        txt.innerHTML = `${tagsHtml}${condHtml}
+          <div>${(j.train || "—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span></div>`;
+      } catch (err) {
+        console.error("renderMonth day read error:", err);
+      }
     })();
   }
 
-  // ★目標の読みは表示元チーム
+  // 月間目標の読み込み（表示元チームで）
   try {
-    const goalDoc = await getGoalsRef(srcTeam, viewingMemberId, monStr).get(); // ★ここ
-    $("#monthGoalInput").value = goalDoc.data()?.goal || "";
-  } catch (e) { console.error("read goal error:", e); }
-}
-
-
-  // 月間目標の読み込み（安全にラップ）
-  try {
-    const goalDoc = await getGoalsRef(teamId, viewingMemberId, monStr).get();
+    const goalDoc = await getGoalsRef(srcTeam, viewingMemberId, monStr).get();
     $("#monthGoalInput").value = goalDoc.data()?.goal || "";
   } catch (e) {
     console.error("read goal error:", e);
@@ -1415,29 +1417,5 @@ window.addEventListener("keydown", (e) => {
 });
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+function renderDashboardInsight() {}
 
