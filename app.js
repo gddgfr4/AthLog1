@@ -1098,6 +1098,54 @@ function tryLoadImageSequential(srcs){
   });
 }
 
+// 下地をグレイスケール化
+function toGray(ctx, w, h){
+  const img = ctx.getImageData(0,0,w,h);
+  const d = img.data;
+  for (let i=0;i<d.length;i+=4){
+    const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    d[i]=d[i+1]=d[i+2]=g;
+  }
+  ctx.putImageData(img,0,0);
+}
+
+// グレイ化した下地から“線”を抽出してバリアを作る
+function buildBarrierFromBase(){
+  const w = mm.base.width, h = mm.base.height;
+  const src = mm.bctx.getImageData(0,0,w,h);   // すでに toGray 済みを想定
+  const s = src.data;
+
+  const dst = mm.wctx.createImageData(w,h);
+  const d = dst.data;
+
+  const TH = 150; // 画像により 130〜180 で調整
+  for (let i=0;i<s.length;i+=4){
+    const g = s[i]; // R=G=B
+    if (g < TH){                // 暗い＝線
+      d[i]=d[i+1]=d[i+2]=0; d[i+3]=255;
+    }else{
+      d[i]=d[i+1]=d[i+2]=0; d[i+3]=0;
+    }
+  }
+
+  // 3x3 で少し太らせる（塗り漏れ防止）
+  const a = new Uint8ClampedArray(d.length);
+  const idxA = (x,y)=>((y*w+x)<<2)+3;
+  for(let y=1;y<h-1;y++){
+    for(let x=1;x<w-1;x++){
+      let on=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        if (d[idxA(x+dx,y+dy)]>0) on=255;
+      }
+      a[idxA(x,y)] = on;
+    }
+  }
+  for(let i=3;i<d.length;i+=4) d[i] = Math.max(d[i], a[i]);
+
+  mm.wctx.putImageData(dst,0,0);
+}
+
+
 function initMuscleMap(){
   mm.base   = document.getElementById('mmBase');
   mm.overlay= document.getElementById('mmOverlay');
@@ -1114,11 +1162,18 @@ function initMuscleMap(){
         c.width=img.naturalWidth; c.height=img.naturalHeight;
       });
       // 下地は“表示用”にも使う（CSSで #mmBase は表示状態に）
-      mm.bctx.clearRect(0,0,mm.base.width, mm.base.height);
-      mm.bctx.drawImage(img, 0, 0);
-      mm.ready=true;
-      // その日のデータを反映
-      drawMuscleFromDoc(lastJournal);
+     mm.bctx.clearRect(0,0,mm.base.width, mm.base.height);
+     mm.bctx.drawImage(img, 0, 0);
+
+// 下地 → グレイ化 → バリア生成（★これが無いと全面塗りになる）
+     toGray(mm.bctx, mm.base.width, mm.base.height);
+     buildBarrierFromBase();
+
+     mm.ready = true;
+
+// 既存保存があれば上書き反映（mmOverlayWebp / mmBarrierPng）
+     drawMuscleFromDoc(lastJournal);
+
     })
     .catch(err=>{
       console.error(err);
