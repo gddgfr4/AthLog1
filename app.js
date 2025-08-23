@@ -108,39 +108,34 @@ async function chooseMainTeam(newMainTeam) {
 }
 
 
-// === Insight helpers（AIコメント用の最小実装） ===
 async function getPeriodStats({ teamId, memberId, start, end }) {
   let distance = 0;
   let fatigueScore = 0;
   let condSum = 0, condCount = 0;
   const tagCount = {};
 
-  if (j.regions && typeof j.regions === 'object') {
-    fatigueScore += Object.values(j.regions).reduce((a, v) => a + (Number(v) || 0), 0);
-  }
-
-
   for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
     const snap = await getJournalRef(teamId, memberId, d).get();
     if (!snap.exists) continue;
     const j = snap.data() || {};
+
     distance += Number(j.dist || 0);
 
-    if (Array.isArray(j.paint)) {
-      fatigueScore += j.paint.reduce((acc, s) => acc + (s.erase ? 0 : (s.lvl || 1)), 0);
+    // ★ 筋マップ（SVG部位）のスコア
+    if (j.regions && typeof j.regions === 'object') {
+      fatigueScore += Object.values(j.regions).reduce((a, v) => a + (Number(v) || 0), 0);
     }
-    if (Array.isArray(j.tags)) {
-      j.tags.forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; });
-    }
-    if (typeof j.condition === 'number') {
-      condSum += j.condition; condCount++;
-    }
+
+    // （旧フリーハンドの paint は不要なら消してOK）
+    if (Array.isArray(j.tags)) j.tags.forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; });
+    if (typeof j.condition === 'number') { condSum += j.condition; condCount++; }
   }
 
   const topTags = Object.entries(tagCount).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([t])=>t);
   const avgCond = condCount ? (condSum/condCount) : null;
   return { distance, fatigueScore, topTags, avgCond };
 }
+
 
 function fatigueLevel(score) {
   if (score > 40) return '高';
@@ -392,162 +387,82 @@ async function saveJournal() {
 }
 
 function initJournal() {
-   
-    };
+  // 入力中フラグ（保存ボタンの活性/非活性に使う）
+  $("#distInput")?.addEventListener("input", () => { dirty.dist  = true; });
+  $("#trainInput")?.addEventListener("input", () => { dirty.train = true; });
+  $("#feelInput")?.addEventListener("input", () => { dirty.feel  = true; });
 
+  // ペン(=レベル)／消しゴムの切替
+  const brushBtns = $$('.palette .lvl, .palette #eraser');
+  brushBtns.forEach(b => b.addEventListener('click', () => {
+      brush.lvl = Number(b.dataset.lvl) || 1;
+      brush.erase = b.id === 'eraser';
+      brushBtns.forEach(btn => btn.classList.remove('active'));
+      b.classList.add('active');
+  }));
+  if (brushBtns.length) $('.palette .lvl[data-lvl="1"]')?.classList.add('active');
 
-    
-    if (imgEl && $(".canvas-wrap")) new ResizeObserver(fit).observe($(".canvas-wrap"));
-    fit();  // 入力したら未保存フラグON（1回だけ登録）
-    $("#distInput")?.addEventListener("input", () => { dirty.dist  = true; });
-    $("#trainInput")?.addEventListener("input", () => { dirty.train = true; });
-    $("#feelInput")?.addEventListener("input", () => { dirty.feel  = true; });
-
-
-    
-
-    const brushBtns = $$('.palette .lvl, .palette #eraser');
-    brushBtns.forEach(b => b.addEventListener('click', () => {
-        brush.lvl = Number(b.dataset.lvl) || 1; brush.erase = b.id === 'eraser';
-        brushBtns.forEach(btn => btn.classList.remove('active'));
-        b.classList.add('active');
-    }));
-    if (brushBtns.length) $('.palette .lvl[data-lvl="1"]')?.classList.add('active');
-
-    $("#undoBtn")?.addEventListener("click", async () => { 
-        const docRef = getJournalRef(teamId, memberId, selDate);
-        await db.runTransaction(async (transaction) => {
-            const doc = await transaction.get(docRef);
-            if (!doc.exists) return;
-            const j = doc.data();
-            j.paint = j.paint || [];
-            j.paint.pop();
-            transaction.update(docRef, { paint: j.paint });
-        });
+  // クイック（ジョグ/ポイント/…）
+  $$(".qbtn").forEach(b => b.addEventListener("click", async () => {
+    const docRef = getJournalRef(teamId, memberId, selDate);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(docRef);
+      const base = snap.data() || {};
+      const curr = Array.isArray(base.tags) ? [...base.tags] : [];
+      const tag = b.textContent.trim();
+      const idx = curr.indexOf(tag);
+      if (idx >= 0) curr.splice(idx, 1); else { if (curr.length >= 2) curr.shift(); curr.push(tag); }
+      const activeCondBtn = $('#conditionBtns button.active');
+      tx.set(docRef, {
+        dist: Number($("#distInput").value || 0),
+        train: $("#trainInput").value,
+        feel:  $("#feelInput").value,
+        condition: activeCondBtn ? Number(activeCondBtn.dataset.val) : null,
+        tags: curr
+      }, { merge: true });
     });
-    $("#copyPrev")?.addEventListener("click", async () => {
-        const prev = addDays(selDate, -1);
-        const prevDoc = await getJournalRef(teamId, memberId, prev).get();
-        const pj = prevDoc.data();
-        if (pj && pj.paint) {
-            await getJournalRef(teamId, memberId, selDate).set({ paint: pj.paint }, { merge: true });
-        }
-    });
+    dirty = { dist:false, train:false, feel:false };
+  }));
 
-    let rafId = null;
-    const pos = (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-        return { x, y };
-    };
-    const start = (e) => {
-        painting = true; const p = pos(e);
-        strokes.push({ lvl: brush.lvl, erase: brush.erase, pts: [p] });
-        drawLive(); e.preventDefault();
-    };
-    const move = (e) => {
-        if (!painting) return;
-        const p = pos(e); const s = strokes[strokes.length - 1];
-        if (s) s.pts.push(p);
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = requestAnimationFrame(drawLive);
-        e.preventDefault();
-    };
-    const end = async () => {
-      if (!painting) return;
-      painting = false;
-      if (rafId) cancelAnimationFrame(rafId); rafId = null;
+  // 週ナビ
+  $("#weekPrev")?.addEventListener("click", () => { selDate = addDays(selDate, -7); renderJournal(); });
+  $("#weekNext")?.addEventListener("click", () => { selDate = addDays(selDate,  7); renderJournal(); });
+  $("#gotoToday")?.addEventListener("click", () => { selDate = new Date(); renderJournal(); });
+  $("#datePicker")?.addEventListener("change", (e) => { selDate = new Date(e.target.value); renderJournal(); });
 
-      const currentStroke = strokes.pop();
-      if (currentStroke && currentStroke.pts.length > 1) {
-    // ★ 正規化して保存
-        const normPts = currentStroke.pts.map(p => ({
-          nx: p.x / canvas.width,
-          ny: p.y / canvas.height,
-        }));
-        const strokeToSave = { lvl: currentStroke.lvl, erase: currentStroke.erase, pts: normPts };
-
-        await getJournalRef(teamId, memberId, selDate).set({
-           paint: firebase.firestore.FieldValue.arrayUnion(strokeToSave)
-        }, { merge: true });
-      }
-    };
-
-    if (canvas) {
-        canvas.addEventListener("mousedown", start);
-        canvas.addEventListener("mousemove", move);
-        window.addEventListener("mouseup", end);
-        canvas.addEventListener("touchstart", start, { passive: false });
-        canvas.addEventListener("touchmove", move, { passive: false });
-        window.addEventListener("touchend", end);
+  // 予定から反映
+  $("#mergeBtn")?.addEventListener("click", async () => {
+    const scope = $("#mergeScope").value;
+    const text = await collectPlansTextForDay(selDate, scope);
+    if (text) $("#trainInput").value = ($("#trainInput").value ? ($("#trainInput").value + "\n") : "") + text;
+    const types = await collectPlansTypesForDay(selDate, scope);
+    if (types.length) {
+      const docRef = getJournalRef(teamId, memberId, selDate);
+      await docRef.set({ tags: types.slice(0, 2) }, { merge: true });
+      renderWeek();
     }
-// --- Quick ボタン（ジョグ/ポイント/補強/オフ/その他）
-$$(".qbtn").forEach(b => b.addEventListener("click", async () => {
-  const docRef = getJournalRef(teamId, memberId, selDate);
-
-  // 下書き保存 + タグ更新を 1 回のトランザクションでまとめる
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(docRef);
-    const base = snap.data() || {};
-    const curr = Array.isArray(base.tags) ? [...base.tags] : [];
-
-    const tag = b.textContent.trim();
-    const idx = curr.indexOf(tag);
-    if (idx >= 0) {
-      curr.splice(idx, 1);                    // トグルOFF
-    } else {
-      if (curr.length >= 2) curr.shift();     // 最大2件
-      curr.push(tag);                         // トグルON
-    }
-
-    const activeCondBtn = $('#conditionBtns button.active');
-    tx.set(docRef, {
-      dist: Number($("#distInput").value || 0),
-      train: $("#trainInput").value,
-      feel:  $("#feelInput").value,
-      condition: activeCondBtn ? Number(activeCondBtn.dataset.val) : null,
-      tags: curr
-    }, { merge: true });
   });
 
-  // 保存できたので dirty をリセット
-  dirty = { dist: false, train: false, feel: false };
-}));
-
-    $("#weekPrev")?.addEventListener("click", () => { selDate = addDays(selDate, -7); renderJournal(); });
-    $("#weekNext")?.addEventListener("click", () => { selDate = addDays(selDate, 7); renderJournal(); });
-    $("#gotoToday")?.addEventListener("click", () => { selDate = new Date(); renderJournal(); });
-    $("#datePicker")?.addEventListener("change", (e) => { selDate = new Date(e.target.value); renderJournal(); });
-
-        
-    $("#mergeBtn")?.addEventListener("click", async () => {
-        const scope = $("#mergeScope").value;
-        const text = await collectPlansTextForDay(selDate, scope);
-        if (text) $("#trainInput").value = ($("#trainInput").value ? ($("#trainInput").value + "\n") : "") + text;
-        const types = await collectPlansTypesForDay(selDate, scope);
-        if (types.length) {
-            const docRef = getJournalRef(teamId, memberId, selDate);
-            await docRef.set({ tags: types.slice(0, 2) }, { merge: true });
-            renderWeek();
-        }
+  // 調子
+  $$('#conditionBtns button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $$('#conditionBtns button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
     });
+  });
 
-    $$('#conditionBtns button').forEach(btn => {
-         
-        btn.addEventListener('click', () => {
-            $$('#conditionBtns button').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        });
-    });
+  // 保存
+  $("#saveBtn")?.addEventListener("click", async (e) => {
+    const btn = e.target;
+    await saveJournal();
+    btn.textContent = "保存しました！"; btn.disabled = true;
+    setTimeout(() => { btn.textContent = "この日を保存"; btn.disabled = false; }, 1500);
+  });
 
-    $("#saveBtn")?.addEventListener("click", async (e) => {
-        const btn = e.target;
-        await saveJournal();
-        btn.textContent = "保存しました！"; btn.disabled = true;
-        setTimeout(() => { btn.textContent = "この日を保存"; btn.disabled = false; }, 1500);
-    });
+  // ★ 筋マップ（SVG）のクリック塗りを有効化
+  initRegionMap();
 }
+
 
 async function renderJournal() {
   if (unsubscribeJournal) unsubscribeJournal();
@@ -582,15 +497,6 @@ async function renderJournal() {
     const j = doc.data() || { dist: 0, train: "", feel: "", tags: [], paint: [], condition: null };
     lastJournal = j;
       // ★任意：古い {x,y} だけのストロークがあれば正規化して保存し直す
-    if (j.paint && j.paint.some(st => st.pts?.[0] && st.pts[0].nx === undefined) && canvas?.width) {
-      const migrated = j.paint.map(st => ({
-        ...st,
-        pts: (st.pts || []).map(p =>
-          (p && p.nx !== undefined) ? p : { nx: p.x / canvas.width, ny: p.y / canvas.height }
-        )
-      }));
-      getJournalRef(srcTeam, viewingMemberId, selDate).set({ paint: migrated }, { merge: true });
-    }
 
     if (!dirty.dist)  { $("#distInput").value  = j.dist ?? ""; }
     if (!dirty.train) { $("#trainInput").value = j.train ?? ""; }
@@ -1432,5 +1338,6 @@ function renderDashboardInsight() {}
 
   // ★ SVG版のクリック塗りを有効化
   initRegionMap();
+
 
 
