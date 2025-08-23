@@ -129,14 +129,23 @@
             <button id="eraser" class="ghost">消しゴム</button>
           </div>
 
-          <div class="canvas-wrap">
-            <!-- 下地（解析/サイズ基準）。表示は不要 -->
-            <canvas id="mmBase" width="1024" height="1024"></canvas>
-            <!-- 着色レイヤ -->
-            <canvas id="mmOverlay" width="1024" height="1024"></canvas>
-            <!-- 仕切り（バリア） -->
-            <canvas id="mmBarrier" width="1024" height="1024"></canvas>
+         <div class="canvas-wrap" style="position:relative;max-width:1000px;margin:0 auto;">
+          <!-- 見た目用の下地画像（表示する） -->
+           <img id="mmBg" src="./human.webp.png" alt="" style="display:block;width:100%;height:auto;">
+          
+          <!-- 解析用（非表示のままでOK） -->
+           <canvas id="mmBase" width="1024" height="1024" style="display:none"></canvas>
+          
+          <!-- ユーザーが塗るレイヤ -->
+           <canvas id="mmOverlay" width="1024" height="1024"
+                   style="position:absolute;inset:0;width:100%;height:100%;
+                          mix-blend-mode:multiply;image-rendering:pixelated;cursor:crosshair;"></canvas>
+          
+          <!-- バリア線（クリック不可） -->
+          <canvas id="mmBarrier" width="1024" height="1024"
+                  style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.18;"></canvas>
           </div>
+
         </div>
 
         <div class="panel right">
@@ -328,3 +337,4 @@
   </noscript>
 </body>
 </html>
+
