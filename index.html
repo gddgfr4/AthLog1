@@ -79,10 +79,12 @@
           </div>
 
           <div class="canvas-wrap">
-            <img id="humanImg" alt="human" src="human.webp.png" />
-        <!-- 画像の上にSVGを重ねる。部位ごとに要素を配置 -->
+           <!-- 下層：人体画像（クリックは透過） -->
+            <img id="humanImg" alt="human" src="human.webp.png" style="pointer-events:none;" />
+
+            <!-- 中層：SVG（部位をクリックして塗る） -->
             <svg id="bodyMap" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">
-        <!-- ここは例。あなたの“筋肉まとめ版”SVGの各パスに差し替えてOK -->
+              <!-- 例：まとめ版の部位パス（お好みで差し替えOK） -->
               <ellipse class="region" data-id="chest"  cx="500" cy="300" rx="140" ry="90"></ellipse>
               <ellipse class="region" data-id="abs"    cx="500" cy="470" rx="90"  ry="130"></ellipse>
               <ellipse class="region" data-id="quad_L" cx="360" cy="720" rx="85"  ry="150"></ellipse>
@@ -90,7 +92,11 @@
               <ellipse class="region" data-id="calf_L" cx="380" cy="870" rx="55"  ry="90"></ellipse>
               <ellipse class="region" data-id="calf_R" cx="620" cy="870" rx="55"  ry="90"></ellipse>
             </svg>
+
+            <!-- 上層：旧paint表示専用キャンバス（クリック不可） -->
+            <canvas id="legacyPaint"></canvas>
           </div>
+
         </div>
 
 
@@ -277,6 +283,7 @@
   </div>
 </body>
 </html>
+
 
 
 
