@@ -13,43 +13,6 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 // === 追加：正規化/復元のユーティリティ ===
-function clientToNorm(e, el) {
-  const rect = el.getBoundingClientRect();
-  const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-  const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-  return { nx: cx / rect.width, ny: cy / rect.height };
-}
-function ptToPx(pt, cw, ch) {
-  // 新データ（正規化）: {nx,ny} / 旧データ: {x,y}
-  if (pt && typeof pt.nx === 'number') return { x: pt.nx * cw, y: pt.ny * ch };
-  return { x: pt.x, y: pt.y };
-}
-// 線分と点の距離（px）
-function distPointToSegPx(P, A, B) {
-  const vx = B.x - A.x, vy = B.y - A.y;
-  const wx = P.x - A.x, wy = P.y - A.y;
-  const c1 = vx * wx + vy * wy;
-  const c2 = vx * vx + vy * vy;
-  let t = c2 ? (c1 / c2) : 0;
-  t = Math.max(0, Math.min(1, t));
-  const dx = A.x + t * vx - P.x;
-  const dy = A.y + t * vy - P.y;
-  return Math.hypot(dx, dy);
-}
-// タップ地点に当たるストロークを末尾側から1本だけ探す
-function findHitStrokeIndex(paint, Ppx, cw, ch, thresholdPx = 14) {
-  for (let i = paint.length - 1; i >= 0; i--) {
-    const s = paint[i];
-    if (!s || !Array.isArray(s.pts) || s.pts.length < 2) continue;
-    for (let k = 0; k < s.pts.length - 1; k++) {
-      const A = ptToPx(s.pts[k], cw, ch);
-      const B = ptToPx(s.pts[k + 1], cw, ch);
-      if (distPointToSegPx(Ppx, A, B) <= thresholdPx) return i;
-    }
-  }
-  return -1;
-}
-
 
 // ===== Utilities =====
 const $ = (q, el = document) => el.querySelector(q);
@@ -152,6 +115,11 @@ async function getPeriodStats({ teamId, memberId, start, end }) {
   let condSum = 0, condCount = 0;
   const tagCount = {};
 
+  if (j.regions && typeof j.regions === 'object') {
+    fatigueScore += Object.values(j.regions).reduce((a, v) => a + (Number(v) || 0), 0);
+  }
+
+
   for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
     const snap = await getJournalRef(teamId, memberId, d).get();
     if (!snap.exists) continue;
@@ -248,8 +216,6 @@ let lastJournal = null;
 let teamId = null, memberId = null, viewingMemberId = null;
 let selDate = new Date();
 let brush = { lvl: 1, erase: false };
-let painting = false, strokes = [];
-let canvas, ctx, imgEl;
 let distanceChart = null, conditionChart = null;
 let dashboardOffset = 0, dashboardMode = 'month';
 let conditionChartOffset = 0;
@@ -374,6 +340,39 @@ $("#logoutBtn")?.addEventListener("click", () => {
 
 $$(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
 
+// ----- SVG部位の表示反映（regions -> クラス f1/f2/f3）-----
+function renderRegions(regions = {}) {
+  document.querySelectorAll('#bodyMap .region').forEach(el => {
+    el.classList.remove('f1','f2','f3');
+    const lvl = regions[el.dataset.id];
+    if (lvl) el.classList.add(`f${lvl}`);
+  });
+}
+
+// ----- SVGクリック処理：塗る or 消す -----
+function initRegionMap() {
+  const svg = document.getElementById('bodyMap');
+  if (!svg) return;
+
+  svg.addEventListener('click', async (e) => {
+    const target = e.target.closest('.region');
+    if (!target) return;
+
+    // 読み取り専用なら何もしない
+    if (!isEditableHere(teamId, memberId, viewingMemberId)) return;
+
+    const id = target.dataset.id;
+    const docRef = getJournalRef(teamId, memberId, selDate);
+
+    const payload = brush.erase
+      ? { [`regions.${id}`]: firebase.firestore.FieldValue.delete() } // 部位ごと削除
+      : { [`regions.${id}`]: (brush.lvl || 1) };                       // レベルで塗る
+
+    await docRef.set(payload, { merge: true });
+  });
+}
+
+
 // ===== JOURNAL =====
 async function saveJournal() {
     const activeCond = $('#conditionBtns button.active');
@@ -393,34 +392,9 @@ async function saveJournal() {
 }
 
 function initJournal() {
-    imgEl = $("#humanImg");
-    canvas = $("#paint");
-    const fit = () => {
-      if (!canvas || !imgEl) return;
-      canvas.width  = imgEl.clientWidth;
-      canvas.height = imgEl.clientHeight;
-      ctx = canvas.getContext("2d");
-      renderPaint(lastJournal); // ★ 直近データで再描画
+   
     };
 
-    // 追加：タップ地点のストロークを1本削除
-async function eraseStrokeAtEvent(e) {
-  if (!canvas) return;
-  const { nx, ny } = clientToNorm(e, canvas);
-  const Ppx = { x: nx * canvas.width, y: ny * canvas.height };
-  const docRef = getJournalRef(teamId, memberId, selDate);
-
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(docRef);
-    const base = snap.data() || {};
-    const paint = Array.isArray(base.paint) ? [...base.paint] : [];
-    const idx = findHitStrokeIndex(paint, Ppx, canvas.width, canvas.height, 14);
-    if (idx >= 0) {
-      paint.splice(idx, 1);
-      tx.set(docRef, { paint }, { merge: true });
-    }
-  });
-}
 
     
     if (imgEl && $(".canvas-wrap")) new ResizeObserver(fit).observe($(".canvas-wrap"));
@@ -588,7 +562,6 @@ async function renderJournal() {
       const isNavControl = ['weekPrev','weekNext','gotoToday','datePicker'].includes(el.id);
       if (!isNavControl) el.disabled = !editableHere;
     });
-  if ($('#paint')) $('#paint').style.pointerEvents = editableHere ? 'auto' : 'none';
 
   const mergeScopeSelect = $("#mergeScope");
   if (mergeScopeSelect) {
@@ -626,7 +599,7 @@ async function renderJournal() {
     $$('#conditionBtns button').forEach(b => b.classList.remove('active'));
     if (j.condition) $(`#conditionBtns button[data-val="${j.condition}"]`)?.classList.add('active');
 
-    renderPaint(j);
+    renderRegions(j.regions || {});
     renderQuickButtons(j);
 
     // 週コメント（現状版）
@@ -634,41 +607,6 @@ async function renderJournal() {
   });
 }
 
-function renderPaint(j = null) {
-  if (!ctx || !canvas) return;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const baseStrokes = (j?.paint || []);
-  const allStrokes  = baseStrokes.concat(strokes); // strokes はライブ(px)のまま
-
-  const drawStroke = (s) => {
-    if (!s || !Array.isArray(s.pts) || s.pts.length < 1) return;
-
-    // ★ {nx,ny} でも {x,y} でも現在サイズのpxに変換
-    const P = s.pts.map(pt => ptToPx(pt, canvas.width, canvas.height));
-
-    const col = s.erase ? "rgba(0,0,0,1)"
-              : (s.lvl == 1 ? "rgba(245,158,11,0.6)"
-              : (s.lvl == 2 ? "rgba(239,68,68,0.6)"
-              :                "rgba(217,70,239,0.6)"));
-    ctx.lineWidth = 18;
-    ctx.lineCap   = "round";
-    ctx.globalCompositeOperation = s.erase ? "destination-out" : "source-over";
-    ctx.strokeStyle = col;
-
-    ctx.beginPath();
-    ctx.moveTo(P[0].x, P[0].y);
-    for (let i = 1; i < P.length; i++) ctx.lineTo(P[i].x, P[i].y);
-    ctx.stroke();
-  };
-
-  allStrokes.forEach(drawStroke);
-  ctx.globalCompositeOperation = "source-over";
-}
-
-
-
-function drawLive() { renderPaint(); }
 
 async function renderWeek() {
   const chips = $("#weekChips"); if (!chips) return;
@@ -1491,5 +1429,8 @@ window.addEventListener("keydown", (e) => {
 function renderDashboardInsight() {}
 
 
+
+  // ★ SVG版のクリック塗りを有効化
+  initRegionMap();
 
 
