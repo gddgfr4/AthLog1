@@ -70,18 +70,29 @@
       <div class="journal-grid">
         <div class="panel">
           <h3>筋疲労マップ</h3>
+
           <div class="palette">
             <button class="lvl" data-lvl="1"><span class="dot dot1"></span>1</button>
             <button class="lvl" data-lvl="2"><span class="dot dot2"></span>2</button>
             <button class="lvl" data-lvl="3"><span class="dot dot3"></span>3</button>
             <button id="eraser" class="ghost">消しゴム</button>
-            <button id="undoBtn" class="ghost">Undo</button>
-            <button id="copyPrev" class="ghost">前日コピー(マップ)</button>
           </div>
+
           <div class="canvas-wrap">
             <img id="humanImg" alt="human" src="human.webp.png" />
+        <!-- 画像の上にSVGを重ねる。部位ごとに要素を配置 -->
+            <svg id="bodyMap" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">
+        <!-- ここは例。あなたの“筋肉まとめ版”SVGの各パスに差し替えてOK -->
+              <ellipse class="region" data-id="chest"  cx="500" cy="300" rx="140" ry="90"></ellipse>
+              <ellipse class="region" data-id="abs"    cx="500" cy="470" rx="90"  ry="130"></ellipse>
+              <ellipse class="region" data-id="quad_L" cx="360" cy="720" rx="85"  ry="150"></ellipse>
+              <ellipse class="region" data-id="quad_R" cx="640" cy="720" rx="85"  ry="150"></ellipse>
+              <ellipse class="region" data-id="calf_L" cx="380" cy="870" rx="55"  ry="90"></ellipse>
+              <ellipse class="region" data-id="calf_R" cx="620" cy="870" rx="55"  ry="90"></ellipse>
+            </svg>
           </div>
         </div>
+
 
         <div class="panel right">
           <div class="weekbar">
@@ -266,5 +277,6 @@
   </div>
 </body>
 </html>
+
 
 
