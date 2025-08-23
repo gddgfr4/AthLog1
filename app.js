@@ -1280,11 +1280,20 @@ function drawDataURL(ctx,url){
 }
 async function drawMuscleFromDoc(j){
   if(!mm.octx || !mm.wctx) return;
+
+  // overlay は毎回消す
   mm.octx.clearRect(0,0,mm.octx.canvas.width, mm.octx.canvas.height);
-  mm.wctx.clearRect(0,0,mm.wctx.canvas.width, mm.wctx.canvas.height);
-  if(j?.mmOverlayWebp) await drawDataURL(mm.octx, j.mmOverlayWebp);
-  if(j?.mmBarrierPng)  await drawDataURL(mm.wctx,  j.mmBarrierPng);
+
+  // ★バリアは“消さない”。保存がある時だけ上から描く
+  if (j?.mmBarrierPng) {
+    await drawDataURL(mm.wctx, j.mmBarrierPng);
+  }
+
+  if (j?.mmOverlayWebp) {
+    await drawDataURL(mm.octx, j.mmOverlayWebp);
+  }
 }
+
 async function saveMuscleLayerToDoc(){
   const docRef=getJournalRef(teamId,memberId,selDate);
   const overlayWebp = mm?.octx ? mm.octx.canvas.toDataURL('image/webp', 0.65) : null;
