@@ -81,7 +81,7 @@
           <div class="canvas-wrap">
            <!-- 下層：人体画像（クリックは透過） -->
             <img id="humanImg" alt="human" src="human.webp.png" style="pointer-events:none;" />
-
+            <canvas id="legacyPaint"></canvas>
             <!-- 中層：SVG（部位をクリックして塗る） -->
             <svg id="bodyMap" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">
               <!-- 例：まとめ版の部位パス（お好みで差し替えOK） -->
@@ -283,6 +283,7 @@
   </div>
 </body>
 </html>
+
 
 
 
