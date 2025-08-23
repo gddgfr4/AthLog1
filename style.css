@@ -267,6 +267,23 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
   touch-action: none; /* スクロール誤作動を防ぐ（スマホ） */
 }
 
+/* ==== 筋マップ（クリック塗り） ==== */
+.canvas-wrap { position: relative; }
+#humanImg { display:block; width:100%; height:auto; }
+
+/* SVGを画像の上に重ねる。rootはクリック不可、部位だけ可 */
+#bodyMap { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+#bodyMap .region { pointer-events:auto; fill:transparent; stroke:rgba(0,0,0,.12); stroke-width:1; cursor:pointer; transition:fill .12s; }
+#bodyMap .region:hover { stroke:rgba(0,0,0,.28); }
+
+/* レベル色 */
+#bodyMap .region.f1 { fill: rgba(245,158,11,.6); } /* lvl1 */
+#bodyMap .region.f2 { fill: rgba(239,68,68,.6); }  /* lvl2 */
+#bodyMap .region.f3 { fill: rgba(217,70,239,.6); } /* lvl3 */
+
+/* 読み取り専用のときはクリック無効 */
+#bodyMap.disabled .region { pointer-events:none; }
+
 
 
 
