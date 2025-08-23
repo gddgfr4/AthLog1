@@ -2,12 +2,23 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
+  <meta name="theme-color" content="#ffffff" />
   <title>AthLog</title>
+
+  <!-- app base css -->
   <link rel="stylesheet" href="style.css" />
+
+  <!-- preload base image for muscle-map (同階層に human.webp.png がある前提) -->
+  <link rel="preload" href="human.webp.png" as="image" imagesrcset="human.webp.png" />
+
+  <!-- libs -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- 追加: 最低限の補助CSS（未読ドット/バッジ/hidden） -->
+  <!-- 追加: 最低限の補助CSS（未読ドット/バッジ/hidden、muscle-map重ね） -->
   <style>
     /* タブ：チームメモ未読ドット */
     .tab.new-message::after {
@@ -31,6 +42,46 @@
     .badge.primary { background: #2563eb; color: #fff; }
     .badge.warn { background: #f59e0b; color: #1f2937; }
     .hidden { display: none !important; }
+
+    /* muscle-map キャンバス重ね（画像は app.js 側でロード） */
+    .canvas-wrap{
+      position:relative;
+      width:100%;
+      max-width:1000px;
+      margin:0 auto;
+      border:1px solid var(--line, #e5e7eb);
+      border-radius:12px;
+      overflow:hidden;
+      aspect-ratio:1/1; /* 1024x1024 基準の正方形 */
+      background:#fff;
+    }
+    #mmBase{ display:none; } /* 解析用なので非表示でOK */
+    #mmOverlay,
+    #mmBarrier{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+    }
+    #mmOverlay{
+      mix-blend-mode:multiply;
+      image-rendering:pixelated;
+      cursor:crosshair;
+    }
+    #mmBarrier{
+      pointer-events:none;
+      opacity:.18;
+    }
+
+    /* パレットの見た目（色ドット） */
+    .palette { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+    .palette .lvl { background:#f1f5f9; border:1px solid var(--line, #e5e7eb); color:#0f172a; padding:6px 10px; border-radius:10px; cursor:pointer; font-weight:700; }
+    .palette .lvl.active { outline:2px solid #2563eb; }
+    .palette #eraser { background:#eef2ff; color:#1e3a8a; border:1px solid var(--line, #e5e7eb); }
+    .dot{ display:inline-block; width:14px; height:14px; border-radius:3px; vertical-align:-2px; margin-right:6px; }
+    .dot1{ background:#c7d2fe; } /* lv1 */
+    .dot2{ background:#fdbA74; } /* lv2 */
+    .dot3{ background:#ef4444; } /* lv3 */
   </style>
 </head>
 <body>
@@ -42,7 +93,7 @@
         <span>Team: <b id="teamLabel"></b></span>
         <span style="display:flex; align-items:center; gap:8px;">
           表示中: <b id="memberLabel"></b>
-          <!-- 追加: バッジ（JSで表示/非表示） -->
+          <!-- JSで表示/非表示 -->
           <span id="mainTeamBadge" class="badge primary hidden" title="このチームはあなたのメインです">MAIN</span>
           <span id="readonlyBadge" class="badge warn hidden" title="このチームでは編集できません">閲覧のみ</span>
           <select id="memberSelect" class="ghost" style="padding: 4px 6px;"></select>
@@ -78,23 +129,15 @@
             <button id="eraser" class="ghost">消しゴム</button>
           </div>
 
-          <div class="canvas-wrap" style="position:relative;max-width:1000px;margin:0 auto;">
-            <!-- 表示には使わない下地。色抽出やサイズ基準にだけ使う -->
-            <canvas id="mmBase" width="1024" height="1024" style="display:none"></canvas>
-          
-            <!-- ここに塗りを描画（ユーザーがタップする面） -->
-            <canvas id="mmOverlay" width="1024" height="1024"
-                    style="position:absolute;inset:0;width:100%;height:100%;
-                           mix-blend-mode:multiply;image-rendering:pixelated;cursor:crosshair;"></canvas>
-          
-            <!-- ここに“仕切り線（バリア）”を描く。既定はクリック不能（表示だけ） -->
-            <canvas id="mmBarrier" width="1024" height="1024"
-                    style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.18;"></canvas>
+          <div class="canvas-wrap">
+            <!-- 下地（解析/サイズ基準）。表示は不要 -->
+            <canvas id="mmBase" width="1024" height="1024"></canvas>
+            <!-- 着色レイヤ -->
+            <canvas id="mmOverlay" width="1024" height="1024"></canvas>
+            <!-- 仕切り（バリア） -->
+            <canvas id="mmBarrier" width="1024" height="1024"></canvas>
           </div>
-
-
         </div>
-
 
         <div class="panel right">
           <div class="weekbar">
@@ -143,7 +186,6 @@
 
             <div class="note">
               <label>タイム・感想</label>
-              <!-- 感想欄だけ1.5倍相当へ（rows=5） -->
               <textarea id="feelInput" rows="5"></textarea>
             </div>
 
@@ -263,10 +305,10 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
-  <!-- Your app's script -->
+  <!-- あなたのアプリ本体 -->
   <script src="app.js?v=20250820"></script>
 
-  <!-- ヘルプオーバーレイ（JSが中身を流し込み、開閉を制御） -->
+  <!-- ヘルプオーバーレイ（JSが本文を流し込み） -->
   <div id="helpOverlay" class="login hidden">
     <div class="login-card" style="max-width:860px; width:min(96vw,860px); max-height:85vh; overflow:auto;">
       <div class="logo">AthLog クイックガイド</div>
@@ -277,11 +319,12 @@
       </div>
     </div>
   </div>
+
+  <!-- noscript fallback -->
+  <noscript>
+    <div style="padding:16px; font-family: system-ui, -apple-system, Segoe UI, Roboto;">
+      このアプリを利用するには JavaScript を有効にしてください。
+    </div>
+  </noscript>
 </body>
 </html>
-
-
-
-
-
-
