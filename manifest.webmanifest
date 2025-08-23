@@ -1,14 +1,14 @@
 {
-  "name": "AthLog",
-  "short_name": "AthLog",
+  "name": "AthLog1",
+  "short_name": "AthLog1",
   "start_url": "/AthLog1/",
   "scope": "/AthLog1/",
   "display": "standalone",
   "background_color": "#0A1A2F",
   "theme_color": "#0A1A2F",
   "icons": [
-    { "src": "/AthLog1/icons/athlog-icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/AthLog1/icons/athlog-icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/AthLog1/icons/athlog-icon-256-maskable.png", "sizes": "256x256", "type": "image/png", "purpose": "maskable" }
+    { "src": "/AthLog1/athlog-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/AthLog1/athlog-icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/AthLog1/athlog-icon-256-maskable.png", "sizes": "256x256", "type": "image/png", "purpose": "maskable" }
   ]
 }
