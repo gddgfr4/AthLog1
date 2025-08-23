@@ -78,24 +78,20 @@
             <button id="eraser" class="ghost">消しゴム</button>
           </div>
 
-          <div class="canvas-wrap">
-           <!-- 下層：人体画像（クリックは透過） -->
-            <img id="humanImg" alt="human" src="human.webp.png" style="pointer-events:none;" />
-            <canvas id="legacyPaint"></canvas>
-            <!-- 中層：SVG（部位をクリックして塗る） -->
-            <svg id="bodyMap" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">
-              <!-- 例：まとめ版の部位パス（お好みで差し替えOK） -->
-              <ellipse class="region" data-id="chest"  cx="500" cy="300" rx="140" ry="90"></ellipse>
-              <ellipse class="region" data-id="abs"    cx="500" cy="470" rx="90"  ry="130"></ellipse>
-              <ellipse class="region" data-id="quad_L" cx="360" cy="720" rx="85"  ry="150"></ellipse>
-              <ellipse class="region" data-id="quad_R" cx="640" cy="720" rx="85"  ry="150"></ellipse>
-              <ellipse class="region" data-id="calf_L" cx="380" cy="870" rx="55"  ry="90"></ellipse>
-              <ellipse class="region" data-id="calf_R" cx="620" cy="870" rx="55"  ry="90"></ellipse>
-            </svg>
-
-            <!-- 上層：旧paint表示専用キャンバス（クリック不可） -->
-            <canvas id="legacyPaint"></canvas>
+          <div class="canvas-wrap" style="position:relative;max-width:1000px;margin:0 auto;">
+            <!-- 表示には使わない下地。色抽出やサイズ基準にだけ使う -->
+            <canvas id="mmBase" width="1024" height="1024" style="display:none"></canvas>
+          
+            <!-- ここに塗りを描画（ユーザーがタップする面） -->
+            <canvas id="mmOverlay" width="1024" height="1024"
+                    style="position:absolute;inset:0;width:100%;height:100%;
+                           mix-blend-mode:multiply;image-rendering:pixelated;cursor:crosshair;"></canvas>
+          
+            <!-- ここに“仕切り線（バリア）”を描く。既定はクリック不能（表示だけ） -->
+            <canvas id="mmBarrier" width="1024" height="1024"
+                    style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.18;"></canvas>
           </div>
+
 
         </div>
 
@@ -283,6 +279,7 @@
   </div>
 </body>
 </html>
+
 
 
 
