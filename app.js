@@ -427,7 +427,7 @@ function initJournal() {
   });
 
   // SVGクリック塗り
-  initRegionMap();
+  initMuscleMap();
 }
 
 async function renderJournal() {
@@ -460,6 +460,7 @@ async function renderJournal() {
   unsubscribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc => {
     const j = doc.data() || { dist: 0, train: "", feel: "", tags: [], paint: [], condition: null, regions: {} };
     lastJournal = j;
+    drawMuscleFromDoc(j);
 
     if (!dirty.dist)  { $("#distInput").value  = j.dist ?? ""; }
     if (!dirty.train) { $("#trainInput").value = j.train ?? ""; }
@@ -1196,3 +1197,198 @@ function renderDashboardInsight() {}
 
 // 最後：SVGクリック塗りを有効化（安全側の再呼び出し）
 initRegionMap();
+
+
+// ===== Muscle-map style fill (overlay/barrier) =====
+const MM = {
+  IMG_SRC: 'human.webp.png',                 // 下地
+  LEVELS: {                                  // レベル別 RGBA（muscle-map と同系色）
+    1: [199,210,254,210], // 青系
+    2: [253,186,116,210], // 橙系
+    3: [239, 68, 68,210], // 赤系
+  },
+  TOL: 22,                                    // エッジに滲みにくくする余裕（今回は barrier 優先なので小さめでOK）
+};
+
+let mm = { base:null, overlay:null, barrier:null, bctx:null, octx:null, wctx:null };
+
+function initMuscleMap(){
+  mm.base = document.getElementById('mmBase');
+  mm.overlay = document.getElementById('mmOverlay');
+  mm.barrier = document.getElementById('mmBarrier');
+  if(!mm.base || !mm.overlay || !mm.barrier) return;
+
+  mm.bctx = mm.base.getContext('2d');
+  mm.octx = mm.overlay.getContext('2d', { willReadFrequently:true });
+  mm.wctx = mm.barrier.getContext('2d');
+
+  // 下地画像読み込み（サイズ基準）
+  const img = new Image();
+  img.onload = () => {
+    [mm.base, mm.overlay, mm.barrier].forEach(c => { c.width = img.naturalWidth; c.height = img.naturalHeight; });
+    mm.bctx.drawImage(img, 0, 0);
+    toGray(mm.bctx, mm.base.width, mm.base.height); // 下地は見えないが解析用にグレイ化（任意）
+
+    // その日のデータを反映
+    drawMuscleFromDoc(lastJournal);
+  };
+  img.src = MM.IMG_SRC;
+
+  // 塗りタップ
+  mm.overlay.addEventListener('pointerdown', (e) => {
+    if (!isEditableHere(teamId, memberId, viewingMemberId)) return;
+
+    const p = mmPixPos(mm.overlay, e);
+    if (brush.erase) {
+      floodErase(mm.octx, mm.wctx, p.x, p.y);
+    } else {
+      const col = MM.LEVELS[brush.lvl || 1];
+      floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, col);
+    }
+    // 変更はドキュメントへ即時反映（軽量化したければ保存時にまとめてでもOK）
+    saveMuscleLayerToDoc();
+  });
+
+  // 画面サイズ変化で再描画（他日へ移動時は onSnapshot で毎回 draw）
+  window.addEventListener('resize', () => drawMuscleFromDoc(lastJournal));
+}
+
+// キャンバス座標に変換
+function mmPixPos(canvas, e){
+  const r = canvas.getBoundingClientRect();
+  return {
+    x: Math.floor((e.clientX - r.left) * (canvas.width  / r.width)),
+    y: Math.floor((e.clientY - r.top)  * (canvas.height / r.height))
+  };
+}
+
+// 下地をグレイスケール化（任意）
+function toGray(ctx,w,h){
+  const img = ctx.getImageData(0,0,w,h);
+  const d = img.data;
+  for(let i=0;i<d.length;i+=4){
+    const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    d[i]=d[i+1]=d[i+2]=g;
+  }
+  ctx.putImageData(img,0,0);
+}
+
+// ---- flood fill（barrierで停止） ----
+function floodFill(octx, wctx, sx, sy, tol, rgba){
+  const w = octx.canvas.width, h = octx.canvas.height;
+  const o = octx.getImageData(0,0,w,h); const od = o.data;
+  const b = wctx.getImageData(0,0,w,h); const bd = b.data;
+
+  const A_STOP = 10; // これ以上のアルファは“塗られている/バリアあり”
+  const stack = [ (sy<<16) | sx ];
+  const seen = new Uint8Array(w*h);
+
+  const within = (x,y) => x>=0 && y>=0 && x<w && y<h;
+  const idx = (x,y) => ((y*w+x)<<2);
+
+  while(stack.length){
+    const p = stack.pop();
+    const x =  p & 0xffff;
+    const y =  p >>> 16;
+    if(!within(x,y)) continue;
+    const si = y*w + x;
+    if (seen[si]) continue; seen[si]=1;
+
+    const i = idx(x,y);
+    if (bd[i+3] > A_STOP) continue;   // barrier の線にぶつかった
+    if (od[i+3] > A_STOP) continue;   // 既に塗られている領域は越えない
+
+    // 着色
+    od[i]   = rgba[0];
+    od[i+1] = rgba[1];
+    od[i+2] = rgba[2];
+    od[i+3] = rgba[3];
+
+    stack.push((y<<16)|(x-1));
+    stack.push((y<<16)|(x+1));
+    stack.push(((y-1)<<16)|x);
+    stack.push(((y+1)<<16)|x);
+  }
+  octx.putImageData(o,0,0);
+}
+
+// 同系色の“つながり”を消す（start を含む着色領域を透明化）
+function floodErase(octx, wctx, sx, sy){
+  const w = octx.canvas.width, h = octx.canvas.height;
+  const o = octx.getImageData(0,0,w,h); const od = o.data;
+  const b = wctx.getImageData(0,0,w,h); const bd = b.data;
+
+  const A_STOP = 10;
+  const stack = [ (sy<<16) | sx ];
+  const seen = new Uint8Array(w*h);
+
+  const within = (x,y) => x>=0 && y>=0 && x<w && y<h;
+  const idx = (x,y) => ((y*w+x)<<2);
+
+  // 始点が透明なら何もしない
+  if (od[idx(sx,sy)+3] <= A_STOP) return;
+
+  while(stack.length){
+    const p = stack.pop();
+    const x =  p & 0xffff;
+    const y =  p >>> 16;
+    if(!within(x,y)) continue;
+    const si = y*w + x;
+    if (seen[si]) continue; seen[si]=1;
+
+    const i = idx(x,y);
+    if (bd[i+3] > A_STOP) continue; // barrier は越えない
+    if (od[i+3] <= A_STOP) continue; // 透明は広げない
+
+    // 透明化
+    od[i]=od[i+1]=od[i+2]=0; od[i+3]=0;
+
+    stack.push((y<<16)|(x-1));
+    stack.push((y<<16)|(x+1));
+    stack.push(((y-1)<<16)|x);
+    stack.push(((y+1)<<16)|x);
+  }
+  octx.putImageData(o,0,0);
+}
+
+// Firestore ⇄ キャンバス
+function drawDataURL(ctx, url){ return new Promise(res=>{ if(!url) return res(); const im=new Image(); im.onload=()=>{ ctx.drawImage(im,0,0); res(); }; im.src=url; }); }
+async function drawMuscleFromDoc(j){
+  if(!mm.octx || !mm.wctx) return;
+  mm.octx.clearRect(0,0,mm.octx.canvas.width, mm.octx.canvas.height);
+  mm.wctx.clearRect(0,0,mm.wctx.canvas.width, mm.wctx.canvas.height);
+  if (j?.mmOverlayWebp) await drawDataURL(mm.octx, j.mmOverlayWebp);
+  if (j?.mmBarrierPng)  await drawDataURL(mm.wctx,  j.mmBarrierPng);
+}
+
+// 保存（ドキュメントサイズが心配なら Storage に置き換え検討）
+async function saveMuscleLayerToDoc(){
+  const docRef = getJournalRef(teamId, memberId, selDate);
+  const overlayWebp = mm?.octx ? mm.octx.canvas.toDataURL('image/webp', 0.65) : null;
+  const barrierPng  = mm?.wctx ? mm.wctx.canvas.toDataURL('image/png')        : null;
+  const stats = analyzeOverlay(mm.octx); // AI用の簡易スコア
+  await docRef.set({ mmOverlayWebp: overlayWebp, mmBarrierPng: barrierPng, mmStats: stats }, { merge:true });
+}
+
+// 着色量の概算（AI疲労スコア用）
+function analyzeOverlay(octx){
+  if(!octx) return {lv1:0,lv2:0,lv3:0,total:0};
+  const w=octx.canvas.width, h=octx.canvas.height;
+  const im=octx.getImageData(0,0,w,h).data;
+  const C=[MM.LEVELS[1],MM.LEVELS[2],MM.LEVELS[3]];
+  const S=[0,0,0];
+  for(let y=0;y<h;y+=2){
+    for(let x=0;x<w;x+=2){
+      const i=(y*w+x)*4, a=im[i+3];
+      if(a<10) continue;
+      let best=-1, dist=1e9;
+      for(let k=0;k<3;k++){
+        const c=C[k]; const d=(im[i]-c[0])**2+(im[i+1]-c[1])**2+(im[i+2]-c[2])**2;
+        if(d<dist){ dist=d; best=k; }
+      }
+      if(best>=0) S[best]++;
+    }
+  }
+  return { lv1:S[0], lv2:S[1], lv3:S[2], total:S[0]+S[1]+S[2] };
+}
+
