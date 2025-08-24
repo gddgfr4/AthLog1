@@ -265,3 +265,14 @@ html,body{
   #setAsMainBtn{ padding:6px 8px; font-size:0; }
   #setAsMainBtn::before{ content:"★"; font-size:16px; }
 }
+
+#mmWrap{position:relative;max-width:680px;margin:12px auto;}
+#mmWrap canvas{
+  position:absolute; inset:0;
+  display:block; width:100%; height:auto;
+  touch-action:none;
+}
+#mmBase{z-index:0;}
+#mmBarrier{z-index:1; opacity:0; pointer-events:none;} /* 見えない壁 */
+#mmOverlay{z-index:2;}
+
