@@ -1111,51 +1111,93 @@ function tmpCtx(w,h){
 function makeBarrierFromBase(){
   const w=mm.base.width, h=mm.base.height;
   const t=tmpCtx(w,h);
-
   t.clearRect(0,0,w,h);
   t.drawImage(mm.base,0,0);
 
   const src=t.getImageData(0,0,w,h); const s=src.data;
   const out=mm.wctx.createImageData(w,h); const d=out.data;
 
-  // 1) 濃い線の抽出
+  // 1) 濃い線を壁に
   for(let i=0;i<s.length;i+=4){
     const g=0.299*s[i]+0.587*s[i+1]+0.114*s[i+2];
-    if(g<MM.TH_LINE){ d[i]=d[i+1]=d[i+2]=0; d[i+3]=255; }
-    else             { d[i]=d[i+1]=d[i+2]=0; d[i+3]=0; }
+    d[i]=d[i+1]=d[i+2]=0;
+    d[i+3]=(g<MM.TH_LINE)?255:0;
   }
 
-  // 2) 膨張（線を太らせスキマを埋める）
+  // 2) 線を太らせて隙間を埋める
   const a=(x,y)=>((y*w+x)<<2)+3;
   const A=new Uint8Array(w*h);
   for(let pass=0; pass<MM.DILATE; pass++){
     A.fill(0);
-    for(let y=1;y<h-1;y++){
-      for(let x=1;x<w-1;x++){
-        let on=0;
-        for(let dy=-1;dy<=1 && !on;dy++){
-          for(let dx=-1;dx<=1;dx++){
-            if(d[a(x+dx,y+dy)]>0){ on=1; break; }
-          }
-        }
-        if(on) A[y*w+x]=255;
-      }
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+      let on=0;
+      for(let dy=-1;dy<=1 && !on;dy++)
+        for(let dx=-1;dx<=1;dx++)
+          if(d[a(x+dx,y+dy)]>0){ on=1; break; }
+      if(on) A[y*w+x]=255;
     }
-    for(let y=1;y<h-1;y++){
-      for(let x=1;x<w-1;x++){
-        if(A[y*w+x]) d[a(x,y)]=255;
-      }
-    }
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++)
+      if(A[y*w+x]) d[a(x,y)]=255;
   }
 
-  // 3) 外枠を壁に（枠ギリは塗れない）
+  // 3) 枠ギリを壁に
   for(let f=0; f<MM.FRAME; f++){
     for(let x=0;x<w;x++){ d[((0*w+x)<<2)+3]=255; d[(((h-1-f)*w+x)<<2)+3]=255; }
     for(let y=0;y<h;y++){ d[((y*w+0)<<2)+3]=255; d[((y*w+(w-1-f))<<2)+3]=255; }
   }
 
+  // 4) ★外側全域を壁に（ここがキモ）
+  blockOutsideAsBarrier(d, w, h);
+
   mm.wctx.putImageData(out,0,0);
 }
+
+
+// 外側すべてをバリア化（四隅から探索して外側領域のα=255に）
+function blockOutsideAsBarrier(alphaData, w, h){
+  const idxA=(x,y)=>((y*w+x)<<2)+3;
+  const seen=new Uint8Array(w*h);
+  const st=[0, w-1, (h-1)*w, (h-1)*w+(w-1)]; // 四隅
+  while(st.length){
+    const p=st.pop();
+    const y=(p/w)|0, x=p-y*w;
+    if(x<0||y<0||x>=w||y>=h) continue;
+    const si=y*w+x;
+    if(seen[si]) continue; seen[si]=1;
+
+    // すでに壁(α>0)なら外側ではないので進まない
+    if(alphaData[idxA(x,y)]>0) continue;
+
+    // 外側として壁にする
+    alphaData[idxA(x,y)]=255;
+
+    // 4近傍へ
+    st.push(si-1, si+1, si-w, si+w);
+  }
+}
+
+function barrierAlphaAt(x,y){
+  // クリック地点だけ読む（軽い）
+  return mm.wctx.getImageData(x, y, 1, 1).data[3];
+}
+
+// … initMuscleMap() 内の pointerdown を以下のように
+mm.overlay.addEventListener('pointerdown',(e)=>{
+  if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
+  const p=mmPixPos(mm.overlay,e);
+
+  // ★壁(外側/線/枠)の上は一切反応しない
+  if(barrierAlphaAt(p.x,p.y) > 10) return;
+
+  if(brush.erase){
+    floodErase(mm.octx, mm.wctx, p.x, p.y);
+  }else{
+    floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]);
+  }
+  saveMuscleLayerToDoc();
+});
+
+
 
 // キャンバス座標
 function mmPixPos(canvas,e){
