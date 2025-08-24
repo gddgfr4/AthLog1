@@ -1134,10 +1134,11 @@ const MM = {
   TH_LINE: 130,                   // 線抽出しきい値（小さいほど濃い線のみ）
   DILATE: 2,                      // 膨張回数（線を太らせる）
   FRAME: 3,                       // 外枠を壁にする幅（px）
-  TOL: 22
-  MAX_REGION_FRAC: 0.12,
+  TOL: 22,                        // フィル許容（未使用ならそのまま）
+  MAX_REGION_FRAC: 0.25,          // これ以上の巨大領域は塗らない（画面の25%）
+  MIN_REGION_PX: 25               // これ未満の極小領域は無視
 };
-let mm={ base:null, overlay:null, barrier:null, bctx:null, octx:null, wctx:null, ready:false };
+let mm = { base:null, overlay:null, barrier:null, bctx:null, octx:null, wctx:null, ready:false };
 
 // 画像ロード（候補順）
 function tryLoadImageSequential(srcs){
@@ -1259,57 +1260,75 @@ function mmPixPos(canvas,e){
   };
 }
 
-function floodFillCapped(octx, wctx, sx, sy, tol, rgba){
+function floodFill(octx,wctx,sx,sy,tol,rgba){
   const w=octx.canvas.width, h=octx.canvas.height;
+  const maxArea = Math.floor(w*h*MM.MAX_REGION_FRAC);
+  const tryArea = measureFillRegion(octx,wctx,sx,sy);
+
+  if (tryArea < MM.MIN_REGION_PX) return;   // ゴミ塗り回避
+  if (tryArea > maxArea)         return;   // 画面外や巨大面の誤爆をブロック
+
+  // ここから本塗り（通常の flood fill）
   const o=octx.getImageData(0,0,w,h); const od=o.data;
   const b=wctx.getImageData(0,0,w,h); const bd=b.data;
   const A_STOP=10;
-
+  const stack=[(sy<<16)|sx];
+  const seen=new Uint8Array(w*h);
+  const within=(x,y)=>x>=0&&y>=0&&x<w&&y<h;
   const idx=(x,y)=>((y*w+x)<<2);
-  const startI = idx(sx,sy);
-
-  // 始点が壁 or 既に塗り なら何もしない
-  if (bd[startI+3] > A_STOP || od[startI+3] > A_STOP) return;
-
-  const maxPix = Math.floor(w*h*MM.MAX_REGION_FRAC);
-  const seen = new Uint8Array(w*h);
-  const stack = [(sy<<16)|sx];
-  const list  = []; // 最終コミット用のピクセルindex配列（rgba先頭の位置）
-
-  const within=(x,y)=>x>=0 && y>=0 && x<w && y<h;
 
   while(stack.length){
-    const p = stack.pop();
-    const x = p & 0xffff, y = p>>>16;
+    const p=stack.pop();
+    const x=p & 0xffff, y=p>>>16;
     if(!within(x,y)) continue;
-    const si = y*w + x;
+    const si=y*w+x;
     if(seen[si]) continue; seen[si]=1;
 
-    const i = idx(x,y);
-    if (bd[i+3] > A_STOP) continue;  // 壁で停止
-    if (od[i+3] > A_STOP) continue;  // 既に塗られている
+    const i=idx(x,y);
+    if(bd[i+3]>A_STOP) continue;   // 壁
+    if(od[i+3]>A_STOP) continue;   // 既に塗り
 
-    list.push(i);
-    if (list.length > maxPix){
-      // ★ 大きすぎ：放棄（何も描かず return）
-      return;
-    }
+    od[i]=rgba[0]; od[i+1]=rgba[1]; od[i+2]=rgba[2]; od[i+3]=rgba[3];
 
     stack.push((y<<16)|(x-1));
     stack.push((y<<16)|(x+1));
     stack.push(((y-1)<<16)|x);
     stack.push(((y+1)<<16)|x);
   }
-
-  // ここまで来たら「許容サイズ内」→ 一括で描画
-  for (let k=0;k<list.length;k++){
-    const i = list[k];
-    od[i]   = rgba[0];
-    od[i+1] = rgba[1];
-    od[i+2] = rgba[2];
-    od[i+3] = rgba[3];
-  }
   octx.putImageData(o,0,0);
+}
+
+
+// 事前に「この起点から塗れるピクセル数」を数える（実際には塗らない）
+function measureFillRegion(octx, wctx, sx, sy){
+  const w=octx.canvas.width, h=octx.canvas.height;
+  const o=octx.getImageData(0,0,w,h).data;
+  const b=wctx.getImageData(0,0,w,h).data;
+  const A_STOP=10;
+  const stack=[(sy<<16)|sx];
+  const seen=new Uint8Array(w*h);
+  const within=(x,y)=>x>=0&&y>=0&&x<w&&y<h;
+  const idx=(x,y)=>((y*w+x)<<2);
+  let cnt=0;
+
+  while(stack.length){
+    const p=stack.pop();
+    const x=p & 0xffff, y=p>>>16;
+    if(!within(x,y)) continue;
+    const si=y*w+x;
+    if(seen[si]) continue; seen[si]=1;
+    const i=idx(x,y);
+
+    if(b[i+3]>A_STOP) continue;   // 壁
+    if(o[i+3]>A_STOP) continue;   // 既に塗り
+
+    cnt++;
+    stack.push((y<<16)|(x-1));
+    stack.push((y<<16)|(x+1));
+    stack.push(((y-1)<<16)|x);
+    stack.push(((y+1)<<16)|x);
+  }
+  return cnt;
 }
 
 // 消し（面で）
