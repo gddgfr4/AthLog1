@@ -1078,7 +1078,7 @@ function renderDashboardInsight(){ /* optional */ }
 
 // ===== Muscle-map (overlay/barrier) =====
 const MM={
-  IMG_CANDIDATES: ['human.webp.png','human.png','human.webp','./human.webp.png','./assets/human.webp.png'],
+  IMG_CANDIDATES: ['human.webp','human.png','human.webp','./human.webp','./assets/human.webp'],
   LEVELS:{ 1:[199,210,254,210], 2:[253,186,116,210], 3:[239,68,68,210] },
   TOL:22
 };
