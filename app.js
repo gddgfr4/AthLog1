@@ -1078,7 +1078,7 @@ function renderDashboardInsight(){ /* optional */ }
 
 // ===== Muscle-map (overlay/barrier) =====
 const MM = {
-  IMG_CANDIDATES: ['human.webp','human.webp.png','human.png','./human.webp','./assets/human.webp'],
+  IMG_CANDIDATES: ['human.webp','human.webp','human.png','./human.webp','./assets/human.webp'],
   VIEW: 'front',          // 'front' or 'back' or 'single'（画像が1人だけなら 'single'）
   LEVELS:{ 1:[199,210,254,210], 2:[253,186,116,210], 3:[239,68,68,210] },
   TOL:22,
@@ -1115,42 +1115,45 @@ function toGray(ctx, w, h){
 
 function buildBarrierFromBase(){
   const w = mm.base.width, h = mm.base.height;
-  const src = mm.bctx.getImageData(0,0,w,h).data;
+  const src = mm.bctx.getImageData(0,0,w,h);   // toGray 済み
+  const s = src.data;
 
-  // 1) 輪郭線を抽出（暗い画素）
-  const line = new Uint8Array(w*h);
-  const TH = 150; // 130〜180で微調整可
-  for(let y=0,i=0,p=0;y<h;y++){
-    for(let x=0;x<w;x++,i+=4,p++){
-      line[p] = (src[i] < TH) ? 1 : 0;
+  const dst = mm.wctx.createImageData(w,h);
+  const d = dst.data;
+
+  const TH = 150; // 線の濃さ次第で 130〜180 を微調整
+  for (let i=0;i<s.length;i+=4){
+    const g = s[i]; // R=G=B
+    if (g < TH){ d[i]=d[i+1]=d[i+2]=0; d[i+3]=255; }  // 線＝バリア
+    else        { d[i]=d[i+1]=d[i+2]=0; d[i+3]=0;   }
+  }
+
+  // 3x3 でラインを少し太らせる
+  const a = new Uint8ClampedArray(d.length);
+  const idxA = (x,y)=>((y*w+x)<<2)+3;
+  for(let y=1;y<h-1;y++){
+    for(let x=1;x<w-1;x++){
+      let on=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        if (d[idxA(x+dx,y+dy)]>0) on=255;
+      }
+      a[idxA(x,y)] = on;
     }
   }
-  dilate(line, w, h, 1); // 少し太らせる
+  for(let i=3;i<d.length;i+=4) d[i] = Math.max(d[i], a[i]);
 
-  // 2) 外縁からBFSで“外側”を塗り → そこも壁に
-  const outside = new Uint8Array(w*h);
-  const q=[]; const push=(x,y)=>{
-    if(x<0||y<0||x>=w||y>=h) return;
-    const idx=y*w+x; if(outside[idx]||line[idx]) return;
-    outside[idx]=1; q.push(idx);
-  };
-  for(let x=0;x<w;x++){ push(x,0); push(x,h-1); }
-  for(let y=0;y<h;y++){ push(0,y); push(w-1,y); }
-  while(q.length){
-    const idx=q.pop(), x=idx%w, y=(idx/w)|0;
-    push(x+1,y); push(x-1,y); push(x,y+1); push(x,y-1);
+  // === ★ ここから追加：キャンバスの四辺に“縁バリア” ===
+  const MARGIN = 8; // 枠から何px 内側を塗れなくするか
+  for (let y=0; y<h; y++){
+    for (let x=0; x<w; x++){
+      if (x<MARGIN || x>=w-MARGIN || y<MARGIN || y>=h-MARGIN){
+        const j = (y*w + x) << 2;
+        d[j]=d[j+1]=d[j+2]=0; d[j+3]=255;
+      }
+    }
   }
+  // === ★ 追加ここまで ===
 
-  // 3) 壁 = 輪郭 ∪ 外側 → さらに内側へ EDGE_PAD 分だけ太らせる
-  const wall = new Uint8Array(w*h);
-  for(let i=0;i<wall.length;i++) wall[i]=(line[i]||outside[i])?1:0;
-  dilate(wall, w, h, MM.EDGE_PAD);
-
-  // 4) Canvasへ
-  const dst = mm.wctx.createImageData(w,h), d = dst.data;
-  for(let p=0,i=0;p<wall.length;p++,i+=4){
-    d[i]=d[i+1]=d[i+2]=0; d[i+3]= wall[p]?255:0;
-  }
   mm.wctx.putImageData(dst,0,0);
 }
 
@@ -1307,11 +1310,16 @@ function drawDataURL(ctx,url){
     im.src=url;
   });
 }
+
 async function drawMuscleFromDoc(j){
-  if(!mm.octx) return;
+  if(!mm.octx || !mm.wctx) return;
   mm.octx.clearRect(0,0,mm.octx.canvas.width, mm.octx.canvas.height);
-  // mm.wctx は init 時に毎回 buildBarrierFromBase() で作る
-  if(j?.mmOverlayWebp) await drawDataURL(mm.octx, j.mmOverlayWebp);
+  // mm.wctx はここでは消さない（init時に再生成済みの壁を使う）
+
+  if(j?.mmOverlayWebp){
+    await drawDataURL(mm.octx, j.mmOverlayWebp);
+  }
+  // ← j.mmBarrierPng はもう描かない
 }
 
 
