@@ -1325,12 +1325,6 @@ async function drawMuscleFromDoc(j){
 } // ← この閉じカッコの直後に余計な `}` が入っていないか確認！
 
 
-
-  if (j?.mmOverlayWebp) {
-    await drawDataURL(mm.octx, j.mmOverlayWebp);
-  }
-}
-
 // 置き換え：安全版
 async function saveMuscleLayerToDoc(){
   const docRef = getJournalRef(teamId, memberId, selDate);
