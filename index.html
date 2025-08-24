@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <link rel="manifest" href="./manifest.webmanifest?v=1">
+ <!-- head 内：PWA系とアイコン -->
+  <link rel="manifest" href="./manifest.webmanifest?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png">
   <link rel="apple-touch-icon" href="/AthLog/apple-touch-icon-180.png">
@@ -342,8 +343,16 @@
       このアプリを利用するには JavaScript を有効にしてください。
     </div>
   </noscript>
+  <!-- body 終了直前に置くのが安全（順番厳守） -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+<!-- 最後にあなたのコード。キャッシュ回避のためクエリ付け推奨 -->
+<script defer src="./app.js?v=20250824-2"></script>
+
 </body>
 </html>
+
 
 
 
