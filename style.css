@@ -74,32 +74,29 @@ html,body{
   .journal-grid .panel.right{ order:1; }
 }
 
-/* ========== Muscle Map (Canvas stack) ========== */
-/* キャンバス３枚を完全に重ねてズレを防止。下:ベース画像 / 中:壁(非表示) / 上:塗り */
+/* === muscle map === */
 #mmWrap{
   position:relative;
+  max-width:680px;
+  margin:12px auto;
+}
+#mmWrap img{
+  display:block;
   width:100%;
-  max-width:1000px;
-  margin:0 auto;
-  border:1px dashed var(--line);
-  border-radius:12px;
-  overflow:hidden;
-  background:#fff;
-  /* JS で実画像の比率を設定します（fallback は正方形） */
-  aspect-ratio:1 / 1;
+  height:auto;         /* 画像に合わせて親の高さが決まる */
 }
 #mmWrap canvas{
   position:absolute;
   inset:0;
   width:100%;
-  height:auto;
+  height:100%;         /* ← ここを 100% にする（auto 禁止） */
   display:block;
-  touch-action:none;           /* スマホのブラシずれ防止 */
-  image-rendering:pixelated;   /* 細部が滲みにくい */
+  touch-action:none;
+  image-rendering:pixelated;
 }
-#mmBase{   z-index:0; }                    /* 表示するベース画像 */
-#mmBarrier{z-index:1; opacity:0; pointer-events:none;} /* 見えない“壁” */
-#mmOverlay{z-index:2; cursor:crosshair; mix-blend-mode:normal;}
+#mmBase   { z-index:0; opacity:0; pointer-events:none; }
+#mmBarrier{ z-index:1; opacity:0; pointer-events:none; } /* 見えない壁 */
+#mmOverlay{ z-index:2; cursor:crosshair; }
 
 
 /* ========== Palette ========== */
@@ -290,5 +287,6 @@ html,body{
 #mmBase{z-index:0;}
 #mmBarrier{z-index:1; opacity:0; pointer-events:none;} /* 見えない壁 */
 #mmOverlay{z-index:2;}
+
 
 
