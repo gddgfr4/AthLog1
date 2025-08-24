@@ -213,32 +213,60 @@ async function showApp(){
   initTeamSwitcher();
 }
 function initTeamSwitcher(){
-  const wrap=$("#teamSwitchWrap");
-  const sel =$("#teamSwitchSelect");
-  const btn =$("#setAsMainBtn");
-  if(!wrap || !sel || !btn) return;
-  const profiles=getProfiles().filter(p=>p.member===memberId);
-  if(profiles.length<=1){ wrap.style.display='none'; return; }
-  wrap.style.display='flex';
-  sel.innerHTML=profiles.map(p=>{
-    const isMain=getMainTeamOf(memberId)===p.team;
-    return `<option value="${p.team}" ${p.team===teamId ? 'selected':''}>${p.team}${isMain?'（メイン）':''}</option>`;
-  }).join('');
-  sel.onchange=async (e)=>{
-    teamId=e.target.value;
-    $("#teamLabel").textContent=teamId;
-    await populateMemberSelect();
+  const wrap   = $("#teamSwitchWrap");
+  const sel    = $("#teamSwitchSelect");
+  const btnMain= $("#setAsMainBtn");
+  const btnAdd = $("#addTeamBtn");
+  if(!wrap || !sel || !btnMain) return;
+
+  // 以前は「1チームしか無いと非表示」でしたが、常時表示に変更
+  wrap.style.display = 'flex';
+
+  // 現在の teamId をプロフィールに確実に含めておく
+  if (teamId && !getProfiles().some(p => p.team===teamId && p.member===memberId)){
+    upsertProfile(teamId, memberId);
+  }
+  const profiles = getProfiles().filter(p => p.member===memberId);
+
+  sel.innerHTML = (profiles.length ? profiles : [{team:teamId, member:memberId}])
+    .map(p=>{
+      const isMain = getMainTeamOf(memberId) === p.team;
+      const label  = isMain ? `${p.team}（メイン）` : p.team;
+      return `<option value="${p.team}" ${p.team===teamId?'selected':''}>${label}</option>`;
+    }).join('');
+
+  sel.onchange = async (e)=>{
+    teamId = e.target.value;
+    $("#teamLabel").textContent = teamId;
+    await populateMemberSelect();   // チームのメンバー一覧を更新
     refreshBadges();
     switchTab($(".tab.active")?.dataset.tab, true);
   };
-  btn.onclick=async ()=>{
-    const newMain=sel.value;
+
+  if(btnAdd){
+    btnAdd.onclick = async ()=>{
+      const t = prompt("追加する Team ID を入力:");
+      if(!t) return;
+      upsertProfile(t, memberId);
+      teamId = t;
+      localStorage.setItem("athlog:last", JSON.stringify({ team:teamId, member:memberId }));
+      $("#teamLabel").textContent = teamId;
+      await getMembersRef(teamId).doc(memberId).set({ name:memberId }, { merge:true });
+      await populateMemberSelect();
+      refreshBadges();
+      initTeamSwitcher(); // セレクトを再生成
+      switchTab($(".tab.active")?.dataset.tab, true);
+    };
+  }
+
+  btnMain.onclick = async ()=>{
+    const newMain = sel.value;
     await chooseMainTeam(newMain);
     refreshBadges();
     initTeamSwitcher();
   };
 }
-initTeamSwitcher();
+
 
 function switchTab(id, forceRender=false){
   if(!forceRender && $(".tab.active")?.dataset.tab===id) return;
@@ -342,16 +370,23 @@ function initJournal(){
   $("#datePicker")?.addEventListener("change",(e)=>{ selDate=parseDateInput(e.target.value); renderJournal(); });
 
   $("#mergeBtn")?.addEventListener("click", async ()=>{
-    const scope=$("#mergeScope").value;
-    const text=await collectPlansTextForDay(selDate, scope);
-    if(text) $("#trainInput").value = ($("#trainInput").value ? ($("#trainInput").value+"\n") : "") + text;
-    const types=await collectPlansTypesForDay(selDate, scope);
+    const scope  = $("#mergeScope").value;                // auto / 自分 / team
+    const tagCSV = ($("#mergeTagFilter")?.value || "").trim();
+  
+    const text  = await collectPlansTextForDay(selDate, scope, tagCSV);
+    if(text){
+      $("#trainInput").value = ($("#trainInput").value ? ($("#trainInput").value+"\n") : "") + text;
+    }
+  
+    // タグで絞った types を日誌タグへ最大2つ反映（任意）
+    const types = await collectPlansTypesForDay(selDate, scope, tagCSV);
     if(types.length){
       const docRef=getJournalRef(teamId,memberId,selDate);
       await docRef.set({ tags: types.slice(0,2) },{merge:true});
       renderWeek();
     }
   });
+
 
   $$('#conditionBtns button').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -787,37 +822,52 @@ function renderPlanListInModal(mon, dayKey, editCallback){
 }
 function closePlanModal(){ if(modalDiv){ modalDiv.remove(); modalDiv=null; } }
 
-// 予定本文取り込み
-async function collectPlansTextForDay(day, scopeSel){
+async function collectPlansTextForDay(day, scopeSel, tagCSV=""){
   const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
   const dayKey=ymd(day);
-  const plansRef=getPlansCollectionRef(srcTeam).doc(dayKey).collection('events');
-  let query=plansRef;
+  let query=getPlansCollectionRef(srcTeam).doc(dayKey).collection('events');
   if(scopeSel===memberId) query=query.where('mem','==',memberId);
   if(scopeSel==='team')   query=query.where('scope','==','team');
+
+  const tagSet = new Set(tagCSV.split(",").map(s=>s.trim()).filter(Boolean));
+
   const snapshot=await query.get();
   const list=[];
   snapshot.docs.forEach(doc=>{
     const it=doc.data();
+    // タグフィルタ（空なら全通し）
+    if(tagSet.size){
+      const arr = Array.isArray(it.tags)? it.tags : [];
+      if(!arr.some(t=>tagSet.has(t))) return;
+    }
     if(scopeSel==="auto"){
-      if(it.mem===memberId) list.push(`[${memberId}] ${it.type} ${it.content}`);
-      else if(it.scope==="team") list.push(`[全員] ${it.type} ${it.content}`);
+      if(it.mem===memberId)      list.push(`[${memberId}] ${it.type} ${it.content}`);
+      else if(it.scope==="team")  list.push(`[全員] ${it.type} ${it.content}`);
     }else{
       list.push(`${it.type} ${it.content}`);
     }
   });
   return list.join("\n");
 }
-async function collectPlansTypesForDay(day, scopeSel){
+
+async function collectPlansTypesForDay(day, scopeSel, tagCSV=""){
+  const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
   const dayKey=ymd(day);
-  const plansRef=getPlansCollectionRef(teamId).doc(dayKey).collection('events');
-  let query=plansRef;
+  let query=getPlansCollectionRef(srcTeam).doc(dayKey).collection('events');
   if(scopeSel===memberId) query=query.where('mem','==',memberId);
   if(scopeSel==='team')   query=query.where('scope','==','team');
+
+  const tagSet = new Set(tagCSV.split(",").map(s=>s.trim()).filter(Boolean));
+
   const snapshot=await query.get();
   const types=[];
   snapshot.docs.forEach(doc=>{
-    const t=doc.data().type;
+    const it=doc.data();
+    if(tagSet.size){
+      const arr=Array.isArray(it.tags)?it.tags:[];
+      if(!arr.some(t=>tagSet.has(t))) return;
+    }
+    const t=it.type;
     if(t && !types.includes(t)) types.push(t);
   });
   return types;
