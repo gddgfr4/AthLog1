@@ -1325,7 +1325,6 @@ async function drawMuscleFromDoc(j){
 } // ← この閉じカッコの直後に余計な `}` が入っていないか確認！
 
 
-// 置き換え：安全版
 async function saveMuscleLayerToDoc(){
   const docRef = getJournalRef(teamId, memberId, selDate);
 
@@ -1337,26 +1336,7 @@ async function saveMuscleLayerToDoc(){
     mmStats: stats
   };
 
-  // ← 旧データのキーを消したいだけ。使えない環境ではスキップしても実害なし。
-  try {
-    if (firebase?.firestore?.FieldValue?.delete) {
-      payload.mmBarrierPng = firebase.firestore.FieldValue.delete();
-    }
-  } catch (_) { /* 何もしない（落とさない） */ }
 
-  await docRef.set(payload, { merge:true });
-}
-
-
-  // 旧データ削除は「使えるときだけ」実行（無くても動作に支障なし）
-  try{
-    if (firebase?.firestore?.FieldValue?.delete) {
-      payload.mmBarrierPng = firebase.firestore.FieldValue.delete();
-    }
-  }catch(_){ /* 何もしない（落とさない） */ }
-
-  await docRef.set(payload, { merge:true });
-}
 
 function analyzeOverlay(octx){
   if(!octx) return {lv1:0,lv2:0,lv3:0,total:0};
