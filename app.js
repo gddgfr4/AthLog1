@@ -1301,26 +1301,29 @@ function floodErase(octx,wctx,sx,sy){
   octx.putImageData(o,0,0);
 }
 
-// Firestore ⇄ キャンバス
-function drawDataURL(ctx,url){
-  return new Promise(res=>{
+// 画像を描いたら解決する Promise（この定義はそのままでOK）
+function drawDataURL(ctx, url){
+  return new Promise((res)=>{
     if(!url) return res();
-    const im=new Image();
-    im.onload=()=>{ ctx.drawImage(im,0,0); res(); };
-    im.src=url;
+    const im = new Image();
+    im.onload = ()=>{ ctx.drawImage(im, 0, 0); res(); };
+    im.src = url;
   });
 }
 
+// ← ここが async であることが超重要！
 async function drawMuscleFromDoc(j){
-  if(!mm.octx || !mm.wctx) return;
+  if(!mm?.octx) return;
   mm.octx.clearRect(0,0,mm.octx.canvas.width, mm.octx.canvas.height);
-  // mm.wctx はここでは消さない（init時に再生成済みの壁を使う）
 
-  if(j?.mmOverlayWebp){
+  // 旧バリアは描かない（毎回生成する方針）
+  // if(j?.mmBarrierPng) await drawDataURL(mm.wctx, j.mmBarrierPng);
+
+  if (j?.mmOverlayWebp) {
     await drawDataURL(mm.octx, j.mmOverlayWebp);
   }
-  // ← j.mmBarrierPng はもう描かない
-}
+} // ← この閉じカッコの直後に余計な `}` が入っていないか確認！
+
 
 
   if (j?.mmOverlayWebp) {
