@@ -822,33 +822,26 @@ function renderPlanListInModal(mon, dayKey, editCallback){
 }
 function closePlanModal(){ if(modalDiv){ modalDiv.remove(); modalDiv=null; } }
 
-async function collectPlansTextForDay(day, scopeSel, tagCSV=""){
-  const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
-  const dayKey=ymd(day);
-  let query=getPlansCollectionRef(srcTeam).doc(dayKey).collection('events');
-  if(scopeSel===memberId) query=query.where('mem','==',memberId);
-  if(scopeSel==='team')   query=query.where('scope','==','team');
+// 予定本文取り込み（内容だけを返す：編集者名や種別は付けない）
+async function collectPlansTextForDay(day, scopeSel){
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  const dayKey  = ymd(day);
+  const plansRef = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events');
 
-  const tagSet = new Set(tagCSV.split(",").map(s=>s.trim()).filter(Boolean));
+  let query = plansRef;
+  if (scopeSel === memberId) query = query.where('mem','==',memberId);
+  if (scopeSel === 'team')   query = query.where('scope','==','team');
 
-  const snapshot=await query.get();
-  const list=[];
-  snapshot.docs.forEach(doc=>{
-    const it=doc.data();
-    // タグフィルタ（空なら全通し）
-    if(tagSet.size){
-      const arr = Array.isArray(it.tags)? it.tags : [];
-      if(!arr.some(t=>tagSet.has(t))) return;
-    }
-    if(scopeSel==="auto"){
-      if(it.mem===memberId)      list.push(`[${memberId}] ${it.type} ${it.content}`);
-      else if(it.scope==="team")  list.push(`[全員] ${it.type} ${it.content}`);
-    }else{
-      list.push(`${it.type} ${it.content}`);
-    }
+  const snap = await query.get();
+  const lines = [];
+  snap.docs.forEach(doc=>{
+    const it = doc.data();
+    const content = (it.content || '').trim();
+    if (content) lines.push(content);     // ← 内容だけを集める
   });
-  return list.join("\n");
+  return lines.join('\n');
 }
+
 
 async function collectPlansTypesForDay(day, scopeSel, tagCSV=""){
   const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
