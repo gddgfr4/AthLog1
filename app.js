@@ -1311,23 +1311,16 @@ function drawDataURL(ctx, url){
   });
 }
 
-// ← ここが async であることが超重要！
 async function drawMuscleFromDoc(j){
-  if(!mm?.octx) return;
-  mm.octx.clearRect(0,0,mm.octx.canvas.width, mm.octx.canvas.height);
-
-  // 旧バリアは描かない（毎回生成する方針）
-  // if(j?.mmBarrierPng) await drawDataURL(mm.wctx, j.mmBarrierPng);
-
-  if (j?.mmOverlayWebp) {
-    await drawDataURL(mm.octx, j.mmOverlayWebp);
-  }
-} // ← この閉じカッコの直後に余計な `}` が入っていないか確認！
-
+  if(!mm.octx || !mm.wctx) return;
+  mm.octx.clearRect(0,0,mm.octx.canvas.width,  mm.octx.canvas.height);
+  mm.wctx.clearRect(0,0,mm.wctx.canvas.width,  mm.wctx.canvas.height);
+  if (j?.mmOverlayWebp) await drawDataURL(mm.octx, j.mmOverlayWebp);   // 現在の塗り
+  if (j?.mmBarrierPng)  await drawDataURL(mm.wctx,  j.mmBarrierPng);    // 旧保存のバリア（あれば）
+}
 
 async function saveMuscleLayerToDoc(){
   const docRef = getJournalRef(teamId, memberId, selDate);
-
   const overlayWebp = mm?.octx ? mm.octx.canvas.toDataURL('image/webp', 0.65) : null;
   const stats       = analyzeOverlay(mm.octx);
 
@@ -1335,6 +1328,16 @@ async function saveMuscleLayerToDoc(){
     mmOverlayWebp: overlayWebp,
     mmStats: stats
   };
+
+  // 旧キーは「使えるときだけ」削除（無くても実害なし）
+  try {
+    if (firebase?.firestore?.FieldValue?.delete) {
+      payload.mmBarrierPng = firebase.firestore.FieldValue.delete();
+    }
+  } catch(_){}
+
+  await docRef.set(payload, { merge:true });
+}
 
 
 
