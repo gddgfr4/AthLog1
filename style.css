@@ -75,17 +75,32 @@ html,body{
 }
 
 /* ========== Muscle Map (Canvas stack) ========== */
-.canvas-wrap{
-  position:relative; width:100%; max-width:1000px; margin:0 auto;
-  border:1px dashed var(--line); border-radius:12px; overflow:hidden; background:#fff;
-  aspect-ratio:1/1; /* 1024x1024 前提で正方形維持 */
+/* キャンバス３枚を完全に重ねてズレを防止。下:ベース画像 / 中:壁(非表示) / 上:塗り */
+#mmWrap{
+  position:relative;
+  width:100%;
+  max-width:1000px;
+  margin:0 auto;
+  border:1px dashed var(--line);
+  border-radius:12px;
+  overflow:hidden;
+  background:#fff;
+  /* JS で実画像の比率を設定します（fallback は正方形） */
+  aspect-ratio:1 / 1;
 }
-#mmBase{ display:none; } /* 解析用なので非表示 */
-#mmOverlay,#mmBarrier{
-  position:absolute; inset:0; width:100%; height:100%;
+#mmWrap canvas{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:auto;
+  display:block;
+  touch-action:none;           /* スマホのブラシずれ防止 */
+  image-rendering:pixelated;   /* 細部が滲みにくい */
 }
-#mmOverlay{ mix-blend-mode:multiply; image-rendering:pixelated; cursor:crosshair; }
-#mmBarrier{ pointer-events:none; opacity:.18; }
+#mmBase{   z-index:0; }                    /* 表示するベース画像 */
+#mmBarrier{z-index:1; opacity:0; pointer-events:none;} /* 見えない“壁” */
+#mmOverlay{z-index:2; cursor:crosshair; mix-blend-mode:normal;}
+
 
 /* ========== Palette ========== */
 .palette{ display:flex; gap:8px; align-items:center; margin-bottom:6px; }
@@ -275,4 +290,5 @@ html,body{
 #mmBase{z-index:0;}
 #mmBarrier{z-index:1; opacity:0; pointer-events:none;} /* 見えない壁 */
 #mmOverlay{z-index:2;}
+
 
