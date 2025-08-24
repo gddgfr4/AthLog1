@@ -1077,11 +1077,15 @@ document.addEventListener("DOMContentLoaded",()=>{
 function renderDashboardInsight(){ /* optional */ }
 
 // ===== Muscle-map (overlay/barrier) =====
-const MM={
-  IMG_CANDIDATES: ['human.webp','human.png','human.webp','./human.webp','./assets/human.webp'],
+const MM = {
+  IMG_CANDIDATES: ['human.webp','human.webp.png','human.png','./human.webp','./assets/human.webp'],
+  VIEW: 'front',          // 'front' or 'back' or 'single'（画像が1人だけなら 'single'）
   LEVELS:{ 1:[199,210,254,210], 2:[253,186,116,210], 3:[239,68,68,210] },
-  TOL:22
+  TOL:22,
+  EDGE_PAD: 3             // 枠の内側マージン（塗れない幅, px）
 };
+
+
 let mm={ base:null, overlay:null, barrier:null, bctx:null, octx:null, wctx:null, ready:false };
 
 function tryLoadImageSequential(srcs){
@@ -1109,40 +1113,61 @@ function toGray(ctx, w, h){
   ctx.putImageData(img,0,0);
 }
 
-// グレイ化した下地から“線”を抽出してバリアを作る
 function buildBarrierFromBase(){
   const w = mm.base.width, h = mm.base.height;
-  const src = mm.bctx.getImageData(0,0,w,h);   // すでに toGray 済みを想定
-  const s = src.data;
+  const src = mm.bctx.getImageData(0,0,w,h).data;
 
-  const dst = mm.wctx.createImageData(w,h);
-  const d = dst.data;
-
-  const TH = 150; // 画像により 130〜180 で調整
-  for (let i=0;i<s.length;i+=4){
-    const g = s[i]; // R=G=B
-    if (g < TH){                // 暗い＝線
-      d[i]=d[i+1]=d[i+2]=0; d[i+3]=255;
-    }else{
-      d[i]=d[i+1]=d[i+2]=0; d[i+3]=0;
+  // 1) 輪郭線を抽出（暗い画素）
+  const line = new Uint8Array(w*h);
+  const TH = 150; // 130〜180で微調整可
+  for(let y=0,i=0,p=0;y<h;y++){
+    for(let x=0;x<w;x++,i+=4,p++){
+      line[p] = (src[i] < TH) ? 1 : 0;
     }
   }
+  dilate(line, w, h, 1); // 少し太らせる
 
-  // 3x3 で少し太らせる（塗り漏れ防止）
-  const a = new Uint8ClampedArray(d.length);
-  const idxA = (x,y)=>((y*w+x)<<2)+3;
-  for(let y=1;y<h-1;y++){
-    for(let x=1;x<w-1;x++){
-      let on=0;
-      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
-        if (d[idxA(x+dx,y+dy)]>0) on=255;
-      }
-      a[idxA(x,y)] = on;
-    }
+  // 2) 外縁からBFSで“外側”を塗り → そこも壁に
+  const outside = new Uint8Array(w*h);
+  const q=[]; const push=(x,y)=>{
+    if(x<0||y<0||x>=w||y>=h) return;
+    const idx=y*w+x; if(outside[idx]||line[idx]) return;
+    outside[idx]=1; q.push(idx);
+  };
+  for(let x=0;x<w;x++){ push(x,0); push(x,h-1); }
+  for(let y=0;y<h;y++){ push(0,y); push(w-1,y); }
+  while(q.length){
+    const idx=q.pop(), x=idx%w, y=(idx/w)|0;
+    push(x+1,y); push(x-1,y); push(x,y+1); push(x,y-1);
   }
-  for(let i=3;i<d.length;i+=4) d[i] = Math.max(d[i], a[i]);
 
+  // 3) 壁 = 輪郭 ∪ 外側 → さらに内側へ EDGE_PAD 分だけ太らせる
+  const wall = new Uint8Array(w*h);
+  for(let i=0;i<wall.length;i++) wall[i]=(line[i]||outside[i])?1:0;
+  dilate(wall, w, h, MM.EDGE_PAD);
+
+  // 4) Canvasへ
+  const dst = mm.wctx.createImageData(w,h), d = dst.data;
+  for(let p=0,i=0;p<wall.length;p++,i+=4){
+    d[i]=d[i+1]=d[i+2]=0; d[i+3]= wall[p]?255:0;
+  }
   mm.wctx.putImageData(dst,0,0);
+}
+
+
+function dilate(grid,w,h,steps){
+  for(let s=0;s<steps;s++){
+    const prev=grid.slice();
+    for(let y=1;y<h-1;y++){
+      for(let x=1;x<w-1;x++){
+        const i=y*w+x;
+        if(prev[i]){ grid[i]=1; continue; }
+        if(prev[i-1]||prev[i+1]||prev[i-w]||prev[i+w]||prev[i-w-1]||prev[i-w+1]||prev[i+w-1]||prev[i+w+1]){
+          grid[i]=1;
+        }
+      }
+    }
+  }
 }
 
 
@@ -1156,31 +1181,35 @@ function initMuscleMap(){
   mm.octx = mm.overlay.getContext('2d', { willReadFrequently:true });
   mm.wctx = mm.barrier.getContext('2d');
 
-  tryLoadImageSequential(MM.IMG_CANDIDATES)
-    .then(img=>{
-      [mm.base, mm.overlay, mm.barrier].forEach(c=>{
-        c.width=img.naturalWidth; c.height=img.naturalHeight;
-      });
-      // 下地は“表示用”にも使う（CSSで #mmBase は表示状態に）
-     mm.bctx.clearRect(0,0,mm.base.width, mm.base.height);
-     mm.bctx.drawImage(img, 0, 0);
+tryLoadImageSequential(MM.IMG_CANDIDATES).then(img=>{
+  const fullW = img.naturalWidth, fullH = img.naturalHeight;
+  const halfW = Math.floor(fullW/2);
+  const halfMode = (MM.VIEW==='front' || MM.VIEW==='back');
+  const crop = halfMode
+    ? (MM.VIEW==='back'
+        ? {sx:halfW, sy:0, sw:halfW, sh:fullH}
+        : {sx:0,     sy:0, sw:halfW, sh:fullH})
+    : {sx:0, sy:0, sw:fullW, sh:fullH}; // 'single' など1枚のとき
 
-// 下地 → グレイ化 → バリア生成（★これが無いと全面塗りになる）
-     toGray(mm.bctx, mm.base.width, mm.base.height);
-     buildBarrierFromBase();
+  [mm.base, mm.overlay, mm.barrier].forEach(c=>{
+    c.width=crop.sw; c.height=crop.sh;
+  });
 
-     mm.ready = true;
+  mm.bctx.clearRect(0,0,crop.sw,crop.sh);
+  mm.bctx.drawImage(img, crop.sx,crop.sy,crop.sw,crop.sh, 0,0,crop.sw,crop.sh);
 
-// 既存保存があれば上書き反映（mmOverlayWebp / mmBarrierPng）
-     drawMuscleFromDoc(lastJournal);
+  // グレイ化→輪郭線抽出→外側+輪郭を“壁”に→縁マージンを追加
+  toGray(mm.bctx, crop.sw, crop.sh);
+  buildBarrierFromBase();
 
-    })
-    .catch(err=>{
-      console.error(err);
-      // 見た目上わかるように背景にチェック柄
-      mm.bctx.fillStyle='#f1f5f9';
-      mm.bctx.fillRect(0,0,mm.base.width, mm.base.height);
-    });
+  mm.ready = true;
+  drawMuscleFromDoc(lastJournal); // 既存オーバーレイを上に描く
+}).catch(err=>{
+  console.error(err);
+  mm.bctx.fillStyle='#f1f5f9';
+  mm.bctx.fillRect(0,0,mm.base.width, mm.base.height);
+});
+
 
   // 1タップ塗り（バリアは通らず、既存塗りを越えない）
   mm.overlay.addEventListener('pointerdown',(e)=>{
@@ -1279,15 +1308,12 @@ function drawDataURL(ctx,url){
   });
 }
 async function drawMuscleFromDoc(j){
-  if(!mm.octx || !mm.wctx) return;
-
-  // overlay は毎回消す
+  if(!mm.octx) return;
   mm.octx.clearRect(0,0,mm.octx.canvas.width, mm.octx.canvas.height);
+  // mm.wctx は init 時に毎回 buildBarrierFromBase() で作る
+  if(j?.mmOverlayWebp) await drawDataURL(mm.octx, j.mmOverlayWebp);
+}
 
-  // ★バリアは“消さない”。保存がある時だけ上から描く
-  if (j?.mmBarrierPng) {
-    await drawDataURL(mm.wctx, j.mmBarrierPng);
-  }
 
   if (j?.mmOverlayWebp) {
     await drawDataURL(mm.octx, j.mmOverlayWebp);
@@ -1296,11 +1322,15 @@ async function drawMuscleFromDoc(j){
 
 async function saveMuscleLayerToDoc(){
   const docRef=getJournalRef(teamId,memberId,selDate);
-  const overlayWebp = mm?.octx ? mm.octx.canvas.toDataURL('image/webp', 0.65) : null;
-  const barrierPng  = mm?.wctx ? mm.wctx.canvas.toDataURL('image/png')        : null;
+  const overlayWebp = mm?.octx ? mm.octx.canvas.toDataURL('image/webp',0.65) : null;
   const stats=analyzeOverlay(mm.octx);
-  await docRef.set({ mmOverlayWebp:overlayWebp, mmBarrierPng:barrierPng, mmStats:stats },{merge:true});
+  await docRef.set({
+    mmOverlayWebp: overlayWebp,
+    mmStats: stats,
+    mmBarrierPng: firebase.firestore.FieldValue.delete() // ←旧データ消去
+  },{merge:true});
 }
+
 function analyzeOverlay(octx){
   if(!octx) return {lv1:0,lv2:0,lv3:0,total:0};
   const w=octx.canvas.width, h=octx.canvas.height;
