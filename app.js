@@ -1078,158 +1078,86 @@ function renderDashboardInsight(){ /* optional */ }
 
 // ===== Muscle-map (overlay/barrier) =====
 const MM = {
-  IMG_CANDIDATES: ['human.webp','human.webp','human.png','./human.webp','./assets/human.webp'],
-  VIEW: 'front',          // 'front' or 'back' or 'single'（画像が1人だけなら 'single'）
+  IMG_CANDIDATES: ['human.webp','./human.webp','./assets/human.webp'],
+  VIEW: 'single',                 // 'single' | 'front' | 'back'
   LEVELS:{ 1:[199,210,254,210], 2:[253,186,116,210], 3:[239,68,68,210] },
-  TOL:22,
-  EDGE_PAD: 3             // 枠の内側マージン（塗れない幅, px）
+  TH_LINE: 130,                   // 線抽出しきい値（小さいほど濃い線のみ）
+  DILATE: 2,                      // 膨張回数（線を太らせる）
+  FRAME: 3,                       // 外枠を壁にする幅（px）
+  TOL: 22
 };
-
-
 let mm={ base:null, overlay:null, barrier:null, bctx:null, octx:null, wctx:null, ready:false };
 
+// 画像ロード（候補順）
 function tryLoadImageSequential(srcs){
   return new Promise((resolve,reject)=>{
     const img=new Image();
     let i=0;
     img.onload=()=>resolve(img);
-    img.onerror=()=>{
-      i++;
-      if(i<srcs.length){ img.src=srcs[i]; }
-      else reject(new Error("Base image not found: "+srcs.join(", ")));
-    };
+    img.onerror=()=>{ i++; (i<srcs.length)? img.src=srcs[i] : reject(new Error('image not found')); };
     img.src=srcs[i];
   });
 }
 
-// 下地をグレイスケール化
-function toGray(ctx, w, h){
-  const img = ctx.getImageData(0,0,w,h);
-  const d = img.data;
-  for (let i=0;i<d.length;i+=4){
-    const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
-    d[i]=d[i+1]=d[i+2]=g;
-  }
-  ctx.putImageData(img,0,0);
+// 使い捨てキャンバス
+let __tmpC=null, __tmpX=null;
+function tmpCtx(w,h){
+  if(!__tmpC){ __tmpC=document.createElement('canvas'); __tmpX=__tmpC.getContext('2d'); }
+  __tmpC.width=w; __tmpC.height=h;
+  return __tmpX;
 }
 
-function buildBarrierFromBase(){
-  const w = mm.base.width, h = mm.base.height;
-  const src = mm.bctx.getImageData(0,0,w,h);   // toGray 済み
-  const s = src.data;
+// ベースから“壁”を作る（線＋外枠）
+function makeBarrierFromBase(){
+  const w=mm.base.width, h=mm.base.height;
+  const t=tmpCtx(w,h);
 
-  const dst = mm.wctx.createImageData(w,h);
-  const d = dst.data;
+  t.clearRect(0,0,w,h);
+  t.drawImage(mm.base,0,0);
 
-  const TH = 150; // 線の濃さ次第で 130〜180 を微調整
-  for (let i=0;i<s.length;i+=4){
-    const g = s[i]; // R=G=B
-    if (g < TH){ d[i]=d[i+1]=d[i+2]=0; d[i+3]=255; }  // 線＝バリア
-    else        { d[i]=d[i+1]=d[i+2]=0; d[i+3]=0;   }
+  const src=t.getImageData(0,0,w,h); const s=src.data;
+  const out=mm.wctx.createImageData(w,h); const d=out.data;
+
+  // 1) 濃い線の抽出
+  for(let i=0;i<s.length;i+=4){
+    const g=0.299*s[i]+0.587*s[i+1]+0.114*s[i+2];
+    if(g<MM.TH_LINE){ d[i]=d[i+1]=d[i+2]=0; d[i+3]=255; }
+    else             { d[i]=d[i+1]=d[i+2]=0; d[i+3]=0; }
   }
 
-  // 3x3 でラインを少し太らせる
-  const a = new Uint8ClampedArray(d.length);
-  const idxA = (x,y)=>((y*w+x)<<2)+3;
-  for(let y=1;y<h-1;y++){
-    for(let x=1;x<w-1;x++){
-      let on=0;
-      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
-        if (d[idxA(x+dx,y+dy)]>0) on=255;
-      }
-      a[idxA(x,y)] = on;
-    }
-  }
-  for(let i=3;i<d.length;i+=4) d[i] = Math.max(d[i], a[i]);
-
-  // === ★ ここから追加：キャンバスの四辺に“縁バリア” ===
-  const MARGIN = 8; // 枠から何px 内側を塗れなくするか
-  for (let y=0; y<h; y++){
-    for (let x=0; x<w; x++){
-      if (x<MARGIN || x>=w-MARGIN || y<MARGIN || y>=h-MARGIN){
-        const j = (y*w + x) << 2;
-        d[j]=d[j+1]=d[j+2]=0; d[j+3]=255;
-      }
-    }
-  }
-  // === ★ 追加ここまで ===
-
-  mm.wctx.putImageData(dst,0,0);
-}
-
-
-function dilate(grid,w,h,steps){
-  for(let s=0;s<steps;s++){
-    const prev=grid.slice();
+  // 2) 膨張（線を太らせスキマを埋める）
+  const a=(x,y)=>((y*w+x)<<2)+3;
+  const A=new Uint8Array(w*h);
+  for(let pass=0; pass<MM.DILATE; pass++){
+    A.fill(0);
     for(let y=1;y<h-1;y++){
       for(let x=1;x<w-1;x++){
-        const i=y*w+x;
-        if(prev[i]){ grid[i]=1; continue; }
-        if(prev[i-1]||prev[i+1]||prev[i-w]||prev[i+w]||prev[i-w-1]||prev[i-w+1]||prev[i+w-1]||prev[i+w+1]){
-          grid[i]=1;
+        let on=0;
+        for(let dy=-1;dy<=1 && !on;dy++){
+          for(let dx=-1;dx<=1;dx++){
+            if(d[a(x+dx,y+dy)]>0){ on=1; break; }
+          }
         }
+        if(on) A[y*w+x]=255;
+      }
+    }
+    for(let y=1;y<h-1;y++){
+      for(let x=1;x<w-1;x++){
+        if(A[y*w+x]) d[a(x,y)]=255;
       }
     }
   }
+
+  // 3) 外枠を壁に（枠ギリは塗れない）
+  for(let f=0; f<MM.FRAME; f++){
+    for(let x=0;x<w;x++){ d[((0*w+x)<<2)+3]=255; d[(((h-1-f)*w+x)<<2)+3]=255; }
+    for(let y=0;y<h;y++){ d[((y*w+0)<<2)+3]=255; d[((y*w+(w-1-f))<<2)+3]=255; }
+  }
+
+  mm.wctx.putImageData(out,0,0);
 }
 
-
-function initMuscleMap(){
-  mm.base   = document.getElementById('mmBase');
-  mm.overlay= document.getElementById('mmOverlay');
-  mm.barrier= document.getElementById('mmBarrier');
-  if(!mm.base || !mm.overlay || !mm.barrier) return;
-
-  mm.bctx = mm.base.getContext('2d');
-  mm.octx = mm.overlay.getContext('2d', { willReadFrequently:true });
-  mm.wctx = mm.barrier.getContext('2d');
-
-tryLoadImageSequential(MM.IMG_CANDIDATES).then(img=>{
-  const fullW = img.naturalWidth, fullH = img.naturalHeight;
-  const halfW = Math.floor(fullW/2);
-  const halfMode = (MM.VIEW==='front' || MM.VIEW==='back');
-  const crop = halfMode
-    ? (MM.VIEW==='back'
-        ? {sx:halfW, sy:0, sw:halfW, sh:fullH}
-        : {sx:0,     sy:0, sw:halfW, sh:fullH})
-    : {sx:0, sy:0, sw:fullW, sh:fullH}; // 'single' など1枚のとき
-
-  [mm.base, mm.overlay, mm.barrier].forEach(c=>{
-    c.width=crop.sw; c.height=crop.sh;
-  });
-
-  mm.bctx.clearRect(0,0,crop.sw,crop.sh);
-  mm.bctx.drawImage(img, crop.sx,crop.sy,crop.sw,crop.sh, 0,0,crop.sw,crop.sh);
-
-  // グレイ化→輪郭線抽出→外側+輪郭を“壁”に→縁マージンを追加
-  toGray(mm.bctx, crop.sw, crop.sh);
-  buildBarrierFromBase();
-
-  mm.ready = true;
-  drawMuscleFromDoc(lastJournal); // 既存オーバーレイを上に描く
-}).catch(err=>{
-  console.error(err);
-  mm.bctx.fillStyle='#f1f5f9';
-  mm.bctx.fillRect(0,0,mm.base.width, mm.base.height);
-});
-
-
-  // 1タップ塗り（バリアは通らず、既存塗りを越えない）
-  mm.overlay.addEventListener('pointerdown',(e)=>{
-    if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
-    const p=mmPixPos(mm.overlay, e);
-    if(brush.erase){ floodErase(mm.octx, mm.wctx, p.x, p.y); }
-    else{
-      const col=MM.LEVELS[brush.lvl||1];
-      floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, col);
-    }
-    saveMuscleLayerToDoc();
-  });
-
-  window.addEventListener('resize', ()=> drawMuscleFromDoc(lastJournal));
-}
-
-// キャンバス座標に変換
+// キャンバス座標
 function mmPixPos(canvas,e){
   const r=canvas.getBoundingClientRect();
   return {
@@ -1238,7 +1166,7 @@ function mmPixPos(canvas,e){
   };
 }
 
-// flood fill（barrier/既存塗りで停止）
+// 塗り
 function floodFill(octx,wctx,sx,sy,tol,rgba){
   const w=octx.canvas.width, h=octx.canvas.height;
   const o=octx.getImageData(0,0,w,h); const od=o.data;
@@ -1246,18 +1174,18 @@ function floodFill(octx,wctx,sx,sy,tol,rgba){
   const A_STOP=10;
   const stack=[(sy<<16)|sx];
   const seen=new Uint8Array(w*h);
-  const within=(x,y)=>x>=0 && y>=0 && x<w && y<h;
+  const within=(x,y)=>x>=0&&y>=0&&x<w&&y<h;
   const idx=(x,y)=>((y*w+x)<<2);
 
   while(stack.length){
     const p=stack.pop();
-    const x=p & 0xffff, y=p>>>16;
+    const x=p&0xffff, y=p>>>16;
     if(!within(x,y)) continue;
     const si=y*w+x;
     if(seen[si]) continue; seen[si]=1;
 
     const i=idx(x,y);
-    if(bd[i+3]>A_STOP) continue;   // barrier
+    if(bd[i+3]>A_STOP) continue;   // 壁で停止
     if(od[i+3]>A_STOP) continue;   // 既に塗り
 
     od[i]=rgba[0]; od[i+1]=rgba[1]; od[i+2]=rgba[2]; od[i+3]=rgba[3];
@@ -1269,6 +1197,8 @@ function floodFill(octx,wctx,sx,sy,tol,rgba){
   }
   octx.putImageData(o,0,0);
 }
+
+// 消し（面で）
 function floodErase(octx,wctx,sx,sy){
   const w=octx.canvas.width, h=octx.canvas.height;
   const o=octx.getImageData(0,0,w,h); const od=o.data;
@@ -1276,13 +1206,13 @@ function floodErase(octx,wctx,sx,sy){
   const A_STOP=10;
   const stack=[(sy<<16)|sx];
   const seen=new Uint8Array(w*h);
-  const within=(x,y)=>x>=0 && y>=0 && x<w && y<h;
+  const within=(x,y)=>x>=0&&y>=0&&x<w&&y<h;
   const idx=(x,y)=>((y*w+x)<<2);
-  if(od[idx(sx,sy)+3] <= A_STOP) return;
+  if(od[idx(sx,sy)+3]<=A_STOP) return;
 
   while(stack.length){
     const p=stack.pop();
-    const x=p & 0xffff, y=p>>>16;
+    const x=p&0xffff, y=p>>>16;
     if(!within(x,y)) continue;
     const si=y*w+x;
     if(seen[si]) continue; seen[si]=1;
@@ -1301,46 +1231,43 @@ function floodErase(octx,wctx,sx,sy){
   octx.putImageData(o,0,0);
 }
 
-// 画像を描いたら解決する Promise（この定義はそのままでOK）
-function drawDataURL(ctx, url){
-  return new Promise((res)=>{
+// DataURL 描画（await不要）
+function drawDataURL(ctx,url){
+  return new Promise(res=>{
     if(!url) return res();
-    const im = new Image();
-    im.onload = ()=>{ ctx.drawImage(im, 0, 0); res(); };
-    im.src = url;
+    const im=new Image();
+    im.onload=()=>{ ctx.drawImage(im,0,0); res(); };
+    im.src=url;
   });
 }
 
-async function drawMuscleFromDoc(j){
+// Firestore → キャンバス
+function drawMuscleFromDoc(j){
   if(!mm.octx || !mm.wctx) return;
-  mm.octx.clearRect(0,0,mm.octx.canvas.width,  mm.octx.canvas.height);
-  mm.wctx.clearRect(0,0,mm.wctx.canvas.width,  mm.wctx.canvas.height);
-  if (j?.mmOverlayWebp) await drawDataURL(mm.octx, j.mmOverlayWebp);   // 現在の塗り
-  if (j?.mmBarrierPng)  await drawDataURL(mm.wctx,  j.mmBarrierPng);    // 旧保存のバリア（あれば）
+  mm.octx.clearRect(0,0,mm.octx.canvas.width, mm.octx.canvas.height);
+  mm.wctx.clearRect(0,0,mm.wctx.canvas.width, mm.wctx.canvas.height);
+
+  if(j?.mmBarrierPng){ drawDataURL(mm.wctx, j.mmBarrierPng).then(()=>{}); }
+  else{ makeBarrierFromBase(); }
+
+  if(j?.mmOverlayWebp){ drawDataURL(mm.octx, j.mmOverlayWebp).then(()=>{}); }
 }
 
+// 保存（旧キー削除は可能な時だけ）
 async function saveMuscleLayerToDoc(){
-  const docRef = getJournalRef(teamId, memberId, selDate);
-  const overlayWebp = mm?.octx ? mm.octx.canvas.toDataURL('image/webp', 0.65) : null;
+  const docRef=getJournalRef(teamId,memberId,selDate);
+  const overlayWebp = mm?.octx ? mm.octx.canvas.toDataURL('image/webp',0.65) : null;
   const stats       = analyzeOverlay(mm.octx);
-
-  const payload = {
-    mmOverlayWebp: overlayWebp,
-    mmStats: stats
-  };
-
-  // 旧キーは「使えるときだけ」削除（無くても実害なし）
-  try {
-    if (firebase?.firestore?.FieldValue?.delete) {
+  const payload     = { mmOverlayWebp: overlayWebp, mmStats: stats };
+  try{
+    if(firebase?.firestore?.FieldValue?.delete){
       payload.mmBarrierPng = firebase.firestore.FieldValue.delete();
     }
-  } catch(_){}
-
-  await docRef.set(payload, { merge:true });
+  }catch(_){}
+  await docRef.set(payload,{merge:true});
 }
 
-
-
+// 統計（任意）
 function analyzeOverlay(octx){
   if(!octx) return {lv1:0,lv2:0,lv3:0,total:0};
   const w=octx.canvas.width, h=octx.canvas.height;
@@ -1361,3 +1288,59 @@ function analyzeOverlay(octx){
   }
   return { lv1:S[0], lv2:S[1], lv3:S[2], total:S[0]+S[1]+S[2] };
 }
+
+// 初期化
+function initMuscleMap(){
+  mm.base   = document.getElementById('mmBase');
+  mm.overlay= document.getElementById('mmOverlay');
+  mm.barrier= document.getElementById('mmBarrier');
+  if(!mm.base || !mm.overlay || !mm.barrier) return;
+
+  mm.bctx = mm.base.getContext('2d');
+  mm.octx = mm.overlay.getContext('2d', { willReadFrequently:true });
+  mm.wctx = mm.barrier.getContext('2d');
+
+  tryLoadImageSequential(MM.IMG_CANDIDATES).then(img=>{
+    // single: 全体 / front/back: 左右半分
+    const fullW=img.naturalWidth, fullH=img.naturalHeight;
+    const halfW=Math.floor(fullW/2);
+    const crop = (MM.VIEW==='front') ? {sx:0,     sy:0, sw:halfW, sh:fullH}
+               : (MM.VIEW==='back')  ? {sx:halfW, sy:0, sw:halfW, sh:fullH}
+               :                       {sx:0,     sy:0, sw:fullW, sh:fullH};
+
+    // 実キャンバスサイズ
+    [mm.base, mm.overlay, mm.barrier].forEach(c=>{ c.width=crop.sw; c.height=crop.sh; });
+
+    // ベースへ描画（見た目は <img>、ベースは解析用）
+    mm.bctx.clearRect(0,0,crop.sw,crop.sh);
+    mm.bctx.drawImage(img, crop.sx,crop.sy,crop.sw,crop.sh, 0,0,crop.sw,crop.sh);
+
+    // mmWrap のアスペクト比を実画像に合わせる（ズレ防止）
+    const wrap=document.getElementById('mmWrap');
+    if(wrap) wrap.style.aspectRatio = `${crop.sw} / ${crop.sh}`;
+
+    // 壁生成
+    makeBarrierFromBase();
+    mm.ready=true;
+
+    // 既存の保存があれば反映
+    drawMuscleFromDoc(lastJournal);
+  }).catch(err=>{
+    console.error(err);
+    mm.bctx.fillStyle='#f1f5f9';
+    mm.bctx.fillRect(0,0,mm.base.width, mm.base.height);
+  });
+
+  // 塗り/消し
+  mm.overlay.addEventListener('pointerdown',(e)=>{
+    if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
+    const p=mmPixPos(mm.overlay,e);
+    if(brush.erase){ floodErase(mm.octx, mm.wctx, p.x, p.y); }
+    else{ floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]); }
+    saveMuscleLayerToDoc();
+  });
+
+  // 画面サイズ変更時も反映
+  window.addEventListener('resize', ()=> drawMuscleFromDoc(lastJournal));
+}
+
