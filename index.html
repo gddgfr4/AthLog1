@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="style.css" />
 
   <!-- preload base image for muscle-map (同階層に human.webp.png がある前提) -->
-  <link rel="preload" href="human.webp.png" as="image" imagesrcset="human.webp.png" />
+  <link rel="preload" href="human.webp" as="image" imagesrcset="human.webp" />
 
   <!-- libs -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -138,7 +138,7 @@
 
          <div class="canvas-wrap" style="position:relative;max-width:1000px;margin:0 auto;">
           <!-- 見た目用の下地画像（表示する） -->
-           <img id="mmBg" src="./human.webp.png" alt="" style="display:block;width:100%;height:auto;">
+           <img id="mmBg" src="./human.webp" alt="" style="display:block;width:100%;height:auto;">
           
           <!-- 解析用（非表示のままでOK） -->
            <canvas id="mmBase" width="1024" height="1024" style="display:none"></canvas>
@@ -344,6 +344,7 @@
   </noscript>
 </body>
 </html>
+
 
 
 
