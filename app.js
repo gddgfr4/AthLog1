@@ -1321,14 +1321,24 @@ async function drawMuscleFromDoc(j){
 }
 
 async function saveMuscleLayerToDoc(){
-  const docRef=getJournalRef(teamId,memberId,selDate);
-  const overlayWebp = mm?.octx ? mm.octx.canvas.toDataURL('image/webp',0.65) : null;
-  const stats=analyzeOverlay(mm.octx);
-  await docRef.set({
+  const docRef = getJournalRef(teamId, memberId, selDate);
+
+  const overlayWebp = mm?.octx ? mm.octx.canvas.toDataURL('image/webp', 0.65) : null;
+  const stats       = analyzeOverlay(mm.octx);
+
+  const payload = {
     mmOverlayWebp: overlayWebp,
-    mmStats: stats,
-    mmBarrierPng: firebase.firestore.FieldValue.delete() // ←旧データ消去
-  },{merge:true});
+    mmStats: stats
+  };
+
+  // 旧データ削除は「使えるときだけ」実行（無くても動作に支障なし）
+  try{
+    if (firebase?.firestore?.FieldValue?.delete) {
+      payload.mmBarrierPng = firebase.firestore.FieldValue.delete();
+    }
+  }catch(_){ /* 何もしない（落とさない） */ }
+
+  await docRef.set(payload, { merge:true });
 }
 
 function analyzeOverlay(octx){
