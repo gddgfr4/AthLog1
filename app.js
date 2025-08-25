@@ -1142,16 +1142,7 @@ const MM = {
 };
 let mm = { base:null, overlay:null, barrier:null, bctx:null, octx:null, wctx:null, ready:false };
 
-// === マルチタッチ管理（ここに追加） ===
-const MT = {
-  active: new Set(),                 // 画面にあるタッチpointerId
-  multitouch: false,                 // 2本指以上か
-  tap: { id: null, x: 0, y: 0, moved: false }, // 1本指タップ候補
-  TAP_MOVE_TOL: 8                    // タップ判定の許容移動(px)
-};
-function setOverlayTouchAction(mode){
-  if (mm?.overlay) mm.overlay.style.touchAction = mode; // 'none' or 'pan-x pan-y pinch-zoom'
-}
+
 
 
 // 画像ロード（候補順）
@@ -1533,9 +1524,9 @@ mm.overlay.addEventListener('pointerleave', onOverlayPointerUpOrCancel, { passiv
   // 1本指タップの移動量チェック（動いてたら塗らない）
   mm.overlay.addEventListener('pointermove',(e)=>{
     if(e.pointerType !== 'touch') return;
-    if(MT.tap.id === e.pointerId){
+    if(window.MT>tap.id === e.pointerId){
       const p = mmPixPos(mm.overlay, e);
-      if (Math.abs(p.x - MT.tap.x) + Math.abs(p.y - MT.tap.y) > MT.TAP_MOVE_TOL){
+      if (Math.abs(p.x - window.MT.tap.x) + Math.abs(p.y - MT.tap.y) > MT.TAP_MOVE_TOL){
         MT.tap.moved = true;
       }
     }
