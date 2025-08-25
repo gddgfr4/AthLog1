@@ -43,6 +43,15 @@ async function sumWeekKm(d){
   return s;
 }
 
+// --- マルチタッチ管理（2本以上は塗らないでピンチに委ねる）---
+const MT = { pointers: new Set() };
+
+function setOverlayTouchAction(mode){
+  const ov = document.getElementById('mmOverlay');
+  if (ov) ov.style.touchAction = mode;   // 'none' | 'auto' | 'pan-x pan-y pinch-zoom'
+}
+
+
 // ===== Main/Sub helpers =====
 function getProfiles(){
   try{ return JSON.parse(localStorage.getItem('athlog:profiles')||'[]'); }
@@ -1474,28 +1483,45 @@ function initMuscleMap(){
   // 初期は1本指描画を優先（ピンチ禁止）
   setOverlayTouchAction('none');
 
-  // pointerdown
-  mm.overlay.addEventListener('pointerdown',(e)=>{
-    if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
+  // ====== 入力：1本指だけ塗る。2本以上はピンチ専用 ======
+function onOverlayPointerDown(e){
+  MT.pointers.add(e.pointerId);
 
-    if(e.pointerType === 'touch'){
-      MT.active.add(e.pointerId);
+  // 2本以上 → ピンチ操作に委ねて終了（塗らない）
+  if (MT.pointers.size >= 2) {
+    setOverlayTouchAction('pan-x pan-y pinch-zoom'); // ピンチ&スクロール可
+    return;
+  }
 
-      if(MT.active.size >= 2){
-        // 2本指以上：ピンチ操作を許可、塗りは抑止
-        MT.multitouch = true;
-        MT.tap.id = null;
-        setOverlayTouchAction('pan-x pan-y pinch-zoom');
-        return;
-      }else{
-        // 1本指：タップ候補として保持（実際の塗りは pointerupで1回だけ）
-        MT.multitouch = false;
-        setOverlayTouchAction('none');
-        const p = mmPixPos(mm.overlay, e);
-        MT.tap = { id: e.pointerId, x: p.x, y: p.y, moved: false };
-        return;
-      }
-    }
+  // 1本指 → 画面スクロールを止めて塗る
+  setOverlayTouchAction('none');
+  if (!isEditableHere(teamId,memberId,viewingMemberId)) return;
+
+  const p = mmPixPos(mm.overlay, e);
+  if (brush.erase) {
+    floodErase(mm.octx, mm.wctx, p.x, p.y);
+  } else {
+    // 既存の floodFill そのまま使用（または floodFillCapped があればそちら）
+    floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]);
+  }
+  saveMuscleLayerToDoc();
+}
+
+function onOverlayPointerUpOrCancel(e){
+  MT.pointers.delete(e.pointerId);
+  if (MT.pointers.size === 0) {
+    // 指が全て離れたら通常に戻す（ピンチ・スクロール再開）
+    setOverlayTouchAction('auto');
+  }
+}
+
+// 登録（passiveにして描画をブロックしない）
+mm.overlay.addEventListener('pointerdown',  onOverlayPointerDown,   { passive:true });
+mm.overlay.addEventListener('pointerup',    onOverlayPointerUpOrCancel, { passive:true });
+mm.overlay.addEventListener('pointercancel',onOverlayPointerUpOrCancel, { passive:true });
+mm.overlay.addEventListener('pointerleave', onOverlayPointerUpOrCancel, { passive:true });
+
+ 
 
     // マウス/ペンは従来どおり即時塗り
     const p = mmPixPos(mm.overlay, e);
