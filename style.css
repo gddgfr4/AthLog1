@@ -287,6 +287,9 @@ html,body{
 #mmBarrier{z-index:1; opacity:0; pointer-events:none;} /* 見えない壁 */
 #mmOverlay{z-index:2;}
 
+/* どこかのCSSに追加/上書き */
+#mmOverlay { touch-action: auto; }
+
 
 
 
