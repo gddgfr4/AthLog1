@@ -1133,6 +1133,18 @@ const MM = {
 };
 let mm = { base:null, overlay:null, barrier:null, bctx:null, octx:null, wctx:null, ready:false };
 
+// === マルチタッチ管理（ここに追加） ===
+const MT = {
+  active: new Set(),                 // 画面にあるタッチpointerId
+  multitouch: false,                 // 2本指以上か
+  tap: { id: null, x: 0, y: 0, moved: false }, // 1本指タップ候補
+  TAP_MOVE_TOL: 8                    // タップ判定の許容移動(px)
+};
+function setOverlayTouchAction(mode){
+  if (mm?.overlay) mm.overlay.style.touchAction = mode; // 'none' or 'pan-x pan-y pinch-zoom'
+}
+
+
 // 画像ロード（候補順）
 function tryLoadImageSequential(srcs){
   return new Promise((resolve,reject)=>{
@@ -1441,8 +1453,8 @@ function initMuscleMap(){
     mm.bctx.clearRect(0,0,crop.sw,crop.sh);
     mm.bctx.drawImage(img, crop.sx,crop.sy,crop.sw,crop.sh, 0,0,crop.sw,crop.sh);
 
-    // mmWrap のアスペクト比を実画像に合わせる（ズレ防止）
-    const wrap=document.getElementById('mmWrap');
+    // mmWrap or .canvas-wrap のアスペクト比を画像に合わせる（ズレ防止）
+    const wrap = document.getElementById('mmWrap') || document.querySelector('.canvas-wrap');
     if(wrap) wrap.style.aspectRatio = `${crop.sw} / ${crop.sh}`;
 
     // 壁生成
@@ -1457,14 +1469,81 @@ function initMuscleMap(){
     mm.bctx.fillRect(0,0,mm.base.width, mm.base.height);
   });
 
-  // 塗り/消し
+  // ===== マルチタッチ対応イベント =====
+
+  // 初期は1本指描画を優先（ピンチ禁止）
+  setOverlayTouchAction('none');
+
+  // pointerdown
   mm.overlay.addEventListener('pointerdown',(e)=>{
     if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
-    const p=mmPixPos(mm.overlay,e);
+
+    if(e.pointerType === 'touch'){
+      MT.active.add(e.pointerId);
+
+      if(MT.active.size >= 2){
+        // 2本指以上：ピンチ操作を許可、塗りは抑止
+        MT.multitouch = true;
+        MT.tap.id = null;
+        setOverlayTouchAction('pan-x pan-y pinch-zoom');
+        return;
+      }else{
+        // 1本指：タップ候補として保持（実際の塗りは pointerupで1回だけ）
+        MT.multitouch = false;
+        setOverlayTouchAction('none');
+        const p = mmPixPos(mm.overlay, e);
+        MT.tap = { id: e.pointerId, x: p.x, y: p.y, moved: false };
+        return;
+      }
+    }
+
+    // マウス/ペンは従来どおり即時塗り
+    const p = mmPixPos(mm.overlay, e);
     if(brush.erase){ floodErase(mm.octx, mm.wctx, p.x, p.y); }
     else{ floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]); }
     saveMuscleLayerToDoc();
   });
+
+  // 1本指タップの移動量チェック（動いてたら塗らない）
+  mm.overlay.addEventListener('pointermove',(e)=>{
+    if(e.pointerType !== 'touch') return;
+    if(MT.tap.id === e.pointerId){
+      const p = mmPixPos(mm.overlay, e);
+      if (Math.abs(p.x - MT.tap.x) + Math.abs(p.y - MT.tap.y) > MT.TAP_MOVE_TOL){
+        MT.tap.moved = true;
+      }
+    }
+  });
+
+  // 終了処理（up/cancel/leave）
+  function onPointerEnd(e){
+    if(e.pointerType !== 'touch') return;
+
+    MT.active.delete(e.pointerId);
+
+    // 1本指タップだったらここで1回だけ塗る
+    if(MT.tap.id === e.pointerId){
+      if(!MT.multitouch && !MT.tap.moved){
+        const p = mmPixPos(mm.overlay, e);
+        if(brush.erase){ floodErase(mm.octx, mm.wctx, p.x, p.y); }
+        else{ floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]); }
+        saveMuscleLayerToDoc();
+      }
+      MT.tap.id = null;
+    }
+
+    // 指の本数で touch-action を切替
+    if(MT.active.size >= 2){
+      setOverlayTouchAction('pan-x pan-y pinch-zoom');
+      MT.multitouch = true;
+    }else{
+      setOverlayTouchAction('none');
+      MT.multitouch = false;
+    }
+  }
+  mm.overlay.addEventListener('pointerup', onPointerEnd);
+  mm.overlay.addEventListener('pointercancel', onPointerEnd);
+  mm.overlay.addEventListener('pointerleave', onPointerEnd);
 
   // 画面サイズ変更時も反映
   window.addEventListener('resize', ()=> drawMuscleFromDoc(lastJournal));
