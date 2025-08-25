@@ -91,7 +91,6 @@ html,body{
   width:100%;
   height:100%;         /* ← ここを 100% にする（auto 禁止） */
   display:block;
-  touch-action:auto;
   image-rendering:pixelated;
 }
 #mmBase   { z-index:0; opacity:0; pointer-events:none; }
@@ -287,6 +286,7 @@ html,body{
 #mmBase{z-index:0;}
 #mmBarrier{z-index:1; opacity:0; pointer-events:none;} /* 見えない壁 */
 #mmOverlay{z-index:2;}
+
 
 
 
