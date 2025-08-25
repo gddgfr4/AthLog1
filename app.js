@@ -1136,20 +1136,16 @@ const MM = {
   TH_LINE: 130,                   // 線抽出しきい値（小さいほど濃い線のみ）
   DILATE: 2,                      // 膨張回数（線を太らせる）
   FRAME: 3,                       // 外枠を壁にする幅（px）
-  TOL: 22,                        // フィル許容（未使用ならそのまま）
-  MAX_REGION_FRAC: 0.25,          // これ以上の巨大領域は塗らない（画面の25%）
+  TOL: 22,                        // フィル許容
+  MAX_REGION_FRAC: 0.25,          // これ以上の巨大領域は塗らない（画像の25%）
   MIN_REGION_PX: 25               // これ未満の極小領域は無視
 };
 let mm = { base:null, overlay:null, barrier:null, bctx:null, octx:null, wctx:null, ready:false };
 
-
-
-
 // 画像ロード（候補順）
 function tryLoadImageSequential(srcs){
   return new Promise((resolve,reject)=>{
-    const img=new Image();
-    let i=0;
+    const img=new Image(); let i=0;
     img.onload=()=>resolve(img);
     img.onerror=()=>{ i++; (i<srcs.length)? img.src=srcs[i] : reject(new Error('image not found')); };
     img.src=srcs[i];
@@ -1164,7 +1160,7 @@ function tmpCtx(w,h){
   return __tmpX;
 }
 
-// ベースから“壁”を作る（線＋外枠）
+// ベースから“壁”を作る（線＋外枠＋外側全面）
 function makeBarrierFromBase(){
   const w=mm.base.width, h=mm.base.height;
   const t=tmpCtx(w,h);
@@ -1186,49 +1182,42 @@ function makeBarrierFromBase(){
   const A=new Uint8Array(w*h);
   for(let pass=0; pass<MM.DILATE; pass++){
     A.fill(0);
-    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+    for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
       let on=0;
       for(let dy=-1;dy<=1 && !on;dy++)
         for(let dx=-1;dx<=1;dx++)
           if(d[a(x+dx,y+dy)]>0){ on=1; break; }
       if(on) A[y*w+x]=255;
     }
-    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++)
+    for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++)
       if(A[y*w+x]) d[a(x,y)]=255;
   }
 
-  // 3) 枠ギリを壁に
+  // 3) 枠を壁に
   for(let f=0; f<MM.FRAME; f++){
     for(let x=0;x<w;x++){ d[((0*w+x)<<2)+3]=255; d[(((h-1-f)*w+x)<<2)+3]=255; }
     for(let y=0;y<h;y++){ d[((y*w+0)<<2)+3]=255; d[((y*w+(w-1-f))<<2)+3]=255; }
   }
 
-  // 4) ★外側全域を壁に（ここがキモ）
-  blockOutsideAsBarrier(d, w, h);
+  // 4) 外側全域を壁に（四隅から塗りつぶし）
+  blockOutsideAsBarrier(d,w,h);
 
   mm.wctx.putImageData(out,0,0);
 }
 
-
-// 外側すべてをバリア化（四隅から探索して外側領域のα=255に）
-function blockOutsideAsBarrier(alphaData, w, h){
+// 外側すべてをバリア化（四隅から探索）
+function blockOutsideAsBarrier(alphaData,w,h){
   const idxA=(x,y)=>((y*w+x)<<2)+3;
   const seen=new Uint8Array(w*h);
-  const st=[0, w-1, (h-1)*w, (h-1)*w+(w-1)]; // 四隅
+  const st=[0, w-1, (h-1)*w, (h-1)*w+(w-1)];
   while(st.length){
     const p=st.pop();
     const y=(p/w)|0, x=p-y*w;
     if(x<0||y<0||x>=w||y>=h) continue;
     const si=y*w+x;
     if(seen[si]) continue; seen[si]=1;
-
-    // すでに壁(α>0)なら外側ではないので進まない
-    if(alphaData[idxA(x,y)]>0) continue;
-
-    // 外側として壁にする
-    alphaData[idxA(x,y)]=255;
-
-    // 4近傍へ
+    if(alphaData[idxA(x,y)]>0) continue; // 既に壁
+    alphaData[idxA(x,y)]=255;            // 外側→壁
     st.push(si-1, si+1, si-w, si+w);
   }
 }
@@ -1237,26 +1226,7 @@ function barrierAlphaAt(x,y){
   return mm.wctx.getImageData(x, y, 1, 1).data[3];
 }
 
-mm.overlay.addEventListener('pointerdown',(e)=>{
-  if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
-  const p=mmPixPos(mm.overlay,e);
-
-  // 壁（外側/輪郭/枠）は反応しない
-  if (barrierAlphaAt(p.x,p.y) > 10) return;
-
-  if (brush.erase){
-    floodErase(mm.octx, mm.wctx, p.x, p.y);
-  }else{
-    // ★ 大面積ガード付きの塗り
-    floodFillCapped(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]);
-  }
-  saveMuscleLayerToDoc();
-});
-
-
-
-
-// キャンバス座標
+// キャンバス座標（CSSスケール補正）
 function mmPixPos(canvas,e){
   const r=canvas.getBoundingClientRect();
   return {
@@ -1265,15 +1235,40 @@ function mmPixPos(canvas,e){
   };
 }
 
+// 事前に「この起点から塗れるピクセル数」を数える（実際には塗らない）
+function measureFillRegion(octx,wctx,sx,sy){
+  const w=octx.canvas.width, h=octx.canvas.height;
+  const o=octx.getImageData(0,0,w,h).data;
+  const b=wctx.getImageData(0,0,w,h).data;
+  const A_STOP=10;
+  const stack=[(sy<<16)|sx];
+  const seen=new Uint8Array(w*h);
+  const within=(x,y)=>x>=0&&y>=0&&x<w&&y<h;
+  const idx=(x,y)=>((y*w+x)<<2);
+  let cnt=0;
+  while(stack.length){
+    const p=stack.pop();
+    const x=p & 0xffff, y=p>>>16;
+    if(!within(x,y)) continue;
+    const si=y*w+x;
+    if(seen[si]) continue; seen[si]=1;
+    const i=idx(x,y);
+    if(b[i+3]>A_STOP) continue;   // 壁
+    if(o[i+3]>A_STOP) continue;   // 既に塗り
+    cnt++;
+    stack.push((y<<16)|(x-1),(y<<16)|(x+1),((y-1)<<16)|x,((y+1)<<16)|x);
+  }
+  return cnt;
+}
+
+// 面塗り（大面積/極小面ガードつき）
 function floodFill(octx,wctx,sx,sy,tol,rgba){
   const w=octx.canvas.width, h=octx.canvas.height;
   const maxArea = Math.floor(w*h*MM.MAX_REGION_FRAC);
   const tryArea = measureFillRegion(octx,wctx,sx,sy);
+  if (tryArea < MM.MIN_REGION_PX) return;
+  if (tryArea > maxArea)         return;
 
-  if (tryArea < MM.MIN_REGION_PX) return;   // ゴミ塗り回避
-  if (tryArea > maxArea)         return;   // 画面外や巨大面の誤爆をブロック
-
-  // ここから本塗り（通常の flood fill）
   const o=octx.getImageData(0,0,w,h); const od=o.data;
   const b=wctx.getImageData(0,0,w,h); const bd=b.data;
   const A_STOP=10;
@@ -1295,45 +1290,9 @@ function floodFill(octx,wctx,sx,sy,tol,rgba){
 
     od[i]=rgba[0]; od[i+1]=rgba[1]; od[i+2]=rgba[2]; od[i+3]=rgba[3];
 
-    stack.push((y<<16)|(x-1));
-    stack.push((y<<16)|(x+1));
-    stack.push(((y-1)<<16)|x);
-    stack.push(((y+1)<<16)|x);
+    stack.push((y<<16)|(x-1),(y<<16)|(x+1),((y-1)<<16)|x,((y+1)<<16)|x);
   }
   octx.putImageData(o,0,0);
-}
-
-
-// 事前に「この起点から塗れるピクセル数」を数える（実際には塗らない）
-function measureFillRegion(octx, wctx, sx, sy){
-  const w=octx.canvas.width, h=octx.canvas.height;
-  const o=octx.getImageData(0,0,w,h).data;
-  const b=wctx.getImageData(0,0,w,h).data;
-  const A_STOP=10;
-  const stack=[(sy<<16)|sx];
-  const seen=new Uint8Array(w*h);
-  const within=(x,y)=>x>=0&&y>=0&&x<w&&y<h;
-  const idx=(x,y)=>((y*w+x)<<2);
-  let cnt=0;
-
-  while(stack.length){
-    const p=stack.pop();
-    const x=p & 0xffff, y=p>>>16;
-    if(!within(x,y)) continue;
-    const si=y*w+x;
-    if(seen[si]) continue; seen[si]=1;
-    const i=idx(x,y);
-
-    if(b[i+3]>A_STOP) continue;   // 壁
-    if(o[i+3]>A_STOP) continue;   // 既に塗り
-
-    cnt++;
-    stack.push((y<<16)|(x-1));
-    stack.push((y<<16)|(x+1));
-    stack.push(((y-1)<<16)|x);
-    stack.push(((y+1)<<16)|x);
-  }
-  return cnt;
 }
 
 // 消し（面で）
@@ -1361,15 +1320,12 @@ function floodErase(octx,wctx,sx,sy){
 
     od[i]=od[i+1]=od[i+2]=0; od[i+3]=0;
 
-    stack.push((y<<16)|(x-1));
-    stack.push((y<<16)|(x+1));
-    stack.push(((y-1)<<16)|x);
-    stack.push(((y+1)<<16)|x);
+    stack.push((y<<16)|(x-1),(y<<16)|(x+1),((y-1)<<16)|x,((y+1)<<16)|x);
   }
   octx.putImageData(o,0,0);
 }
 
-// DataURL 描画（await不要）
+// DataURL 描画
 function drawDataURL(ctx,url){
   return new Promise(res=>{
     if(!url) return res();
@@ -1384,10 +1340,8 @@ function drawMuscleFromDoc(j){
   if(!mm.octx || !mm.wctx) return;
   mm.octx.clearRect(0,0,mm.octx.canvas.width, mm.octx.canvas.height);
   mm.wctx.clearRect(0,0,mm.wctx.canvas.width, mm.wctx.canvas.height);
-
   if(j?.mmBarrierPng){ drawDataURL(mm.wctx, j.mmBarrierPng).then(()=>{}); }
   else{ makeBarrierFromBase(); }
-
   if(j?.mmOverlayWebp){ drawDataURL(mm.octx, j.mmOverlayWebp).then(()=>{}); }
 }
 
@@ -1427,7 +1381,7 @@ function analyzeOverlay(octx){
   return { lv1:S[0], lv2:S[1], lv3:S[2], total:S[0]+S[1]+S[2] };
 }
 
-// 初期化
+// ===== 初期化（ここにだけイベントを生やす！） =====
 function initMuscleMap(){
   mm.base   = document.getElementById('mmBase');
   mm.overlay= document.getElementById('mmOverlay');
@@ -1449,11 +1403,11 @@ function initMuscleMap(){
     // 実キャンバスサイズ
     [mm.base, mm.overlay, mm.barrier].forEach(c=>{ c.width=crop.sw; c.height=crop.sh; });
 
-    // ベースへ描画（見た目は <img>、ベースは解析用）
+    // ベースへ描画（表示は<img>任せ／これは解析用）
     mm.bctx.clearRect(0,0,crop.sw,crop.sh);
     mm.bctx.drawImage(img, crop.sx,crop.sy,crop.sw,crop.sh, 0,0,crop.sw,crop.sh);
 
-    // mmWrap or .canvas-wrap のアスペクト比を画像に合わせる（ズレ防止）
+    // ラッパのアスペクト比を画像に合わせる（ズレ防止）
     const wrap = document.getElementById('mmWrap') || document.querySelector('.canvas-wrap');
     if(wrap) wrap.style.aspectRatio = `${crop.sw} / ${crop.sh}`;
 
@@ -1469,100 +1423,55 @@ function initMuscleMap(){
     mm.bctx.fillRect(0,0,mm.base.width, mm.base.height);
   });
 
-  // ===== マルチタッチ対応イベント =====
+  // === マルチタッチ：2本指以上はピンチ/スクロール、1本指のみ塗る ===
+  const activePointers = new Set();
+  const ov = mm.overlay;
 
-  // 初期は1本指描画を優先（ピンチ禁止）
-  setOverlayTouchAction('none');
+  // 既定はピンチOKにしておく。単指描画時だけ 'none' へ。
+  ov.style.touchAction = 'pan-x pan-y pinch-zoom';
 
-  // ====== 入力：1本指だけ塗る。2本以上はピンチ専用 ======
-function onOverlayPointerDown(e){
-  MT.pointers.add(e.pointerId);
-
-  // 2本以上 → ピンチ操作に委ねて終了（塗らない）
-  if (MT.pointers.size >= 2) {
-    setOverlayTouchAction('pan-x pan-y pinch-zoom'); // ピンチ&スクロール可
-    return;
+  function setOverlayTouchAction(mode){
+    ov.style.touchAction = mode; // 'none' | 'pan-x pan-y pinch-zoom' | 'auto'
   }
 
-  // 1本指 → 画面スクロールを止めて塗る
-  setOverlayTouchAction('none');
-  if (!isEditableHere(teamId,memberId,viewingMemberId)) return;
+  function onPointerDown(e){
+    ov.setPointerCapture?.(e.pointerId);
+    activePointers.add(e.pointerId);
 
-  const p = mmPixPos(mm.overlay, e);
-  if (brush.erase) {
-    floodErase(mm.octx, mm.wctx, p.x, p.y);
-  } else {
-    // 既存の floodFill そのまま使用（または floodFillCapped があればそちら）
-    floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]);
-  }
-  saveMuscleLayerToDoc();
-}
-
-function onOverlayPointerUpOrCancel(e){
-  MT.pointers.delete(e.pointerId);
-  if (MT.pointers.size === 0) {
-    // 指が全て離れたら通常に戻す（ピンチ・スクロール再開）
-    setOverlayTouchAction('auto');
-  }
-}
-
-// 登録（passiveにして描画をブロックしない）
-mm.overlay.addEventListener('pointerdown',  onOverlayPointerDown,   { passive:true });
-mm.overlay.addEventListener('pointerup',    onOverlayPointerUpOrCancel, { passive:true });
-mm.overlay.addEventListener('pointercancel',onOverlayPointerUpOrCancel, { passive:true });
-mm.overlay.addEventListener('pointerleave', onOverlayPointerUpOrCancel, { passive:true });
-
- 
-
-    // マウス/ペンは従来どおり即時塗り
-    const p = mmPixPos(mm.overlay, e);
-    if(brush.erase){ floodErase(mm.octx, mm.wctx, p.x, p.y); }
-    else{ floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]); }
-    saveMuscleLayerToDoc();
-  });
-
-  // 1本指タップの移動量チェック（動いてたら塗らない）
-  mm.overlay.addEventListener('pointermove',(e)=>{
-    if(e.pointerType !== 'touch') return;
-    if(window.MT>tap.id === e.pointerId){
-      const p = mmPixPos(mm.overlay, e);
-      if (Math.abs(p.x - window.MT.tap.x) + Math.abs(p.y - MT.tap.y) > MT.TAP_MOVE_TOL){
-        MT.tap.moved = true;
-      }
-    }
-  });
-
-  // 終了処理（up/cancel/leave）
-  function onPointerEnd(e){
-    if(e.pointerType !== 'touch') return;
-
-    MT.active.delete(e.pointerId);
-
-    // 1本指タップだったらここで1回だけ塗る
-    if(MT.tap.id === e.pointerId){
-      if(!MT.multitouch && !MT.tap.moved){
-        const p = mmPixPos(mm.overlay, e);
-        if(brush.erase){ floodErase(mm.octx, mm.wctx, p.x, p.y); }
-        else{ floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]); }
-        saveMuscleLayerToDoc();
-      }
-      MT.tap.id = null;
-    }
-
-    // 指の本数で touch-action を切替
-    if(MT.active.size >= 2){
+    // 2本以上 → ピンチ優先（塗らない）
+    if(e.pointerType==='touch' && activePointers.size>=2){
       setOverlayTouchAction('pan-x pan-y pinch-zoom');
-      MT.multitouch = true;
+      return;
+    }
+
+    // 単指 → スクロール抑止し描画
+    setOverlayTouchAction('none');
+    if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
+
+    const p=mmPixPos(ov,e);
+    // 壁（外側/輪郭/枠）は反応しない
+    if (barrierAlphaAt(p.x,p.y) > 10) return;
+
+    if(brush.erase){
+      floodErase(mm.octx, mm.wctx, p.x, p.y);
     }else{
-      setOverlayTouchAction('none');
-      MT.multitouch = false;
+      floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]);
+    }
+    saveMuscleLayerToDoc();
+  }
+  function onPointerEnd(e){
+    ov.releasePointerCapture?.(e.pointerId);
+    activePointers.delete(e.pointerId);
+    if(activePointers.size===0){
+      setOverlayTouchAction('pan-x pan-y pinch-zoom');
     }
   }
-  mm.overlay.addEventListener('pointerup', onPointerEnd);
-  mm.overlay.addEventListener('pointercancel', onPointerEnd);
-  mm.overlay.addEventListener('pointerleave', onPointerEnd);
 
-  // 画面サイズ変更時も反映
+  ov.addEventListener('pointerdown',   onPointerDown,      { passive:true });
+  ov.addEventListener('pointerup',     onPointerEnd,       { passive:true });
+  ov.addEventListener('pointercancel', onPointerEnd,       { passive:true });
+  ov.addEventListener('pointerleave',  onPointerEnd,       { passive:true });
+
+  // リサイズで再描画
   window.addEventListener('resize', ()=> drawMuscleFromDoc(lastJournal));
 }
-
