@@ -316,6 +316,28 @@ html,body{
 /* どこかのCSSに追加/上書き */
 #mmOverlay { touch-action: auto; }
 
+/* === Week chips: スマホ最適化 === */
+#weekChips {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+#weekChips .chip {
+  padding: 6px 4px;
+  min-width: 0;
+  border-radius: 10px;
+  line-height: 1.1;
+}
+#weekChips .chip .km { font-size: 11px; opacity: .8; }
+
+/* 幅が狭い端末で文字・余白をさらに詰める */
+@media (max-width: 420px){
+  #weekChips { gap: 4px; }
+  #weekChips .chip { padding: 5px 3px; }
+  #weekChips .chip div:first-child { font-size: 12px; }
+  #weekChips .chip .km { font-size: 10px; }
+}
+
 
 
 
