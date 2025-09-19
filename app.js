@@ -537,33 +537,52 @@ async function renderMonth(){
     box.appendChild(row);
 
     (async ()=>{
-      try{
-        const snap=await getJournalRef(srcTeam, viewingMemberId, dt).get();
-        const j=snap.data()||{};
-        sum+=Number(j.dist||0);
-        $("#monthSum").textContent=`月間走行距離: ${sum.toFixed(1)} km`;
+      try {
+        const snap = await getJournalRef(srcTeam, viewingMemberId, dt).get();
+        const j    = snap.data() || {};
 
-        const classMap={ ジョグ:"jog", ポイント:"point", 補強:"sup", オフ:"off", その他:"other" };
-        const tags=Array.isArray(j.tags)?j.tags:[];
-        const tagsHtml= tags.length
-          ? `<div class="month-tags">${tags.map(t=>`<span class="cat-tag ${classMap[t]||""}">${t}</span>`).join("")}</div>`
-          : "";
-         const cond=j.condition ? Number(j.condition) : null;
-         const condHtml = (cond && cond>=1 && cond<=5)
-           ? `<span class="cond-pill cond-${cond}">${cond}</span>`
-           : `<span class="cond-pill cond-3" style="opacity:.4">–</span>`;
-        
-         const txt=row.querySelector(".txt");
-         txt.innerHTML = `
-           <div class="month-tags">
-             ${tagsHtml || ''}
-             <span style="margin-left:6px;">${condHtml}</span>
-           </div>
-           <div class="month-content-2lines">
-             ${(j.train||"—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span>
-           </div>`;
-      }catch(err){ console.error("renderMonth day read error:", err); }
+        // 合計距離を更新（NaN防止つき）
+        const add = Number(j.dist || 0);
+        if (!Number.isNaN(add)) {
+          sum += add;
+          const sumEl = document.getElementById("monthSum");
+          if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
+        }
+
+        // カテゴリタグ
+        const classMap = { ジョグ:"jog", ポイント:"point", 補強:"sup", オフ:"off", その他:"other" };
+        const tags     = Array.isArray(j.tags) ? j.tags : [];
+        const tagsHtml = tags.length
+          ? `<div class="month-tags">${tags.map(t =>
+              `<span class="cat-tag ${classMap[t]||""}">${t}</span>`).join("")}</div>`
+          : `<div class="month-tags"></div>`;
+
+        // コンディション（1〜5）。未入力は淡色ピル表示
+        const cond     = (j.condition!=null) ? Number(j.condition) : null;
+        const condHtml = (cond && cond>=1 && cond<=5)
+          ? `<span class="cond-pill cond-${cond}">${cond}</span>`
+          : `<span class="cond-pill cond-3" style="opacity:.4">–</span>`;
+
+        const txt = row.querySelector(".txt");
+        if (!txt) return; // 念のため
+
+        // 本文（2行制限）
+        txt.innerHTML = `
+          <div class="month-tags">
+            ${tagsHtml}
+            <span style="margin-left:6px;">${condHtml}</span>
+          </div>
+          <div class="month-content-2lines">
+            ${(j.train || "—")}
+            <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span>
+          </div>`;
+      } catch(err) {
+        console.error("renderMonth day read error:", yy, mm, d, err);
+        const txt = row.querySelector(".txt");
+        if (txt) txt.textContent = "—"; // 落ちないように最低限表示
+      }
     })();
+
   }
 
   try{
