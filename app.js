@@ -548,14 +548,20 @@ async function renderMonth(){
         const tagsHtml= tags.length
           ? `<div class="month-tags">${tags.map(t=>`<span class="cat-tag ${classMap[t]||""}">${t}</span>`).join("")}</div>`
           : "";
-        const cond=j.condition;
-        const condHtml = cond
-          ? `<div class="condition-display">${Array(cond).fill(0).map(()=>`<span class="star c${cond}">★</span>`).join("")}</div>`
-          : "";
-
-        const txt=row.querySelector(".txt");
-        txt.innerHTML = `${tagsHtml}${condHtml}
-          <div>${(j.train||"—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span></div>`;
+         const cond=j.condition ? Number(j.condition) : null;
+         const condHtml = (cond && cond>=1 && cond<=5)
+           ? `<span class="cond-pill cond-${cond}">${cond}</span>`
+           : `<span class="cond-pill cond-3" style="opacity:.4">–</span>`;
+        
+         const txt=row.querySelector(".txt");
+         txt.innerHTML = `
+           <div class="month-tags">
+             ${tagsHtml || ''}
+             <span style="margin-left:6px;">${condHtml}</span>
+           </div>
+           <div class="month-content-2lines">
+             ${(j.train||"—")} <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span>
+           </div>`;
       }catch(err){ console.error("renderMonth day read error:", err); }
     })();
   }
