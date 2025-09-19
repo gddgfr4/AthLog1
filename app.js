@@ -393,49 +393,73 @@ function initJournal(){
   initRegionMap();       // ← 旧SVG（存在しなければ何もしない）
 }
 
+// 週合計と「直近7日」を“下の表示(#weekSum)”だけに出す完成版
 async function renderJournal(){
-  if(unsubscribeJournal) unsubscribeJournal();
-  if(!viewingMemberId) viewingMemberId=memberId;
+  if (unsubscribeJournal) unsubscribeJournal();
+  if (!viewingMemberId) viewingMemberId = memberId;
 
-  dirty={ dist:false, train:false, feel:false };
+  dirty = { dist:false, train:false, feel:false };
 
-  const editableHere=isEditableHere(teamId,memberId,viewingMemberId);
+  const editableHere = isEditableHere(teamId, memberId, viewingMemberId);
   $$('#journal input, #journal textarea, #journal .qbtn, #saveBtn, #mergeBtn, #conditionBtns button, .palette button')
     .forEach(el=>{
-      const isNavControl=['weekPrev','weekNext','gotoToday','datePicker'].includes(el.id);
-      if(!isNavControl) el.disabled=!editableHere;
+      const isNavControl = ['weekPrev','weekNext','gotoToday','datePicker'].includes(el.id);
+      if (!isNavControl) el.disabled = !editableHere;
     });
   $("#teamSharedComment")?.removeAttribute("disabled");
   refreshBadges();
 
-  const mergeScopeSelect=$("#mergeScope");
-  if(mergeScopeSelect){
-    mergeScopeSelect.innerHTML=
+  const mergeScopeSelect = $("#mergeScope");
+  if (mergeScopeSelect){
+    mergeScopeSelect.innerHTML =
       `<option value="auto">予定から追加(自動)</option>
        <option value="${memberId}">${memberId}の予定</option>
        <option value="team">全員の予定</option>`;
   }
 
-  $("#datePicker").value=ymd(selDate);
-  await renderWeek();
+  $("#datePicker").value = ymd(selDate);
 
-  const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
+  // --- 下部の距離表示を更新するヘルパ ---
+  async function recent7Km(d){
+    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+    let s = 0;
+    for (let i = 6; i >= 0; i--) {
+      const dt  = addDays(d, -i);
+      const doc = await getJournalRef(srcTeam, viewingMemberId, dt).get();
+      if (doc.exists) s += Number(doc.data().dist || 0);
+    }
+    return s;
+  }
+  async function updateDistanceBadges(){
+    const week = await sumWeekKm(selDate);        // その週の合計（月曜始まり）
+    const r7   = await recent7Km(selDate);        // 選択日を含む直近7日
+    const el   = document.getElementById("weekSum");
+    if (el) el.textContent = `週 走行距離: ${week.toFixed(1)} km　直近7日: ${r7.toFixed(1)} km`;
+  }
+
+  await renderWeek();           // 週チップ描画（内部でも週合計を更新するが）
+  await updateDistanceBadges(); // 下側表示を「週＋直近7日」に上書き
+
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   unsubscribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc=>{
     const j = doc.data() || { dist:0, train:"", feel:"", tags:[], condition:null, regions:{} };
-    lastJournal=j;
-    drawMuscleFromDoc(j); // ← キャンバスへ反映
+    lastJournal = j;
+    drawMuscleFromDoc(j);
 
-    if(!dirty.dist)  $("#distInput").value  = j.dist ?? "";
-    if(!dirty.train) $("#trainInput").value = j.train ?? "";
-    if(!dirty.feel)  $("#feelInput").value  = j.feel ?? "";
+    if (!dirty.dist)  $("#distInput").value  = j.dist ?? "";
+    if (!dirty.train) $("#trainInput").value = j.train ?? "";
+    if (!dirty.feel)  $("#feelInput").value  = j.feel ?? "";
 
     $$('#conditionBtns button').forEach(b=>b.classList.remove('active'));
-    if(j.condition) $(`#conditionBtns button[data-val="${j.condition}"]`)?.classList.add('active');
+    if (j.condition) $(`#conditionBtns button[data-val="${j.condition}"]`)?.classList.add('active');
 
-    renderRegions(j.regions||{});
+    renderRegions(j.regions || {});
     renderQuickButtons(j);
     tscInitOnce();
     tscRefresh();
+
+    // 日誌の変更が入ったら下の距離表示も更新
+    updateDistanceBadges();
   });
 }
 
