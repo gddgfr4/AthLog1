@@ -268,7 +268,29 @@
       このアプリを利用するには JavaScript を有効にしてください。
     </div>
   </noscript>
+  <script>
+(function(){
+  function addLoginNote(){
+    const startBtn = document.getElementById('start'); // 開始ボタンのidに合わせて変更
+    if(!startBtn) return;
+    const note = document.createElement('p');
+    note.className = 'login-note';
+    note.innerHTML =
+      '※ 次回以降は自動ログインとなります。<br>' +
+      '※ チーム名と名前は<strong>完全一致</strong>が必要です（スペースや全角・半角にご注意ください）。';
+    startBtn.insertAdjacentElement('afterend', note);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', addLoginNote);
+  } else {
+    addLoginNote();
+  }
+})();
+</script>
+<style>.login-note{font-size:12px;color:#6b7280;margin-top:8px}</style>
+
 </body>
 </html>
+
 
 
