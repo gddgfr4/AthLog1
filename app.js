@@ -1,12 +1,3 @@
-// ===== Firebase Configuration =====
-const firebaseConfig = {
-  apiKey: "AIzaSyA8oCOusnqZCSax9ZY3-n4KNt2AxEmvT-E",
-  authDomain: "athlog-126d2.firebaseapp.com",
-  projectId: "athlog-126d2",
-  storageBucket: "athlog-126d2.appspot.com",
-  messagingSenderId: "784178114661",
-  appId: "1:784178114661:web:d41103b0dad1187b85168c"
-};
 
 // ===== Firebase Initialization =====
 // あるなら残してOK（ガード必須）。無ければ何も書かなくて良い。
