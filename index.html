@@ -254,6 +254,20 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
+  <!-- ← この“直後”に初期化を置く（app.jsより前） -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA8oCOusnqZCSax9ZY3-n4KNt2AxEmvT-E",
+      authDomain: "athlog-126d2.firebaseapp.com",
+      projectId: "athlog-126d2",
+      storageBucket: "athlog-126d2.appspot.com",
+      messagingSenderId: "784178114661",
+      appId: "1:784178114661:web:d41103b0dad1187b85168c"
+    };
+    if (!firebase.apps || !firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+  </script>
   <!-- アプリ本体 -->
   <script src="app.js?v=20250824" defer></script>
 
@@ -414,6 +428,7 @@
 
 </body>
 </html>
+
 
 
 
