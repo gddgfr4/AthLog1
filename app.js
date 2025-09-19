@@ -132,57 +132,6 @@ async function getPeriodStats({ teamId, memberId, start, end }){
   return { distance, fatigueScore, topTags, avgCond };
 }
 
-// ==== Gemini 本番: Cloud Functions プロキシ経由 ====
-const GEMINI_PROXY_URL = "https://asia-northeast1-athlog-126d2.cloudfunctions.net/geminiComment";
-
-async function callGemini(prompt){
-  const res = await fetch(GEMINI_PROXY_URL, {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify({ prompt })
-  });
-  if(!res.ok){
-    const t = await res.text().catch(()=> '');
-    throw new Error(`proxy error ${res.status} ${t}`);
-  }
-  const data = await res.json();
-  return data.text || '(応答なし)';
-}
-
-async function weekAIComment(d){
-  const end = new Date(d); end.setHours(0,0,0,0);
-  const start = addDays(end, -6);
-  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-
-  // 集計だけはプロンプト材料として使用
-  const { distance, fatigueScore, topTags, avgCond } =
-    await getPeriodStats({ teamId: srcTeam, memberId: viewingMemberId, start, end });
-
-  const summary = [
-    `距離: ${distance.toFixed(1)}km`,
-    `疲労スコア: ${fatigueScore}`,
-    `平均コンディション: ${avgCond ?? 'N/A'}`,
-    `主なタグ: ${(topTags||[]).join(' / ') || 'なし'}`
-  ].join(' / ');
-
-  const prompt = [
-    'あなたはランニングコーチです。以下の直近7日データを端的に評価し、150文字程度の具体アドバイスを日本語で返してください。',
-    '禁止: 個人情報、過度な医療判断、曖昧語。',
-    '出力: 1文〜2文。文頭に絵文字は不要。',
-    '',
-    `【集計】${summary}`,
-    `【期間】${ymd(start)}〜${ymd(end)}`
-  ].join('\n');
-
-  try{
-    const out = await callGemini(prompt);
-    return (out || '').trim();
-  }catch(e){
-    console.error('Gemini error:', e);
-    // フォールバック文は出さず、空にして呼び出し側で処理
-    return '';
-  }
-}
 
 
 // ===== Team Memo paging state =====
@@ -481,8 +430,6 @@ async function renderJournal(){
 
     renderRegions(j.regions||{});
     renderQuickButtons(j);
-    weekAIComment(selDate).then(comment=>$("#aiBox").textContent=comment);
-      // チームコメント欄の初期化＆読み込み
     tscInitOnce();
     tscRefresh();
   });
