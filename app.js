@@ -131,23 +131,6 @@ async function getPeriodStats({ teamId, memberId, start, end }){
   const avgCond = condCount ? (condSum/condCount) : null;
   return { distance, fatigueScore, topTags, avgCond };
 }
-function fatigueLevel(score){
-  if(score>40) return '高';
-  if(score>20) return '中';
-  if(score>0)  return '低';
-  return 'なし';
-}
-async function makeAICommentForPeriod({ teamId, memberId, start, end, label='期間' }){
-  const { distance, fatigueScore, topTags, avgCond } = await getPeriodStats({ teamId, memberId, start, end });
-  const distMsg = distance>80 ? 'ハイボリューム' : distance>50 ? '良い積み上げ' : '距離は控えめ';
-  const condMsg = (avgCond!=null) ? `平均コンディション${avgCond.toFixed(1)}。` : '';
-  const tagMsg  = topTags.length ? `主な内容：${topTags.join(' / ')}。` : '';
-  let fatigueMsg='';
-  if(fatigueScore>40) fatigueMsg='強い疲労の兆候。回復を最優先に。';
-  else if(fatigueScore>20) fatigueMsg='やや疲労。ストレッチ等のケアを。';
-  else if(distance>10) fatigueMsg='概ね良好。';
-  return `【${label}分析AI】総距離${distance.toFixed(1)}km（${distMsg}）。${condMsg}${tagMsg} 疲労度:${fatigueLevel(fatigueScore)}。${fatigueMsg}`;
-}
 
 // ==== Gemini 本番: Cloud Functions プロキシ経由 ====
 const GEMINI_PROXY_URL = "https://asia-northeast1-athlog-126d2.cloudfunctions.net/geminiComment";
@@ -166,17 +149,12 @@ async function callGemini(prompt){
   return data.text || '(応答なし)';
 }
 
-
 async function weekAIComment(d){
   const end = new Date(d); end.setHours(0,0,0,0);
   const start = addDays(end, -6);
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
 
-  // 既存の集計（フォールバック兼ねる）
-  const base = await makeAICommentForPeriod({
-    teamId: srcTeam, memberId: viewingMemberId, start, end, label:'直近7日'
-  });
-
+  // 集計だけはプロンプト材料として使用
   const { distance, fatigueScore, topTags, avgCond } =
     await getPeriodStats({ teamId: srcTeam, memberId: viewingMemberId, start, end });
 
@@ -198,10 +176,11 @@ async function weekAIComment(d){
 
   try{
     const out = await callGemini(prompt);
-    return out?.trim() || base;
+    return (out || '').trim();
   }catch(e){
-    console.error('Gemini error, fallback to rule-based:', e);
-    return base;
+    console.error('Gemini error:', e);
+    // フォールバック文は出さず、空にして呼び出し側で処理
+    return '';
   }
 }
 
