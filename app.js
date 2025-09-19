@@ -999,6 +999,8 @@ async function renderAllDistanceCharts(){
   // === Day: 直近14日 ===
   {
     const cvs=document.getElementById('distanceChartDay');
+    cvs.style.height = '180px';   // CSSの補強
+    cvs.height = 180;             // キャンバス実解像度も固定
     if(cvs){
       const ctx=cvs.getContext('2d');
       const labels=[], data=[];
