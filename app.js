@@ -465,7 +465,23 @@ async function renderWeek(){
   }
   const sum=await sumWeekKm(selDate);
   $("#weekSum").textContent=`週 走行距離: ${sum.toFixed(1)} km`;
+  const roll7 = await rolling7Km(selDate);
+  $("#rolling7Sum").textContent = `直近7日: ${roll7.toFixed(1)} km`;
 }
+
+async function rolling7Km(d){
+  // dの週と同じ終了日基準（現在の選択日の0:00を終端とする）
+  const end=new Date(d); end.setHours(0,0,0,0);
+  const start=addDays(end,-6);
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  let s=0;
+  for(let dt=new Date(start); dt<=end; dt=addDays(dt,1)){
+    const doc=await getJournalRef(srcTeam, viewingMemberId, dt).get();
+    if(doc.exists) s+=Number(doc.data().dist||0);
+  }
+  return s;
+}
+
 
 function renderQuickButtons(j){
   const currentTags=j?.tags||[];
@@ -480,14 +496,20 @@ function initMonth(){
   $("#mPrev")?.addEventListener("click",()=>{ const m=$("#monthPick").value.split("-"); const d=new Date(Number(m[0]), Number(m[1])-2, 1); $("#monthPick").value=getMonthStr(d); renderMonth(); });
   $("#mNext")?.addEventListener("click",()=>{ const m=$("#monthPick").value.split("-"); const d=new Date(Number(m[0]), Number(m[1]), 1); $("#monthPick").value=getMonthStr(d); renderMonth(); });
   $("#monthPick")?.addEventListener("change", renderMonth);
-
-  $("#saveMonthGoalBtn")?.addEventListener("click", async (e)=>{
-    const monthStr=$("#monthPick").value;
-    await getGoalsRef(teamId,memberId,monthStr).set({ goal: $("#monthGoalInput").value });
-    const btn=e.target; btn.textContent="保存しました！";
-    setTimeout(()=>{ btn.textContent="目標を保存"; },1500);
-  });
+  
+   const goalInput=$("#monthGoalInput");
+   if(goalInput){
+     let t=null;
+     goalInput.addEventListener('input', ()=>{
+       clearTimeout(t);
+       t=setTimeout(async ()=>{
+         const monthStr=$("#monthPick").value;
+         await getGoalsRef(teamId,memberId,monthStr).set({ goal: goalInput.value }, { merge:true });
+       }, 500);
+     });
+   }                                                
 }
+
 async function renderMonth(){
   const editableHere=isEditableHere(teamId,memberId,viewingMemberId);
   $("#monthGoalInput").disabled=!editableHere;
