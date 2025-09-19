@@ -212,9 +212,6 @@ html,body{
 .condition-display .star.c4{ color:var(--cond4); }
 .condition-display .star.c5{ color:var(--cond5); }
 
-.aibox{ border-top:1px solid var(--line); padding-top:8px; }
-.aiout{ min-height:38px; color:#475569; }
-
 /* ========== Month list ========== */
 .monthbar{
   display:flex; gap:8px; align-items:center;
@@ -318,6 +315,7 @@ html,body{
 
 /* どこかのCSSに追加/上書き */
 #mmOverlay { touch-action: auto; }
+
 
 
 
