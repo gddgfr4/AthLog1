@@ -454,7 +454,7 @@ async function renderJournal(){
     weekAIComment(selDate).then(comment=>$("#aiBox").textContent=comment);
       // チームコメント欄の初期化＆読み込み
     tscInitOnce();
-    await tscRefresh();
+    tscRefresh();
   });
 }
 
