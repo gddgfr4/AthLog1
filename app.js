@@ -297,6 +297,15 @@ function initRegionMap(){
   });
 }
 
+// 入力の自動保存（デバウンス）
+function makeJournalAutoSaver(delayMs=700){
+  let t=null;
+  return function(){
+    clearTimeout(t);
+    t=setTimeout(()=>saveJournal(), delayMs);
+  };
+}
+
 // ===== JOURNAL =====
 async function saveJournal(){
   const activeCond=$('#conditionBtns button.active');
@@ -312,10 +321,10 @@ async function saveJournal(){
   renderWeek();
 }
 function initJournal(){
-  $("#distInput")?.addEventListener("input", ()=>{ dirty.dist=true; });
-  $("#trainInput")?.addEventListener("input", ()=>{ dirty.train=true; });
-  $("#feelInput")?.addEventListener("input", ()=>{ dirty.feel=true; });
-
+  const scheduleAutoSave = makeJournalAutoSaver(700);
+  $("#distInput")?.addEventListener("input", ()=>{ dirty.dist=true; scheduleAutoSave(); });
+  $("#trainInput")?.addEventListener("input", ()=>{ dirty.train=true; scheduleAutoSave(); });
+  $("#feelInput")?.addEventListener("input", ()=>{ dirty.feel=true; scheduleAutoSave(); });
   const brushBtns=$$('.palette .lvl, .palette #eraser');
   brushBtns.forEach(b=>b.addEventListener('click',()=>{
     brush.lvl=Number(b.dataset.lvl)||1;
@@ -375,14 +384,9 @@ function initJournal(){
     btn.addEventListener('click',()=>{
       $$('#conditionBtns button').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
+      const scheduleAutoSave = makeJournalAutoSaver(500);
+      scheduleAutoSave();
     });
-  });
-
-  $("#saveBtn")?.addEventListener("click", async (e)=>{
-    const btn=e.target;
-    await saveJournal();
-    btn.textContent="保存しました！"; btn.disabled=true;
-    setTimeout(()=>{ btn.textContent="この日を保存"; btn.disabled=false; },1500);
   });
 
   initMuscleMap();       // ← 新筋マップ
