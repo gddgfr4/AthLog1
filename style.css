@@ -387,3 +387,13 @@ html,body{
   white-space: normal;
   max-height: calc(1.3em * 2);
 }
+
+/* Chartの縦伸び防止：キャンバスの高さを固定 */
+.card canvas,
+#distanceChartDay, #distanceChartWeek, #distanceChartMonth,
+#distanceChart /* 念のため既存IDもカバー */
+{
+  width: 100% !important;
+  height: 180px !important;   /* ← 必要な高さに固定（好みで 160〜220px に） */
+  display: block;
+}
