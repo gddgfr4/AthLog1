@@ -288,9 +288,68 @@
 })();
 </script>
 <style>.login-note{font-size:12px;color:#6b7280;margin-top:8px}</style>
+<style>
+  .login-note{font-size:12px;color:#6b7280;margin-top:8px;line-height:1.6}
+</style>
+<script>
+(function(){
+  const NOTE_HTML =
+    '※ 次回以降は自動ログインとなります。<br>' +
+    '※ チーム名と名前は<strong>完全一致</strong>が必要です（スペース/全角半角に注意）。';
+
+  function addLoginNote(){
+    // 二重挿入防止
+    if (document.querySelector('.login-note')) return;
+
+    // 1) 「はじめる」ボタンをテキストで探す（ID不要）
+    let startBtn = Array.from(document.querySelectorAll('button'))
+      .find(b => (b.textContent || '').trim().includes('はじめる'));
+
+    // 2) 見つからない時は、submitボタンを探す
+    if (!startBtn) {
+      startBtn = document.querySelector('button[type="submit"]');
+    }
+
+    // 3) ボタンが見つかったら、その直後に挿入
+    if (startBtn) {
+      const p = document.createElement('p');
+      p.className = 'login-note';
+      p.innerHTML = NOTE_HTML;
+      startBtn.insertAdjacentElement('afterend', p);
+      return true;
+    }
+
+    // 4) それでも無ければ、フォームの末尾に挿入（フォールバック）
+    const form = document.querySelector('form');
+    if (form) {
+      const p = document.createElement('p');
+      p.className = 'login-note';
+      p.innerHTML = NOTE_HTML;
+      form.appendChild(p);
+      return true;
+    }
+    return false;
+  }
+
+  // DOM準備後に実行
+  function tryInject(){
+    if (addLoginNote()) return;
+    // SPA/遅延描画対策：変化を監視して挿入を試みる
+    const mo = new MutationObserver(() => { addLoginNote() && mo.disconnect(); });
+    mo.observe(document.body, { childList: true, subtree: true });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryInject);
+  } else {
+    tryInject();
+  }
+})();
+</script>
 
 </body>
 </html>
+
 
 
 
