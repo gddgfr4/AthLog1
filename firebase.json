@@ -1,1 +1,13 @@
-qq
+{
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs18"
+  }
+}
+
+{
+  "projects": {
+    "default": "<PROJECT_ID>"
+  }
+}
+
