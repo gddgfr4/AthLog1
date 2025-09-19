@@ -1475,3 +1475,178 @@ function initMuscleMap(){
   // リサイズで再描画
   window.addEventListener('resize', ()=> drawMuscleFromDoc(lastJournal));
 }
+
+/* ===========================
+ * ログイン注意文（ログイン画面に1回だけ表示）
+ * =========================== */
+(function addLoginNoteOnce(){
+  // ログインボタンのIDは index.html で定義されているものに合わせる
+  var startBtn = document.getElementById('loginBtn');
+  if (!startBtn) return;
+  if (document.querySelector('.login-note')) return; // 重複防止
+  var p = document.createElement('p');
+  p.className = 'login-note';
+  p.innerHTML =
+    '※ 次回以降は自動ログインとなります。<br>' +
+    '※ チーム名と名前は<strong>完全一致</strong>が必要です（スペースや全角・半角にご注意ください）。';
+  startBtn.insertAdjacentElement('afterend', p);
+})();
+
+/* ちょいスタイル（必要なら style.css に移動可） */
+(function injectLoginNoteStyle(){
+  if (document.getElementById('loginNoteStyle')) return;
+  var css = '.login-note{font-size:12px;color:#6b7280;margin-top:8px;line-height:1.6}'+
+            '.comment-box{margin-top:12px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;background:#fafafa}'+
+            '#daynote-text{width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:6px;resize:vertical}'+
+            '.muted{color:#6b7280}';
+  var s = document.createElement('style');
+  s.id = 'loginNoteStyle';
+  s.appendChild(document.createTextNode(css));
+  document.head.appendChild(s);
+})();
+
+/* ===========================
+ * 日誌ページ：日付×人ごとの1欄を自動保存（Firestore v8）
+ * =========================== */
+(function dayNotePerDatePerMember(){
+  // Firestore 未ロードの画面では無視
+  if (!(window.firebase && firebase.firestore)) return;
+  var db = firebase.firestore();
+
+  // ---- ユーティリティ ----
+  function getDateKey(){
+    var inp = document.getElementById('datePicker');
+    var val = inp && inp.value;
+    if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth()+1).padStart(2,'0');
+    var day = String(d.getDate()).padStart(2,'0');
+    return y + '-' + m + '-' + day;
+  }
+  function getText(el){ return (el && (el.textContent || el.value || '')).trim() || ''; }
+  function sanitizeId(s){ return String(s).replace(/[\/#?[\]\s]+/g,'_').slice(0,120); }
+
+  function getTeam(){
+    try {
+      return getText(document.getElementById('teamLabel')) ||
+             getText(document.getElementById('teamId')) ||
+             (JSON.parse(localStorage.getItem('athlog_user')||'{}').team || '');
+    } catch(e){ return ''; }
+  }
+  function getMember(){
+    try {
+      return getText(document.getElementById('memberLabel')) ||
+             getText(document.getElementById('memberName')) ||
+             (JSON.parse(localStorage.getItem('athlog_user')||'{}').name || '');
+    } catch(e){ return ''; }
+  }
+
+  // ★チームも区別したい場合は true にする
+  var USE_TEAM_IN_KEY = false;
+
+  function makeDocId(){
+    var dateKey = getDateKey();
+    var member  = sanitizeId(getMember() || 'unknown');
+    if (USE_TEAM_IN_KEY) {
+      var team = sanitizeId(getTeam() || 'team');
+      return team + '_' + dateKey + '_' + member;   // 例: UTokyo_2025-09-19_吉澤登吾
+    }
+    return dateKey + '_' + member;                  // 例: 2025-09-19_吉澤登吾
+  }
+
+  // ---- DOM 取得 ----
+  var $text   = document.getElementById('daynote-text');
+  var $status = document.getElementById('daynote-status');
+  if (!$text || !$status) return; // 日誌タブ以外の画面では何もしない
+
+  var currentDocId = null;
+  var saveTimer = null, dirty = false;
+
+  function setStatus(msg){ $status.textContent = msg; }
+
+  async function loadNote(docId){
+    try{
+      var ref = db.collection('dayNotes').doc(docId);
+      var snap = await ref.get();
+      $text.value = snap.exists ? (snap.data().text || '') : '';
+      setStatus('キー: ' + docId + ' ／ 参照OK');
+    }catch(e){
+      console.error(e);
+      setStatus('キー: ' + docId + ' ／ 読み込み失敗');
+    }
+  }
+
+  async function saveNote(docId, text){
+    try{
+      await db.collection('dayNotes').doc(docId).set(
+        { text: text, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      dirty = false;
+      setStatus('キー: ' + docId + ' ／ 保存済み');
+    }catch(e){
+      console.error(e);
+      setStatus('キー: ' + docId + ' ／ 保存失敗（自動再試行）');
+      setTimeout(function(){ scheduleSave(); }, 1500);
+    }
+  }
+
+  function scheduleSave(){
+    dirty = true;
+    var docId = currentDocId || makeDocId();
+    setStatus('キー: ' + docId + ' ／ 保存待ち…');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){
+      saveNote(docId, $text.value);
+    }, 800); // 800ms デバウンス
+  }
+
+  function init(){
+    currentDocId = makeDocId();
+    loadNote(currentDocId);
+  }
+
+  // 入力で自動保存
+  $text.addEventListener('input', scheduleSave);
+
+  // 日付変更で再ロード
+  var datePicker = document.getElementById('datePicker');
+  if (datePicker) {
+    datePicker.addEventListener('change', function(){
+      currentDocId = makeDocId();
+      loadNote(currentDocId);
+    });
+  }
+
+  // メンバー切替（存在すれば）で再ロード
+  var memberSelect = document.getElementById('memberSelect');
+  if (memberSelect) {
+    memberSelect.addEventListener('change', function(){
+      currentDocId = makeDocId();
+      loadNote(currentDocId);
+    });
+  }
+  var teamSwitchSelect = document.getElementById('teamSwitchSelect');
+  if (teamSwitchSelect) {
+    teamSwitchSelect.addEventListener('change', function(){
+      currentDocId = makeDocId();
+      loadNote(currentDocId);
+    });
+  }
+
+  // 画面離脱時：未保存があればセーブ試行
+  window.addEventListener('beforeunload', function(){
+    if (dirty) {
+      try { saveNote(currentDocId || makeDocId(), $text.value); } catch(e){}
+    }
+  });
+
+  // 実行
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+
