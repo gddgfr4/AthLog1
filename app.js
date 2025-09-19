@@ -1754,10 +1754,8 @@ async function tscLoad(){
     const text = (snap.data() || {}).teamComment || '';
     const ta = document.getElementById('teamSharedComment');
     if(ta && !tscDirty) ta.value = text; // 入力中に上書きしない
-    tscSetStatus(`読み込みOK（${ymd(selDate)} / ${viewingMemberId}）`);
   }catch(e){
     console.error('tscLoad', e);
-    tscSetStatus('読み込み失敗');
   }
 }
 
