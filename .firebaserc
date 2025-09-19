@@ -1,1 +1,5 @@
-aa
+{
+  "projects": {
+    "default": "athlog-126d2"
+  }
+}
