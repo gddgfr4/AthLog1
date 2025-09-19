@@ -142,10 +142,11 @@
               <div id="aiBox" class="aiout"></div>
             </div>
                       <!-- AIコメントの直後に追加 -->
-            <div id="team-comment-box" class="comment-box">
-              <h3>チームコメント（この日のメモ）</h3>
-              <textarea id="daynote-text" placeholder="この日のコメントを自由に書いてください。チーム全員が閲覧・編集できます。" rows="4"></textarea>
-              <div id="daynote-status" class="muted" style="margin-top:6px;font-size:12px;">読み込み中…</div>
+           <!-- AIコメントの直後に置く -->
+            <div class="note" id="teamSharedCommentBox">
+              <label>チームコメント（この日の<span id="tscTargetName"></span>用・全員編集可）</label>
+              <textarea id="teamSharedComment" rows="3" placeholder="この日の共有コメント…"></textarea>
+              <div id="teamSharedCommentStatus" class="muted" style="font-size:12px;margin-top:4px;"></div>
             </div>
           </div>
         </div>
@@ -428,6 +429,7 @@
 
 </body>
 </html>
+
 
 
 
