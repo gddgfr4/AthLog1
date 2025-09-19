@@ -901,7 +901,7 @@ function initDashboard(){
   if(condPrevBtn) condPrevBtn.addEventListener('click',()=>{ conditionChartOffset-=7; renderConditionChart(); });
   if(condNextBtn) condNextBtn.addEventListener('click',()=>{ conditionChartOffset+=7; renderConditionChart(); });
 }
-function renderDashboard(){ renderDistanceChart(); renderConditionChart(); }
+function renderDashboard(){ renderAllDistanceCharts(); renderConditionChart(); }
 async function renderDistanceChart(){
   const cvs=document.getElementById('distanceChart'); if(!cvs) return;
   const ctx=cvs.getContext('2d');
@@ -989,6 +989,89 @@ async function renderConditionChart(){
     options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, max:5, ticks:{ stepSize:1 } } } }
   });
 }
+
+let chartDay=null, chartWeek=null, chartMonth=null;
+
+async function renderAllDistanceCharts(){
+  const snaps=await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
+  const journal={}; snaps.forEach(doc=>journal[doc.id]=doc.data());
+
+  // === Day: 直近14日 ===
+  {
+    const cvs=document.getElementById('distanceChartDay');
+    if(cvs){
+      const ctx=cvs.getContext('2d');
+      const labels=[], data=[];
+      const windowLen=14;
+      const end=new Date(); end.setHours(0,0,0,0);
+      const start=addDays(end,-(windowLen-1));
+      for(let i=0;i<windowLen;i++){
+        const d=addDays(start,i);
+        labels.push(`${d.getMonth()+1}/${d.getDate()}`);
+        data.push(Number(journal[ymd(d)]?.dist||0).toFixed(1));
+      }
+      if(chartDay) chartDay.destroy();
+      chartDay=new Chart(ctx,{
+        type:'bar',
+        data:{ labels, datasets:[{ label:'走行距離 (km)', data, borderWidth:1 }] },
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
+      });
+    }
+  }
+  // === Week: 直近6週 ===
+  {
+    const cvs=document.getElementById('distanceChartWeek');
+    if(cvs){
+      const ctx=cvs.getContext('2d');
+      const labels=[], data=[];
+      const today=new Date();
+      const currentWeekStart=startOfWeek(today);
+      for(let i=5;i>=0;i--){
+        const ws=addDays(currentWeekStart, -i*7);
+        labels.push(`${ymd(ws).slice(5)}~`);
+        let sum=0;
+        for(let j=0;j<7;j++){
+          const day=addDays(ws,j);
+          sum+=Number(journal[ymd(day)]?.dist||0);
+        }
+        data.push(sum.toFixed(1));
+      }
+      if(chartWeek) chartWeek.destroy();
+      chartWeek=new Chart(ctx,{
+        type:'bar',
+        data:{ labels, datasets:[{ label:'週合計 (km)', data, borderWidth:1 }] },
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
+      });
+    }
+  }
+  // === Month: 直近6か月 ===
+  {
+    const cvs=document.getElementById('distanceChartMonth');
+    if(cvs){
+      const ctx=cvs.getContext('2d');
+      const labels=[], data=[];
+      const monthlyTotals={};
+      for(const ymdStr in journal){
+        const monthStr=ymdStr.substring(0,7);
+        monthlyTotals[monthStr]=(monthlyTotals[monthStr]||0)+Number(journal[ymdStr].dist||0);
+      }
+      const target=new Date();
+      for(let i=5;i>=0;i--){
+        const d=new Date(target); d.setMonth(d.getMonth()-i);
+        const m=getMonthStr(d);
+        labels.push(m);
+        data.push(Number(monthlyTotals[m]||0).toFixed(1));
+      }
+      if(chartMonth) chartMonth.destroy();
+      chartMonth=new Chart(ctx,{
+        type:'bar',
+        data:{ labels, datasets:[{ label:'月合計 (km)', data, borderWidth:1 }] },
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
+      });
+    }
+  }
+}
+
 
 // ===== NEW: Team Memo =====
 function initMemo(){
