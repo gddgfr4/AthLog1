@@ -511,9 +511,12 @@ function initMonth(){
 }
 
 async function renderMonth(){
-  const editableHere=isEditableHere(teamId,memberId,viewingMemberId);
-  $("#monthGoalInput").disabled=!editableHere;
-  $("#saveMonthGoalBtn").disabled=!editableHere;
+  const editableHere = isEditableHere(teamId,memberId,viewingMemberId);
+// monthGoalInput が存在する時だけ触る（存在しないページ構成でも安全）
+  const goalInputEl = document.getElementById("monthGoalInput");
+  if (goalInputEl) goalInputEl.disabled = !editableHere;
+  // 保存ボタンはUIから削除したので、参照もしない
+  
 
   const box=$("#monthList"); if(!box) return;
   box.innerHTML="";
