@@ -141,14 +141,13 @@
               <div class="muted">AIコメント</div>
               <div id="aiBox" class="aiout"></div>
             </div>
-            <!-- AIコメントの直後に追加 -->
+            <!-- AIコメントの直後に置く -->
             <div id="team-comment-box" class="comment-box">
-              <h3>チームコメント</h3>
-              <textarea id="team-comment-input" placeholder="コメントを書く..." rows="3"></textarea>
-              <button id="team-comment-post">投稿</button>
-            
-              <div id="team-comment-list"></div>
+              <h3>チームコメント（この日のメモ）</h3>
+              <textarea id="daynote-text" placeholder="この日のコメントを自由に書いてください。チーム全員が閲覧・編集できます。" rows="4"></textarea>
+              <div id="daynote-status" class="muted" style="margin-top:6px;font-size:12px;">読み込み中…</div>
             </div>
+
 
           </div>
         </div>
@@ -277,11 +276,30 @@
       このアプリを利用するには JavaScript を有効にしてください。
     </div>
   </noscript>
-  <script>
+ 
+<!-- ▼▼ 最終版：ログイン注意＆日誌コメント（1欄/自動保存） ▼▼ -->
+<style>
+  /* ログイン注意文 */
+  .login-note{font-size:12px;color:#6b7280;margin-top:8px;line-height:1.6}
+
+  /* 日ごとのコメント欄（AIコメントの直後に置く） */
+  .comment-box {
+    margin-top: 12px; padding: 10px;
+    border: 1px solid #e5e7eb; border-radius: 6px; background: #fafafa;
+  }
+  #daynote-text {
+    width: 100%; padding: 8px;
+    border: 1px solid #e5e7eb; border-radius: 6px; resize: vertical;
+  }
+</style>
+
+<script>
+/* ===== ログイン画面の注意書きを追加（IDは実体に合わせて loginBtn） ===== */
 (function(){
   function addLoginNote(){
-    const startBtn = document.getElementById('start'); // 開始ボタンのidに合わせて変更
+    const startBtn = document.getElementById('loginBtn'); // ← あなたのログインボタンID
     if(!startBtn) return;
+    if (document.querySelector('.login-note')) return; // 重複防止
     const note = document.createElement('p');
     note.className = 'login-note';
     note.innerHTML =
@@ -296,104 +314,108 @@
   }
 })();
 </script>
-<style>.login-note{font-size:12px;color:#6b7280;margin-top:8px}</style>
-<style>
-  .login-note{font-size:12px;color:#6b7280;margin-top:8px;line-height:1.6}
-</style>
+
 <script>
+/* ===== 日誌ページ：日付ごとに1欄だけのコメントを自動保存（Firestore v8） =====
+   前提：上部で firebase-app.js / firebase-firestore.js(v8) を読込済み
+   仕様：
+   - キーは #datePicker の値(YYYY-MM-DD)。無ければ今日。
+   - /dayNotes/{dateKey} に { text, updatedAt } を保存（上書き）。
+   - 入力は800msデバウンスで自動保存。状態を #daynote-status に表示。
+*/
 (function(){
-  const NOTE_HTML =
-    '※ 次回以降は自動ログインとなります。<br>' +
-    '※ チーム名と名前は<strong>完全一致</strong>が必要です（スペース/全角半角に注意）。';
+  try {
+    if (!window.firebase || !firebase.firestore) return; // Firestore未読込なら何もしない
+  } catch(e) { return; }
 
-  function addLoginNote(){
-    // 二重挿入防止
-    if (document.querySelector('.login-note')) return;
+  const db = firebase.firestore();
 
-    // 1) 「はじめる」ボタンをテキストで探す（ID不要）
-    let startBtn = Array.from(document.querySelectorAll('button'))
-      .find(b => (b.textContent || '').trim().includes('はじめる'));
-
-    // 2) 見つからない時は、submitボタンを探す
-    if (!startBtn) {
-      startBtn = document.querySelector('button[type="submit"]');
-    }
-
-    // 3) ボタンが見つかったら、その直後に挿入
-    if (startBtn) {
-      const p = document.createElement('p');
-      p.className = 'login-note';
-      p.innerHTML = NOTE_HTML;
-      startBtn.insertAdjacentElement('afterend', p);
-      return true;
-    }
-
-    // 4) それでも無ければ、フォームの末尾に挿入（フォールバック）
-    const form = document.querySelector('form');
-    if (form) {
-      const p = document.createElement('p');
-      p.className = 'login-note';
-      p.innerHTML = NOTE_HTML;
-      form.appendChild(p);
-      return true;
-    }
-    return false;
+  function getDateKey(){
+    const inp = document.getElementById('datePicker');
+    const val = inp && inp.value;
+    if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
   }
 
-  // DOM準備後に実行
-  function tryInject(){
-    if (addLoginNote()) return;
-    // SPA/遅延描画対策：変化を監視して挿入を試みる
-    const mo = new MutationObserver(() => { addLoginNote() && mo.disconnect(); });
-    mo.observe(document.body, { childList: true, subtree: true });
+  const $text = document.getElementById('daynote-text');
+  const $status = document.getElementById('daynote-status');
+  if (!$text || !$status) return; // DOMが無い画面では実行しない
+
+  let currentDateKey = null;
+  let saveTimer = null, dirty = false;
+
+  async function loadNote(dateKey){
+    try{
+      const snap = await db.collection('dayNotes').doc(dateKey).get();
+      $text.value = snap.exists ? (snap.data().text || '') : '';
+      $status.textContent = `日付: ${dateKey} ／ 状態: 参照OK`;
+    }catch(e){
+      console.error(e);
+      $status.textContent = `日付: ${dateKey} ／ 読み込み失敗`;
+    }
   }
+
+  async function saveNote(dateKey, text){
+    try{
+      await db.collection('dayNotes').doc(dateKey).set(
+        { text, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      dirty = false;
+      $status.textContent = `日付: ${dateKey} ／ 保存済み`;
+    }catch(e){
+      console.error(e);
+      $status.textContent = `日付: ${dateKey} ／ 保存失敗（自動再試行）`;
+      setTimeout(()=>scheduleSave(), 1500);
+    }
+  }
+
+  function scheduleSave(){
+    dirty = true;
+    const dateKey = currentDateKey || getDateKey();
+    $status.textContent = `日付: ${dateKey} ／ 保存待ち…`;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(()=>{
+      saveNote(dateKey, $text.value);
+    }, 800);
+  }
+
+  function init(){
+    currentDateKey = getDateKey();
+    loadNote(currentDateKey);
+  }
+
+  $text.addEventListener('input', scheduleSave);
+
+  const datePicker = document.getElementById('datePicker');
+  if (datePicker) {
+    datePicker.addEventListener('change', ()=>{
+      currentDateKey = getDateKey();
+      loadNote(currentDateKey);
+    });
+  }
+
+  window.addEventListener('beforeunload', ()=>{
+    if (dirty) {
+      try { saveNote(currentDateKey || getDateKey(), $text.value); } catch(e){}
+    }
+  });
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', tryInject);
+    document.addEventListener('DOMContentLoaded', init);
   } else {
-    tryInject();
+    init();
   }
 })();
 </script>
-
-  <script type="module">
-  import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } 
-    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-  const db = getFirestore();
-
-  const list = document.getElementById("team-comment-list");
-  const input = document.getElementById("team-comment-input");
-  const postBtn = document.getElementById("team-comment-post");
-
-  // コメント投稿
-  postBtn.addEventListener("click", async () => {
-    const text = input.value.trim();
-    if (!text) return;
-    await addDoc(collection(db, "teamComments"), {
-      text,
-      createdAt: serverTimestamp()
-    });
-    input.value = "";
-  });
-
-  // コメント一覧をリアルタイム反映
-  onSnapshot(collection(db, "teamComments"), (snap) => {
-    list.innerHTML = "";
-    snap.forEach((doc) => {
-      const d = doc.data();
-      const div = document.createElement("div");
-      div.className = "comment-item";
-      div.textContent = d.text;
-      list.appendChild(div);
-    });
-  });
-</script>
-
+<!-- ▲▲ 最終版ここまで ▲▲ -->
 
 </body>
 </html>
-
 
 
 
