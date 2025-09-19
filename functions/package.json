@@ -1,0 +1,11 @@
+{
+  "name": "athlog1-functions",
+  "private": true,
+  "type": "commonjs",
+  "engines": { "node": "18" },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-functions": "^4.7.0",
+    "node-fetch": "^3.3.2"
+  }
+}
