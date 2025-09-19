@@ -1715,8 +1715,6 @@ async function tscRefresh(){
 
 
 
-// Firebase SDK v9 (modular) をインポートしている前提です
-import { getFirestore, collection, getDocs } from "firebase/firestore";
 
 // AIコメントを生成する関数
 async function generateAiCommentFromFirestore() {
