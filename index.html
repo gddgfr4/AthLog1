@@ -194,15 +194,20 @@
     <!-- ===== DASHBOARD ===== -->
     <section id="dashboard" class="tabpanel">
       <div class="panel" style="margin-bottom:12px;">
-        <div class="dash-header">
-          <h3 id="distChartTitle">走行距離グラフ</h3>
-          <div class="dash-controls">
-            <button id="distChartPrev" class="ghost">&larr;</button>
-            <button id="distChartToggle" class="ghost">月</button>
-            <button id="distChartNext" class="ghost">&rarr;</button>
-          </div>
+        <!-- 旧: 切り替えボタンや1枚キャンバスは削除 -->
+        <!-- 新: 3枚の距離グラフを縦並び -->
+        <div class="card">
+          <h3 id="distChartTitleDay">日別走行距離（直近14日）</h3>
+          <canvas id="distanceChartDay" height="180"></canvas>
         </div>
-        <div style="height:300px;"><canvas id="distanceChart"></canvas></div>
+        <div class="card">
+          <h3 id="distChartTitleWeek">週間走行距離（直近6週）</h3>
+          <canvas id="distanceChartWeek" height="180"></canvas>
+        </div>
+        <div class="card">
+          <h3 id="distChartTitleMonth">月間走行距離（直近6か月）</h3>
+          <canvas id="distanceChartMonth" height="180"></canvas>
+        </div>
       </div>
 
       <div class="panel">
@@ -424,6 +429,7 @@
 
 </body>
 </html>
+
 
 
 
