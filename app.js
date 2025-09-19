@@ -422,6 +422,7 @@ async function renderJournal(){
       const isNavControl=['weekPrev','weekNext','gotoToday','datePicker'].includes(el.id);
       if(!isNavControl) el.disabled=!editableHere;
     });
+  $("#teamSharedComment")?.removeAttribute("disabled");
   refreshBadges();
 
   const mergeScopeSelect=$("#mergeScope");
@@ -451,6 +452,9 @@ async function renderJournal(){
     renderRegions(j.regions||{});
     renderQuickButtons(j);
     weekAIComment(selDate).then(comment=>$("#aiBox").textContent=comment);
+      // チームコメント欄の初期化＆読み込み
+    tscInitOnce();
+    await tscRefresh();
   });
 }
 
@@ -1644,4 +1648,69 @@ function initMuscleMap(){
     init();
   }
 })();
+
+
+// ===== チームコメント（日付×表示中メンバー）誰でも編集可 =====
+let tscDirty = false, tscTimer = null;
+
+function tscSetStatus(msg){ const el=document.getElementById('teamSharedCommentStatus'); if(el) el.textContent=msg; }
+
+async function tscLoad(){
+  try{
+    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+    const snap = await getJournalRef(srcTeam, viewingMemberId, selDate).get();
+    const text = (snap.data() || {}).teamComment || '';
+    const ta = document.getElementById('teamSharedComment');
+    if(ta && !tscDirty) ta.value = text; // 入力中に上書きしない
+    tscSetStatus(`読み込みOK（${ymd(selDate)} / ${viewingMemberId}）`);
+  }catch(e){
+    console.error('tscLoad', e);
+    tscSetStatus('読み込み失敗');
+  }
+}
+
+async function tscSave(){
+  try{
+    const ta = document.getElementById('teamSharedComment');
+    if(!ta) return;
+    const text = ta.value;
+    const ref  = getJournalRef(teamId, viewingMemberId, selDate); // ← “表示中の人”のドキュメントに保存
+    await ref.set({ teamComment: text }, { merge:true });
+    tscDirty = false;
+    tscSetStatus('保存済み');
+  }catch(e){
+    console.error('tscSave', e);
+    tscSetStatus('保存失敗（自動再試行）');
+    clearTimeout(tscTimer);
+    tscTimer = setTimeout(tscSave, 1500);
+  }
+}
+
+function tscScheduleSave(){
+  tscDirty = true;
+  tscSetStatus('保存待ち…');
+  clearTimeout(tscTimer);
+  tscTimer = setTimeout(tscSave, 700); // デバウンス
+}
+
+function tscInitOnce(){
+  const ta = document.getElementById('teamSharedComment');
+  if(!ta) return;
+  // だれでも編集可に固定
+  ta.removeAttribute('disabled');
+  // 入力で自動保存
+  ta.addEventListener('input', tscScheduleSave);
+  // ラベルの対象名表示
+  const nm = document.getElementById('tscTargetName');
+  if(nm) nm.textContent = viewingMemberId || '';
+}
+
+// 画面遷移・人/日付変更時に呼ぶ
+async function tscRefresh(){
+  const nm = document.getElementById('tscTargetName');
+  if(nm) nm.textContent = viewingMemberId || '';
+  tscDirty = false;
+  await tscLoad();
+}
+
 
