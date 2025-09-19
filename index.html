@@ -356,8 +356,44 @@
 })();
 </script>
 
+  <script type="module">
+  import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } 
+    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const db = getFirestore();
+
+  const list = document.getElementById("team-comment-list");
+  const input = document.getElementById("team-comment-input");
+  const postBtn = document.getElementById("team-comment-post");
+
+  // コメント投稿
+  postBtn.addEventListener("click", async () => {
+    const text = input.value.trim();
+    if (!text) return;
+    await addDoc(collection(db, "teamComments"), {
+      text,
+      createdAt: serverTimestamp()
+    });
+    input.value = "";
+  });
+
+  // コメント一覧をリアルタイム反映
+  onSnapshot(collection(db, "teamComments"), (snap) => {
+    list.innerHTML = "";
+    snap.forEach((doc) => {
+      const d = doc.data();
+      const div = document.createElement("div");
+      div.className = "comment-item";
+      div.textContent = d.text;
+      list.appendChild(div);
+    });
+  });
+</script>
+
+
 </body>
 </html>
+
 
 
 
