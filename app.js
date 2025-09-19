@@ -148,12 +148,63 @@ async function makeAICommentForPeriod({ teamId, memberId, start, end, label='期
   else if(distance>10) fatigueMsg='概ね良好。';
   return `【${label}分析AI】総距離${distance.toFixed(1)}km（${distMsg}）。${condMsg}${tagMsg} 疲労度:${fatigueLevel(fatigueScore)}。${fatigueMsg}`;
 }
-async function weekAIComment(d){
-  const end=new Date(d); end.setHours(0,0,0,0);
-  const start=addDays(end,-6);
-  const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
-  return await makeAICommentForPeriod({ teamId: srcTeam, memberId: viewingMemberId, start, end, label:'直近7日' });
+
+// ==== Gemini 本番: Cloud Functions プロキシ経由 ====
+const GEMINI_PROXY_URL = "https://asia-northeast1-athlog-126d2.cloudfunctions.net/geminiComment";
+
+async function callGemini(prompt){
+  const res = await fetch(GEMINI_PROXY_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ prompt })
+  });
+  if(!res.ok){
+    const t = await res.text().catch(()=> '');
+    throw new Error(`proxy error ${res.status} ${t}`);
+  }
+  const data = await res.json();
+  return data.text || '(応答なし)';
 }
+
+
+async function weekAIComment(d){
+  const end = new Date(d); end.setHours(0,0,0,0);
+  const start = addDays(end, -6);
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+
+  // 既存の集計（フォールバック兼ねる）
+  const base = await makeAICommentForPeriod({
+    teamId: srcTeam, memberId: viewingMemberId, start, end, label:'直近7日'
+  });
+
+  const { distance, fatigueScore, topTags, avgCond } =
+    await getPeriodStats({ teamId: srcTeam, memberId: viewingMemberId, start, end });
+
+  const summary = [
+    `距離: ${distance.toFixed(1)}km`,
+    `疲労スコア: ${fatigueScore}`,
+    `平均コンディション: ${avgCond ?? 'N/A'}`,
+    `主なタグ: ${(topTags||[]).join(' / ') || 'なし'}`
+  ].join(' / ');
+
+  const prompt = [
+    'あなたはランニングコーチです。以下の直近7日データを端的に評価し、150文字程度の具体アドバイスを日本語で返してください。',
+    '禁止: 個人情報、過度な医療判断、曖昧語。',
+    '出力: 1文〜2文。文頭に絵文字は不要。',
+    '',
+    `【集計】${summary}`,
+    `【期間】${ymd(start)}〜${ymd(end)}`
+  ].join('\n');
+
+  try{
+    const out = await callGemini(prompt);
+    return out?.trim() || base;
+  }catch(e){
+    console.error('Gemini error, fallback to rule-based:', e);
+    return base;
+  }
+}
+
 
 // ===== Team Memo paging state =====
 let memoPageSize=30, memoOldestDoc=null, memoLatestTs=0, memoLiveUnsub=null, memoLoadingOlder=false;
@@ -1713,75 +1764,3 @@ async function tscRefresh(){
   await tscLoad();
 }
 
-
-
-
-// AIコメントを生成する関数
-async function generateAiCommentFromFirestore() {
-
-    // --- APIキーに関する注意 ---
-    // APIキーの管理には引き続きご注意ください。
-    const API_KEY = AIzaSyBCEXoY-yFbq3sagZ7T5otWM_Xjl16U-KI;
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
-
-    // 1. Firestoreから全ログを取得
-    let allLogs = [];
-    try {
-        const db = getFirestore();
-        // 'trainingLogs'の部分は、実際のコレクション名に合わせてください
-        const querySnapshot = await getDocs(collection(db, "trainingLogs")); 
-        
-        querySnapshot.forEach((doc) => {
-            // ドキュメントのデータを配列に追加
-            allLogs.push(doc.data());
-        });
-
-        if (allLogs.length === 0) {
-            console.log("ログデータがありません。");
-            return;
-        }
-    } catch (error) {
-        console.error("Firestoreからのデータ取得に失敗しました:", error);
-        document.getElementById('ai-comment-display').innerText = 'データの読込に失敗しました。';
-        return;
-    }
-
-    // 2. 取得した全ログをテキスト形式に変換
-    const logsText = allLogs.map(log => 
-        `- 日付: ${log.date}, 種目: ${log.type}, 内容: ${log.details}`
-    ).join('\n');
-
-    // 3. Geminiに送るプロンプトを作成
-    const prompt = `
-        以下は、あるアスリートのこれまでのトレーニング日誌の全記録です。
-        
-        【トレーニング全記録】
-        ${logsText}
-
-        上記をすべて踏まえ、最新のトレーニング状況を分析し、
-        今後のパフォーマンス向上に向けた具体的なアドバイスを150文字程度で生成してください。
-    `;
-    
-    // (4. と 5. は前回と同じAPI呼び出しと表示処理)
-    try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-
-        if (!response.ok) throw new Error('APIからの応答がありませんでした。');
-
-        const data = await response.json();
-        const comment = data.candidates[0].content.parts[0].text;
-        document.getElementById('ai-comment-display').innerText = comment;
-
-    } catch (error) {
-        console.error('AIコメントの生成中にエラーが発生しました:', error);
-        document.getElementById('ai-comment-display').innerText = 'コメントの生成に失敗しました。';
-    }
-}
-
-// --- 使い方 ---
-// 新しい記録をFirestoreに保存する処理の最後に、この関数を呼び出します。
-// generateAiCommentFromFirestore();
