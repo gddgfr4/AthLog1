@@ -9,8 +9,12 @@ const firebaseConfig = {
 };
 
 // ===== Firebase Initialization =====
-firebase.initializeApp(firebaseConfig);
+// あるなら残してOK（ガード必須）。無ければ何も書かなくて良い。
+if (!firebase.apps || !firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
 const db = firebase.firestore();
+
 
 // ===== Utilities =====
 const $  = (q, el = document) => el.querySelector(q);
