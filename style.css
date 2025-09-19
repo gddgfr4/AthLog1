@@ -338,9 +338,25 @@ html,body{
   #weekChips .chip .km { font-size: 10px; }
 }
 
-
-
-
+/* === 予定反映UIのコンパクト化 === */
+.journal-merge-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+.journal-merge-row .form-control,
+.journal-merge-row select,
+.journal-merge-row input,
+.journal-merge-row button {
+  height: 30px;
+  padding: 4px 8px;
+  line-height: 22px;
+  font-size: 13px;
+}
+#mergeTagFilter { max-width: 160px; }
+#mergeScope { max-width: 160px; }
+#mergeBtn { white-space: nowrap; }
 
 
 
