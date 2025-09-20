@@ -433,7 +433,6 @@ async function renderJournal(){
 
 
   await renderWeek();           // 週チップ描画（内部でも週合計を更新するが）
-  await updateDistanceBadges(); // 下側表示を「週＋直近7日」に上書き
 
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   unsubscribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc=>{
