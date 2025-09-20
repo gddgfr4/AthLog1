@@ -487,10 +487,6 @@ async function renderWeek(){
     btn.addEventListener("click",()=>{ selDate=d; renderJournal(); });
     chips.appendChild(btn);
   }
-  const sum=await sumWeekKm(selDate);
-  $("#weekSum").textContent=`週 走行距離: ${sum.toFixed(1)} km`;
-  const roll7 = await rolling7Km(selDate);
-  $("#rolling7Sum").textContent = `直近日: ${roll7.toFixed(1)} km`;
 }
 
 async function rolling7Km(d){
