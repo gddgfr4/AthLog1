@@ -430,12 +430,7 @@ async function renderJournal(){
     }
     return s;
   }
-  async function updateDistanceBadges(){
-    const week = await sumWeekKm(selDate);        // その週の合計（月曜始まり）
-    const r7   = await recent7Km(selDate);        // 選択日を含む直近7日
-    const el   = document.getElementById("weekSum");
-    if (el) el.textContent = `週 走行距離: ${week.toFixed(1)} km　直近7日: ${r7.toFixed(1)} km`;
-  }
+
 
   await renderWeek();           // 週チップ描画（内部でも週合計を更新するが）
   await updateDistanceBadges(); // 下側表示を「週＋直近7日」に上書き
