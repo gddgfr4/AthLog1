@@ -1846,7 +1846,6 @@ async function tscRefresh(){
  * ========================== *****/
 
 // ---- 小道具（依存ゼロ）----
-const $  = (q, el=document)=> el.querySelector(q);
 function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 function startOfWeek(d){ const x=new Date(d); const dow=(x.getDay()+6)%7; x.setDate(x.getDate()-dow); x.setHours(0,0,0,0); return x; }
 function ymd(d){ const x=new Date(d.getTime()-d.getTimezoneOffset()*60000); return x.toISOString().slice(0,10); }
