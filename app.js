@@ -544,32 +544,40 @@ async function renderMonth(){
   const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
 
   let sum=0;
-  for(let d=1; d<=lastDay; d++){
-    const dt=new Date(yy, mm-1, d);
-    const dow=["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()];
-    const row=document.createElement("div");
-    row.className="row";
-    row.innerHTML=`<div class="dow">${dow}<br>${d}</div><div class="txt"><div>—</div></div>`;
-    row.addEventListener("click",()=>{ selDate=dt; switchTab("journal"); });
+  for (let d = 1; d <= lastDay; d++) {
+    const dt = new Date(yy, mm - 1, d);
+    const dayKey = ymd(dt); // ← 追加：この日のキー
+    const dow = ["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()];
+  
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <div class="dow" style="display:flex; align-items:center; gap:6px;">
+        <span class="typebar" id="tb_${dayKey}" style="width:6px;height:28px;border-radius:2px;background:#e5e7eb;"></span>
+        <span>${dow}<br>${d}</span>
+      </div>
+      <div class="txt"><div>—</div></div>
+    `;
+    row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
     box.appendChild(row);
-
-    (async ()=>{
+  
+    // ← 以降は同じ非同期読み込みだが、dayKey をキャプチャして使う
+    (async (dtLocal, key) => {
       try {
-        const snap = await getJournalRef(srcTeam, viewingMemberId, dt).get();
-        const j    = snap.data() || {};
-
-        // 合計距離を更新（NaN防止つき）
+        const snap = await getJournalRef(srcTeam, viewingMemberId, dtLocal).get();
+        const j = snap.data() || {};
+  
+        // 合計距離の更新（既存処理をそのまま）
         const add = Number(j.dist || 0);
         if (!Number.isNaN(add)) {
           sum += add;
           const sumEl = document.getElementById("monthSum");
           if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
         }
-
-        // カテゴリタグ
-        // ▼ 縦ラベル色だけを反映 ▼
-        const typebar = document.getElementById(`tb_${dayKey}`);
-        const tags    = Array.isArray(j.tags) ? j.tags.slice(0,2) : []; // 最大2つ
+  
+        // ── 縦色ラベル（typebar）の色反映（文字タグは出さない） ──
+        const typebar = document.getElementById(`tb_${key}`);
+        const tags = Array.isArray(j.tags) ? j.tags.slice(0, 2) : [];
         const colorMap = {
           ジョグ:   'var(--q-jog)',
           ポイント: 'var(--q-point)',
@@ -577,10 +585,9 @@ async function renderMonth(){
           オフ:     'var(--q-off)',
           その他:   'var(--q-other)'
         };
-        
         if (typebar) {
           if (tags.length === 0) {
-            typebar.style.background = '#e5e7eb'; // 無色時は薄グレー
+            typebar.style.background = '#e5e7eb';
           } else if (tags.length === 1) {
             typebar.style.background = colorMap[tags[0]] || '#e5e7eb';
           } else {
@@ -589,14 +596,13 @@ async function renderMonth(){
             typebar.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`;
           }
         }
-        
-        // コンディション（1〜5）
-        const cond     = (j.condition!=null) ? Number(j.condition) : null;
-        const condHtml = (cond && cond>=1 && cond<=5)
+  
+        // コンディション表示と本文（タグ文字は出さない）
+        const cond = (j.condition != null) ? Number(j.condition) : null;
+        const condHtml = (cond && cond >= 1 && cond <= 5)
           ? `<span class="cond-pill cond-${cond}">${cond}</span>`
           : `<span class="cond-pill cond-3" style="opacity:.4">–</span>`;
-        
-        // 本文（タグ文字は出さない）
+  
         const txt = row.querySelector(".txt");
         if (txt) {
           txt.innerHTML = `
@@ -608,15 +614,14 @@ async function renderMonth(){
               <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span>
             </div>`;
         }
-
-      } catch(err) {
+      } catch (err) {
         console.error("renderMonth day read error:", yy, mm, d, err);
         const txt = row.querySelector(".txt");
-        if (txt) txt.textContent = "—"; // 落ちないように最低限表示
+        if (txt) txt.textContent = "—";
       }
-    })();
-
+    })(dt, dayKey);
   }
+
 
   try{
     const goalDoc=await getGoalsRef(srcTeam,viewingMemberId,monStr).get();
