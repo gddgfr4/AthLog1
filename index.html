@@ -105,10 +105,6 @@
                 <label>走行距離(km)</label>
                 <input type="number" id="distInput" step="0.1" min="0" />
               </div>
-              <div id="weekSumWrap">
-                <span id="weekSum"></span>
-                <span id="rolling7Sum" class="muted" style="margin-left:8px;"></span>
-              </div>
               <div>
                 <label>調子</label>
                 <div id="conditionBtns" class="condition-rating">
@@ -137,7 +133,7 @@
             </div>
 
             <div class="savebar">
-              <div id="weekSum" class="muted">週 走行距離: 0 km　直近7日: 0 km</div>
+             <div id="distanceSummary" class="muted">読み込み中…</div>
             </div>
 
       
@@ -429,6 +425,7 @@
 
 </body>
 </html>
+
 
 
 
