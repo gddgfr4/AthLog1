@@ -453,7 +453,7 @@ async function renderJournal(){
     tscRefresh();
 
     // 日誌の変更が入ったら下の距離表示も更新
-    updateDistanceBadges();
+    updateDistanceSummary();
   });
 }
 
@@ -1845,10 +1845,6 @@ async function tscRefresh(){
  * 週合計 / 直近7日距離 表示ブロック
  * ========================== *****/
 
-// ---- 小道具（依存ゼロ）----
-function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
-function startOfWeek(d){ const x=new Date(d); const dow=(x.getDay()+6)%7; x.setDate(x.getDate()-dow); x.setHours(0,0,0,0); return x; }
-function ymd(d){ const x=new Date(d.getTime()-d.getTimezoneOffset()*60000); return x.toISOString().slice(0,10); }
 
 // 画面から team / member / 選択日 を拾う（既存DOMに依存）
 function getCurrentTeam(){ return ($('#teamLabel')?.textContent || $('#teamId')?.value || '').trim(); }
