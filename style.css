@@ -407,3 +407,41 @@ html,body{
   margin-right: 8px;        /* 日付との間隔 */
 }
 
+/* 日付部分を一行表示 */
+.row .dow {
+  font-weight: bold;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+/* 1行レイアウト */
+.month-one-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.month-train-ellipsis {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.month-one-line .km {
+  flex: 0 0 auto;
+  opacity: .8;
+}
+
+/* 縦色バー：濃く */
+.type-bar {
+  width: 6px;
+  height: 100%;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.type-bar.jog    { background: #1d4ed8; } /* 濃い青 */
+.type-bar.point  { background: #dc2626; } /* 濃い赤 */
+.type-bar.sup    { background: #059669; } /* 濃い緑 */
+.type-bar.off    { background: #4b5563; } /* 濃い灰色 */
+.type-bar.other  { background: #9333ea; } /* 濃い紫 */
+
