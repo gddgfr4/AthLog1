@@ -1889,18 +1889,49 @@ async function calcWeekAndRolling7(team, member, baseDate){
 }
 
 // 表示DOMへ反映
+// ==== 距離サマリ（週合計 & 直近7日）====
+
+// 1日ぶんの距離を安全に取得
+async function safeDayDist(srcTeam, member, day){
+  try{
+    const snap = await getJournalRef(srcTeam, member, day).get();
+    const n = Number(snap.data()?.dist ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  }catch{ return 0; }
+}
+
 async function updateDistanceSummary(){
-  const box = $('#distanceSummary');
-  if (!box) return; // 置かれていないページでは何もしない
+  const box = document.getElementById('distanceSummary');
+  if (!box) return;
 
-  const team   = getCurrentTeam();
-  const member = getCurrentMember();
-  const date   = getSelectedDate();
-  if (!team || !member) { box.textContent = '週 走行距離: 0 km　　直近7日: 0 km'; return; }
+  // グローバル状態を直接利用
+  const team   = teamId;
+  const member = viewingMemberId || memberId;
+  const base   = selDate instanceof Date ? selDate : new Date();
 
-  const { weekSum, r7Sum } = await calcWeekAndRolling7(team, member, date);
+  if (!team || !member) {
+    box.textContent = '週 走行距離: 0 km　　直近7日: 0 km';
+    return;
+  }
+
+  // ミラー先対応
+  const srcTeam = await getViewSourceTeamId(team, member);
+
+  // 週（月曜はじまり）
+  const ws = startOfWeek(base);
+  const weekDates = Array.from({length:7}, (_,i)=> addDays(ws, i));
+  const wVals = await Promise.all(weekDates.map(d => safeDayDist(srcTeam, member, d)));
+  const weekSum = wVals.reduce((a,b)=> a+b, 0);
+
+  // 直近7日（base 含む過去6日）
+  const r0 = addDays(base, -6);
+  const rDates = Array.from({length:7}, (_,i)=> addDays(r0, i));
+  const rVals = await Promise.all(rDates.map(d => safeDayDist(srcTeam, member, d)));
+  const r7Sum = rVals.reduce((a,b)=> a+b, 0);
+
   box.textContent = `週 走行距離: ${weekSum.toFixed(1)} km　　直近7日: ${r7Sum.toFixed(1)} km`;
 }
+
 
 // ---- イベントにぶら下げ（日時・メンバー変更時に更新）----
 document.addEventListener('DOMContentLoaded', ()=>{
