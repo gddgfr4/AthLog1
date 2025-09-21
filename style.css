@@ -397,3 +397,13 @@ html,body{
   height: 180px !important;   /* ← 必要な高さに固定（好みで 160〜220px に） */
   display: block;
 }
+
+/* 月一覧の縦色ラベル */
+.typebar {
+  width: 8px;               /* 縦棒の太さ */
+  align-self: stretch;      /* 行の高さに合わせて伸びる */
+  border-radius: 3px;
+  background: #e5e7eb;      /* デフォルト（無色時の薄グレー） */
+  margin-right: 8px;        /* 日付との間隔 */
+}
+
