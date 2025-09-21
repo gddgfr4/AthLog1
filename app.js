@@ -1862,13 +1862,6 @@ function getSelectedDate(){
   const d = new Date(); d.setHours(0,0,0,0); return d;
 }
 
-// Firestore の参照を作る（他の関数を消していても動くようにここで定義）
-function getJournalRef(team, member, day){
-  return db
-    .collection('teams').doc(team)
-    .collection('members').doc(member)
-    .collection('journal').doc( ymd(day) );
-}
 
 // 1日ぶんの距離（数値）を取得
 async function getDayDistance(team, member, day){
