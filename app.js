@@ -1841,3 +1841,87 @@ async function tscRefresh(){
   await tscLoad();
 }
 
+/***** ==========================
+ * 週合計 / 直近7日距離 表示ブロック
+ * ========================== *****/
+
+// ---- 小道具（依存ゼロ）----
+const $  = (q, el=document)=> el.querySelector(q);
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function startOfWeek(d){ const x=new Date(d); const dow=(x.getDay()+6)%7; x.setDate(x.getDate()-dow); x.setHours(0,0,0,0); return x; }
+function ymd(d){ const x=new Date(d.getTime()-d.getTimezoneOffset()*60000); return x.toISOString().slice(0,10); }
+
+// 画面から team / member / 選択日 を拾う（既存DOMに依存）
+function getCurrentTeam(){ return ($('#teamLabel')?.textContent || $('#teamId')?.value || '').trim(); }
+function getCurrentMember(){ return ($('#memberLabel')?.textContent || $('#memberName')?.value || '').trim(); }
+function getSelectedDate(){
+  const v = $('#datePicker')?.value;
+  if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [Y,M,D] = v.split('-').map(Number);
+    return new Date(Y, M-1, D);
+  }
+  const d = new Date(); d.setHours(0,0,0,0); return d;
+}
+
+// Firestore の参照を作る（他の関数を消していても動くようにここで定義）
+function getJournalRef(team, member, day){
+  return db
+    .collection('teams').doc(team)
+    .collection('members').doc(member)
+    .collection('journal').doc( ymd(day) );
+}
+
+// 1日ぶんの距離（数値）を取得
+async function getDayDistance(team, member, day){
+  try{
+    const snap = await getJournalRef(team, member, day).get();
+    const dist = Number(snap.data()?.dist ?? 0);
+    return Number.isFinite(dist) ? dist : 0;
+  }catch(_){
+    return 0;
+  }
+}
+
+// 週合計と直近7日合計を計算
+async function calcWeekAndRolling7(team, member, baseDate){
+  // 週（ISO想定：月はじまり）
+  const ws = startOfWeek(baseDate);
+  const weekDates = Array.from({length:7}, (_,i)=> addDays(ws,i));
+
+  // 直近7日（baseDate含む過去6日）
+  const r7Start = addDays(baseDate, -6);
+  const r7Dates = Array.from({length:7}, (_,i)=> addDays(r7Start,i));
+
+  const weekVals = await Promise.all(weekDates.map(d => getDayDistance(team,member,d)));
+  const r7Vals   = await Promise.all(r7Dates.map(d => getDayDistance(team,member,d)));
+
+  const weekSum = weekVals.reduce((a,b)=>a+b,0);
+  const r7Sum   = r7Vals.reduce((a,b)=>a+b,0);
+  return { weekSum, r7Sum };
+}
+
+// 表示DOMへ反映
+async function updateDistanceSummary(){
+  const box = $('#distanceSummary');
+  if (!box) return; // 置かれていないページでは何もしない
+
+  const team   = getCurrentTeam();
+  const member = getCurrentMember();
+  const date   = getSelectedDate();
+  if (!team || !member) { box.textContent = '週 走行距離: 0 km　　直近7日: 0 km'; return; }
+
+  const { weekSum, r7Sum } = await calcWeekAndRolling7(team, member, date);
+  box.textContent = `週 走行距離: ${weekSum.toFixed(1)} km　　直近7日: ${r7Sum.toFixed(1)} km`;
+}
+
+// ---- イベントにぶら下げ（日時・メンバー変更時に更新）----
+document.addEventListener('DOMContentLoaded', ()=>{
+  $('#datePicker')?.addEventListener('change', updateDistanceSummary);
+  $('#memberSelect')?.addEventListener('change', updateDistanceSummary);
+  $('#teamSwitchSelect')?.addEventListener('change', updateDistanceSummary);
+  updateDistanceSummary(); // 初回
+});
+
+// 任意：当日データが保存されたら更新したい場合、呼び出してください。
+// 例）日誌の保存処理の末尾や onSnapshot の中で：
+//    updateDistanceSummary();
