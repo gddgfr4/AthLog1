@@ -1284,7 +1284,7 @@ function tryLoadImageSequential(srcs){
 // 使い捨てキャンバス
 let __tmpC=null, __tmpX=null;
 function tmpCtx(w,h){
-  if(!__tmpC){ __tmpC=document.createElement('canvas'); __tmpX=__tmpC.getContext('2d'); }
+  if(!__tmpC){ __tmpC=document.createElement('canvas'); __tmpX=__tmpC.getContext('2d', { willReadFrequently: true }); }
   __tmpC.width=w; __tmpC.height=h;
   return __tmpX;
 }
@@ -1517,9 +1517,9 @@ function initMuscleMap(){
   mm.barrier= document.getElementById('mmBarrier');
   if(!mm.base || !mm.overlay || !mm.barrier) return;
 
-  mm.bctx = mm.base.getContext('2d');
+  mm.bctx = mm.base.getContext('2d', { willReadFrequently: true });
   mm.octx = mm.overlay.getContext('2d', { willReadFrequently:true });
-  mm.wctx = mm.barrier.getContext('2d');
+  mm.wctx = mm.barrier.getContext('2d', { willReadFrequently: true });
 
   tryLoadImageSequential(MM.IMG_CANDIDATES).then(img=>{
     // single: 全体 / front/back: 左右半分
