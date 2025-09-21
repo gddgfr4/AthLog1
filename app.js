@@ -1040,7 +1040,10 @@ async function renderConditionChart(){
   });
 }
 
-let chartDay=null, chartWeek=null, chartMonth=null;
+chartDay = null;
+chartWeek = null;
+chartMonth = null;
+
 
 async function renderAllDistanceCharts(){
   const snaps=await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
