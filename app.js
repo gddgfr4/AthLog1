@@ -919,6 +919,12 @@ async function collectPlansTypesForDay(day, scopeSel, tagCSV=""){
   return types;
 }
 
+
+let chartDay=null, chartWeek=null, chartMonth=null;
+
+// それぞれのグラフのスクロール位置（0=最新側）
+const distOffset = { day: 0, week: 0, month: 0 };
+
 // ===== Dashboard =====
 function initDashboard(){
   const toggleBtn=$("#distChartToggle");
@@ -936,6 +942,14 @@ function initDashboard(){
   const condNextBtn=$("#condChartNext");
   if(condPrevBtn) condPrevBtn.addEventListener('click',()=>{ conditionChartOffset-=7; renderConditionChart(); });
   if(condNextBtn) condNextBtn.addEventListener('click',()=>{ conditionChartOffset+=7; renderConditionChart(); });
+  document.getElementById('distDayPrev')  ?.addEventListener('click', ()=>{ distOffset.day--;   renderAllDistanceCharts(); });
+  document.getElementById('distDayNext')  ?.addEventListener('click', ()=>{ distOffset.day++;   renderAllDistanceCharts(); });
+
+  document.getElementById('distWeekPrev') ?.addEventListener('click', ()=>{ distOffset.week--;  renderAllDistanceCharts(); });
+  document.getElementById('distWeekNext') ?.addEventListener('click', ()=>{ distOffset.week++;  renderAllDistanceCharts(); });
+
+  document.getElementById('distMonthPrev')?.addEventListener('click', ()=>{ distOffset.month--; renderAllDistanceCharts(); });
+  document.getElementById('distMonthNext')?.addEventListener('click', ()=>{ distOffset.month++; renderAllDistanceCharts(); });
 }
 function renderDashboard(){ renderAllDistanceCharts(); renderConditionChart(); }
 async function renderDistanceChart(){
@@ -1032,22 +1046,31 @@ async function renderAllDistanceCharts(){
   const snaps=await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
   const journal={}; snaps.forEach(doc=>journal[doc.id]=doc.data());
 
-  // === Day: 直近14日 ===
+  // === Day: 14日ウィンドウを day オフセット単位で横移動 ===
   {
     const cvs=document.getElementById('distanceChartDay');
-    cvs.style.height = '180px';   // CSSの補強
-    cvs.height = 180;             // キャンバス実解像度も固定
     if(cvs){
+      cvs.style.height = '180px';
+      cvs.height = 180;
       const ctx=cvs.getContext('2d');
       const labels=[], data=[];
       const windowLen=14;
-      const end=new Date(); end.setHours(0,0,0,0);
-      const start=addDays(end,-(windowLen-1));
+
+      // オフセット：1ステップ=14日
+      const today = new Date(); today.setHours(0,0,0,0);
+      const end   = addDays(today, distOffset.day * windowLen);
+      const start = addDays(end, -(windowLen-1));
+
       for(let i=0;i<windowLen;i++){
         const d=addDays(start,i);
         labels.push(`${d.getMonth()+1}/${d.getDate()}`);
         data.push(Number(journal[ymd(d)]?.dist||0).toFixed(1));
       }
+
+      // タイトルに期間を表示
+      const t1 = document.getElementById('distChartTitleDay');
+      if(t1) t1.textContent = `日別走行距離（${ymd(start)} 〜 ${ymd(end)}）`;
+
       if(chartDay) chartDay.destroy();
       chartDay=new Chart(ctx,{
         type:'bar',
@@ -1056,16 +1079,21 @@ async function renderAllDistanceCharts(){
       });
     }
   }
-  // === Week: 直近6週 ===
+
+  // === Week: 6週ウィンドウを 1週単位で横移動 ===
   {
     const cvs=document.getElementById('distanceChartWeek');
     if(cvs){
       const ctx=cvs.getContext('2d');
       const labels=[], data=[];
-      const today=new Date();
+      const today=new Date(); today.setHours(0,0,0,0);
       const currentWeekStart=startOfWeek(today);
+
+      // オフセット：1ステップ=1週間（ウィンドウの“右端の週”を動かす）
+      const baseWeekStart = addDays(currentWeekStart, distOffset.week * 7);
+
       for(let i=5;i>=0;i--){
-        const ws=addDays(currentWeekStart, -i*7);
+        const ws=addDays(baseWeekStart, -i*7);
         labels.push(`${ymd(ws).slice(5)}~`);
         let sum=0;
         for(let j=0;j<7;j++){
@@ -1074,6 +1102,12 @@ async function renderAllDistanceCharts(){
         }
         data.push(sum.toFixed(1));
       }
+
+      const firstWeekStart = addDays(baseWeekStart, -5*7);
+      const lastWeekEnd    = addDays(baseWeekStart, 6); // 右端週の+6日
+      const t2 = document.getElementById('distChartTitleWeek');
+      if(t2) t2.textContent = `週間走行距離（${ymd(firstWeekStart)} 〜 ${ymd(lastWeekEnd)}）`;
+
       if(chartWeek) chartWeek.destroy();
       chartWeek=new Chart(ctx,{
         type:'bar',
@@ -1082,7 +1116,8 @@ async function renderAllDistanceCharts(){
       });
     }
   }
-  // === Month: 直近6か月 ===
+
+  // === Month: 6か月ウィンドウを 1か月単位で横移動 ===
   {
     const cvs=document.getElementById('distanceChartMonth');
     if(cvs){
@@ -1093,13 +1128,24 @@ async function renderAllDistanceCharts(){
         const monthStr=ymdStr.substring(0,7);
         monthlyTotals[monthStr]=(monthlyTotals[monthStr]||0)+Number(journal[ymdStr].dist||0);
       }
-      const target=new Date();
-      for(let i=5;i>=0;i--){
-        const d=new Date(target); d.setMonth(d.getMonth()-i);
+
+      // オフセット：1ステップ=1か月（右端の月を動かす）
+      const base = new Date(); base.setDate(1); base.setHours(0,0,0,0);
+      base.setMonth(base.getMonth() + distOffset.month);
+
+      // 左へ5か月戻ってから6か月分
+      const startMonth = new Date(base); startMonth.setMonth(startMonth.getMonth()-5);
+
+      for(let i=0;i<6;i++){
+        const d=new Date(startMonth); d.setMonth(startMonth.getMonth()+i);
         const m=getMonthStr(d);
         labels.push(m);
         data.push(Number(monthlyTotals[m]||0).toFixed(1));
       }
+
+      const t3 = document.getElementById('distChartTitleMonth');
+      if(t3) t3.textContent = `月間走行距離（${labels[0]} 〜 ${labels[labels.length-1]}）`;
+
       if(chartMonth) chartMonth.destroy();
       chartMonth=new Chart(ctx,{
         type:'bar',
@@ -1109,6 +1155,7 @@ async function renderAllDistanceCharts(){
     }
   }
 }
+
 
 
 // ===== NEW: Team Memo =====
