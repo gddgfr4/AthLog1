@@ -606,11 +606,9 @@ async function renderMonth(){
         const txt = row.querySelector(".txt");
         if (txt) {
           txt.innerHTML = `
-            <div class="month-head">
-              <span style="margin-left:6px;">${condHtml}</span>
-            </div>
-            <div class="month-content-2lines">
-              ${(j.train || "—")}
+            <div class="month-one-line">
+              ${condHtml}
+              <span class="month-train-ellipsis">${(j.train || "—")}</span>
               <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span>
             </div>`;
         }
@@ -745,7 +743,7 @@ async function renderPlans(){
     const row=document.createElement("div");
     row.className="row";
     row.innerHTML=`
-      <div class="dow">${["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()]}<br>${d}</div>
+      <div class="dow">${["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()]}${d}</div>
       <div class="txt" id="pl_${dayKey}" style="flex-wrap:wrap; flex-direction:row; align-items:center;">—</div>
     `;
     if(editableHere) row.addEventListener("click", ()=>openPlanModal(dt));
