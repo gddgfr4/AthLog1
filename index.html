@@ -186,26 +186,40 @@
 
       <div id="planList" class="list"></div>
     </section>
-
     <!-- ===== DASHBOARD ===== -->
     <section id="dashboard" class="tabpanel">
       <div class="panel" style="margin-bottom:12px;">
         <!-- 旧: 切り替えボタンや1枚キャンバスは削除 -->
         <!-- 新: 3枚の距離グラフを縦並び -->
+    
         <div class="card">
-          <h3 id="distChartTitleDay">日別走行距離（直近14日）</h3>
+          <h3>
+            <button id="distDayPrev" class="ghost" style="margin-right:6px;">&larr;</button>
+            <span id="distChartTitleDay">日別走行距離（直近14日）</span>
+            <button id="distDayNext" class="ghost" style="margin-left:6px;">&rarr;</button>
+          </h3>
           <canvas id="distanceChartDay" height="180"></canvas>
         </div>
+    
         <div class="card">
-          <h3 id="distChartTitleWeek">週間走行距離（直近6週）</h3>
+          <h3>
+            <button id="distWeekPrev" class="ghost" style="margin-right:6px;">&larr;</button>
+            <span id="distChartTitleWeek">週間走行距離（直近6週）</span>
+            <button id="distWeekNext" class="ghost" style="margin-left:6px;">&rarr;</button>
+          </h3>
           <canvas id="distanceChartWeek" height="180"></canvas>
         </div>
+    
         <div class="card">
-          <h3 id="distChartTitleMonth">月間走行距離（直近6か月）</h3>
+          <h3>
+            <button id="distMonthPrev" class="ghost" style="margin-right:6px;">&larr;</button>
+            <span id="distChartTitleMonth">月間走行距離（直近6か月）</span>
+            <button id="distMonthNext" class="ghost" style="margin-left:6px;">&rarr;</button>
+          </h3>
           <canvas id="distanceChartMonth" height="180"></canvas>
         </div>
       </div>
-
+    
       <div class="panel">
         <div class="dash-header">
           <h3>コンディション推移</h3>
@@ -215,9 +229,13 @@
             <button id="condChartNext" class="ghost">&rarr;</button>
           </div>
         </div>
-        <div style="height:250px;"><canvas id="conditionChart"></canvas></div>
+        <div style="height:250px;">
+          <canvas id="conditionChart"></canvas>
+        </div>
       </div>
     </section>
+
+
 
     <!-- ===== TEAM MEMO ===== -->
     <section id="memo" class="tabpanel">
@@ -425,6 +443,7 @@
 
 </body>
 </html>
+
 
 
 
