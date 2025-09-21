@@ -567,32 +567,48 @@ async function renderMonth(){
         }
 
         // カテゴリタグ
-        const classMap = { ジョグ:"jog", ポイント:"point", 補強:"sup", オフ:"off", その他:"other" };
-        const tags     = Array.isArray(j.tags) ? j.tags : [];
-        const tagsHtml = tags.length
-          ? `<div class="month-tags">${tags.map(t =>
-              `<span class="cat-tag ${classMap[t]||""}">${t}</span>`).join("")}</div>`
-          : `<div class="month-tags"></div>`;
-
-        // コンディション（1〜5）。未入力は淡色ピル表示
+        // ▼ 縦ラベル色だけを反映 ▼
+        const typebar = document.getElementById(`tb_${dayKey}`);
+        const tags    = Array.isArray(j.tags) ? j.tags.slice(0,2) : []; // 最大2つ
+        const colorMap = {
+          ジョグ:   'var(--q-jog)',
+          ポイント: 'var(--q-point)',
+          補強:     'var(--q-sup)',
+          オフ:     'var(--q-off)',
+          その他:   'var(--q-other)'
+        };
+        
+        if (typebar) {
+          if (tags.length === 0) {
+            typebar.style.background = '#e5e7eb'; // 無色時は薄グレー
+          } else if (tags.length === 1) {
+            typebar.style.background = colorMap[tags[0]] || '#e5e7eb';
+          } else {
+            const c1 = colorMap[tags[0]] || '#e5e7eb';
+            const c2 = colorMap[tags[1]] || '#e5e7eb';
+            typebar.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`;
+          }
+        }
+        
+        // コンディション（1〜5）
         const cond     = (j.condition!=null) ? Number(j.condition) : null;
         const condHtml = (cond && cond>=1 && cond<=5)
           ? `<span class="cond-pill cond-${cond}">${cond}</span>`
           : `<span class="cond-pill cond-3" style="opacity:.4">–</span>`;
-
+        
+        // 本文（タグ文字は出さない）
         const txt = row.querySelector(".txt");
-        if (!txt) return; // 念のため
+        if (txt) {
+          txt.innerHTML = `
+            <div class="month-head">
+              <span style="margin-left:6px;">${condHtml}</span>
+            </div>
+            <div class="month-content-2lines">
+              ${(j.train || "—")}
+              <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span>
+            </div>`;
+        }
 
-        // 本文（2行制限）
-        txt.innerHTML = `
-          <div class="month-tags">
-            ${tagsHtml}
-            <span style="margin-left:6px;">${condHtml}</span>
-          </div>
-          <div class="month-content-2lines">
-            ${(j.train || "—")}
-            <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span>
-          </div>`;
       } catch(err) {
         console.error("renderMonth day read error:", yy, mm, d, err);
         const txt = row.querySelector(".txt");
