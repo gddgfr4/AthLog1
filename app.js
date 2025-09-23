@@ -194,6 +194,7 @@ async function showApp(){
   switchTab("journal");
   checkNewMemo();
   initTeamSwitcher();
+  initGlobalTabSwipe();
 }
 function initTeamSwitcher(){
   const wrap   = $("#teamSwitchWrap");
@@ -2089,3 +2090,120 @@ document.addEventListener('DOMContentLoaded', ()=>{
 // 任意：当日データが保存されたら更新したい場合、呼び出してください。
 // 例）日誌の保存処理の末尾や onSnapshot の中で：
 //    updateDistanceSummary();
+
+// ===== Global: 端/上部スワイプでタブ移動 =====
+const TAB_ORDER = ['journal','month','plans','dashboard','memo'];
+
+function getActiveTabIndex(){
+  const id = document.querySelector('.tab.active')?.dataset.tab;
+  return TAB_ORDER.indexOf(id);
+}
+function goTabDelta(delta){
+  const n = TAB_ORDER.length;
+  let i = getActiveTabIndex();
+  if (i < 0) return;
+  i = (i + delta + n) % n;
+  switchTab(TAB_ORDER[i], true);
+}
+
+// 入力や編集要素上は無視
+function isInteractive(el){
+  const t = el?.tagName;
+  return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || el?.isContentEditable;
+}
+// mmWrap など描画系の上は無視
+function shouldIgnoreForTabSwipe(el){
+  return isInteractive(el) || el?.closest?.('#mmWrap');
+}
+
+function initGlobalTabSwipe(){
+  const bar = document.getElementById('globalSwipeBar');
+  const EDGE = 20;     // 端スワイプの開始許容(px)
+  const THRESH = 60;   // 発火しきい値(px)
+  const V_TOL  = 40;   // 縦の許容ズレ(px)
+
+  let SW = {active:false, fromEdge:false, x0:0, y0:0, moved:false};
+
+  // --- 上部バー：常に対象（入力中でもタブ切替したいならここはtrueで動く）
+  function bindArea(el){
+    if (!el) return;
+
+    el.addEventListener('touchstart', (e)=>{
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      SW = {active:true, fromEdge:false, x0:t.clientX, y0:t.clientY, moved:false};
+    }, {passive:true});
+
+    el.addEventListener('touchmove', (e)=>{
+      if (!SW.active || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const dx = t.clientX - SW.x0;
+      const dy = t.clientY - SW.y0;
+      if (Math.abs(dx) > 10 && Math.abs(dy) < V_TOL){
+        e.preventDefault(); // 横意図が明確ならスクロール阻止
+        SW.moved = true;
+      }
+    }, {passive:false});
+
+    el.addEventListener('touchend', (e)=>{
+      if (!SW.active) return;
+      SW.active = false;
+      if (!SW.moved) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - SW.x0;
+      const dy = t.clientY - SW.y0;
+      if (Math.abs(dx) >= THRESH && Math.abs(dy) < V_TOL){
+        goTabDelta(dx < 0 ? +1 : -1); // ←→で順送り
+      }
+    }, {passive:true});
+
+    // トラックパッド横スクロールでも切替
+    el.addEventListener('wheel', (e)=>{
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 20){
+        e.preventDefault();
+        goTabDelta(e.deltaX > 0 ? +1 : -1);
+      }
+    }, {passive:false});
+  }
+
+  // --- 画面端スワイプ（全画面有効。ただし編集/描画要素の上は無視）
+  document.addEventListener('touchstart', (e)=>{
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const x = t.clientX, y = t.clientY;
+    const fromLeft  = x <= EDGE;
+    const fromRight = x >= (window.innerWidth - EDGE);
+    const ignore = shouldIgnoreForTabSwipe(e.target);
+    if ((fromLeft || fromRight) && !ignore){
+      SW = {active:true, fromEdge:true, x0:x, y0:y, moved:false};
+    }else{
+      SW.active = false;
+    }
+  }, {passive:true});
+
+  document.addEventListener('touchmove', (e)=>{
+    if (!SW.active || !SW.fromEdge || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dx = t.clientX - SW.x0;
+    const dy = t.clientY - SW.y0;
+    if (Math.abs(dx) > 10 && Math.abs(dy) < V_TOL){
+      e.preventDefault();
+      SW.moved = true;
+    }
+  }, {passive:false});
+
+  document.addEventListener('touchend', (e)=>{
+    if (!SW.active || !SW.fromEdge) return;
+    SW.active = false;
+    if (!SW.moved) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - SW.x0;
+    const dy = t.clientY - SW.y0;
+    if (Math.abs(dx) >= THRESH && Math.abs(dy) < V_TOL){
+      goTabDelta(dx < 0 ? +1 : -1);
+    }
+  }, {passive:true});
+
+  bindArea(bar);
+}
+
