@@ -445,3 +445,16 @@ html,body{
 .type-bar.off    { background: #4b5563; } /* 濃い灰色 */
 .type-bar.other  { background: #9333ea; } /* 濃い紫 */
 
+/* 画面上部の共通スワイプバー（透明） */
+#globalSwipeBar{
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;           /* 好みで 24~40px に */
+  z-index: 50;
+  /* 縦スクロールは通しつつ、横ジェスチャはJSが拾えるように */
+  touch-action: pan-y pinch-zoom;
+  background: transparent;
+}
+
