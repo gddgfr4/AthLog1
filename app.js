@@ -391,7 +391,83 @@ function initJournal(){
 
   initMuscleMap();       // ← 新筋マップ
   initRegionMap();       // ← 旧SVG（存在しなければ何もしない）
+  initJournalSwipeNav();
 }
+
+
+// ===== Journal: 左右スワイプで日付移動 =====
+function initJournalSwipeNav(){
+  const root = document.getElementById('journal');
+  if (!root) return;
+
+  const isEditableEl = (el) => {
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  };
+
+  const shouldIgnore = (el) => {
+    // 筋マップや入力系の上ではスワイプで日付移動しない
+    return el.closest?.('#mmWrap') || isEditableEl(el);
+  };
+
+  const SW = { x0:0, y0:0, active:false, moved:false };
+  const THRESH = 50;   // 横方向の発火しきい値(px)
+  const V_TOL  = 40;   // 縦方向の許容ズレ(px)
+
+  root.addEventListener('touchstart', (e)=>{
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    SW.x0 = t.clientX; SW.y0 = t.clientY;
+    SW.active = !shouldIgnore(e.target);
+    SW.moved = false;
+  }, { passive:true });
+
+  root.addEventListener('touchmove', (e)=>{
+    if (!SW.active || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dx = t.clientX - SW.x0;
+    const dy = t.clientY - SW.y0;
+    if (Math.abs(dx) > 10 && Math.abs(dy) < V_TOL) {
+      // 横スワイプの意図が明確ならスクロールを止める
+      e.preventDefault();
+      SW.moved = true;
+    }
+  }, { passive:false });
+
+  root.addEventListener('touchend', (e)=>{
+    if (!SW.active) return;
+    SW.active = false;
+    if (!SW.moved) return;
+
+    const t = e.changedTouches[0];
+    const dx = t.clientX - SW.x0;
+    const dy = t.clientY - SW.y0;
+
+    if (Math.abs(dx) >= THRESH && Math.abs(dy) < V_TOL) {
+      // 右→左にスワイプ（dx<0）で翌日、左→右（dx>0）で前日
+      selDate = addDays(selDate, dx < 0 ? +1 : -1);
+      const dp = document.getElementById('datePicker');
+      if (dp) dp.value = ymd(selDate);
+      renderJournal();
+    }
+  }, { passive:true });
+
+  // デスクトップの横スクロール（トラックパッド）にも対応
+  root.addEventListener('wheel', (e)=>{
+    // 入力中 or キャンバス上は無視
+    if (shouldIgnore(e.target)) return;
+
+    // 横方向の意図が強いときだけ
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 20) {
+      e.preventDefault();
+      selDate = addDays(selDate, e.deltaX > 0 ? +1 : -1);
+      const dp = document.getElementById('datePicker');
+      if (dp) dp.value = ymd(selDate);
+      renderJournal();
+    }
+  }, { passive:false });
+}
+
 
 // 週合計と「直近7日」を“下の表示(#weekSum)”だけに出す完成版
 async function renderJournal(){
