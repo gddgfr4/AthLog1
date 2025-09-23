@@ -50,6 +50,7 @@
       <button data-tab="plans" class="tab">予定</button>
       <button data-tab="dashboard" class="tab">グラフ</button>
       <button data-tab="memo" class="tab">メモ</button>
+      <button data-tab="notify" class="tab">通知</button>
     </nav>
     <!-- 画面上部 共通スワイプバー（透明） -->
     <div id="globalSwipeBar" aria-hidden="true"></div>
@@ -253,6 +254,16 @@
         </div>
       </div>
     </section>
+
+    <section id="notify" class="tabpanel">
+      <div class="panel">
+        <h3>通知</h3>
+        <div id="notifyList" class="chatlog"></div>
+        <div class="muted" id="notifyEmpty" style="display:none; padding:12px 0;">
+          新しい通知はありません
+        </div>
+      </div>
+    </section>
   </div>
 
   <!-- LOGIN -->
@@ -446,6 +457,7 @@
 
 </body>
 </html>
+
 
 
 
