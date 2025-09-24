@@ -155,6 +155,8 @@ let conditionChartOffset=0;
 let unsubscribePlans, unsubscribeMemo, unsubscribeMonthChat, unsubscribeJournal;
 let dirty={ dist:false, train:false, feel:false };
 let lastJournal=null;  // ← 追加：未宣言だったので明示
+let unsubscribeNotify = null;
+
 
 // ===== Data Access Layer =====
 const getJournalRef  = (team,member,day)=> db.collection('teams').doc(team).collection('members').doc(member).collection('journal').doc(ymd(day));
@@ -265,6 +267,7 @@ function switchTab(id, forceRender=false){
   if(id==="plans") renderPlans();
   if(id==="dashboard") renderDashboard();
   if(id==="memo"){ renderMemo(); markMemoRead(); }
+  if(id==="notify"){ renderNotify(); } 
 }
 
 // ===== Login & Logout =====
@@ -1952,6 +1955,9 @@ async function tscSave(){
     await ref.set({ teamComment: text }, { merge:true });
     tscDirty = false;
     tscSetStatus('保存済み');
+    await createDayCommentNotifications({
+      teamId, from: memberId, day: ymd(selDate), text
+    });
   }catch(e){
     console.error('tscSave', e);
     tscSetStatus('保存失敗（自動再試行）');
@@ -2205,5 +2211,109 @@ function initGlobalTabSwipe(){
   }, {passive:true});
 
   bindArea(bar);
+}
+
+async function renderNotify(){
+  // 既存の購読解除
+  if (unsubscribeNotify) { try{ unsubscribeNotify(); }catch{} unsubscribeNotify=null; }
+
+  const box = document.getElementById('notifyList');
+  const empty = document.getElementById('notifyEmpty');
+  if(!box) return;
+  box.innerHTML = '';
+  empty.style.display = 'none';
+
+  // 自分宛の未読だけを新しい順に
+  const col = db.collection('teams').doc(teamId).collection('notifications');
+  const q = col.where('to','==', viewingMemberId || memberId)
+               .where('read','==', false)
+               .orderBy('ts','desc');
+
+  // スナップショット購読
+  unsubscribeNotify = q.onSnapshot(async (snap)=>{
+    box.innerHTML = '';
+    if (snap.empty){
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+
+    const toMark = [];  // 既読化対象
+
+    snap.docs.forEach(doc=>{
+      const n = doc.data();
+      // 行を作る
+      const div = document.createElement('div');
+      div.className = 'msg';
+
+      const at = new Date(n.ts || Date.now()).toLocaleString('ja-JP');
+      // 表示本文
+      const bodyHtml = (n.type === 'dayComment')
+        ? (
+          `<div><b>${n.day}</b> の練習にコメントがつきました（${n.from}）</div>` +
+          (n.text ? `<div class="muted" style="white-space:pre-wrap;">${escapeHtml(n.text)}</div>` : ``) +
+          `<div class="link" data-day="${n.day}">この日誌を開く</div>`
+        )
+        : `<div>通知</div>`;
+
+      div.innerHTML = `
+        <span class="date">${at}</span>
+        <div class="body">${bodyHtml}</div>
+      `;
+
+      // クリックで該当日へ
+      div.querySelector('.link')?.addEventListener('click', (e)=>{
+        const day = e.currentTarget.getAttribute('data-day');
+        if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)){
+          selDate = parseDateInput(day);
+          switchTab('journal', true);
+        }
+      });
+
+      box.appendChild(div);
+
+      // 「開けば次回以降なくなる」＝一覧を開いた時点で既読化
+      toMark.push(doc.ref);
+    });
+
+    // 既読フラグ更新（まとめて）
+    const batch = db.batch();
+    toMark.forEach(ref => batch.update(ref, { read: true }));
+    try{ await batch.commit(); }catch(e){ console.error('notify read commit error', e); }
+  }, (err)=>{
+    console.error('notify onSnapshot error', err);
+    empty.style.display = 'block';
+  });
+}
+
+// XSS対策の軽いエスケープ
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+async function createDayCommentNotifications({ teamId, from, day, text }){
+  try{
+    // チームのメンバー一覧
+    const ms = await getMembersRef(teamId).get();
+    const col = db.collection('teams').doc(teamId).collection('notifications');
+    const batch = db.batch();
+    const ts = Date.now();
+
+    ms.docs.forEach(m=>{
+      const to = m.id;
+      if (to === from) return; // 自分には送らない
+      const ref = col.doc();   // ランダムID
+      batch.set(ref, {
+        type:'dayComment',
+        team: teamId,
+        day, text, from, to,
+        ts, read:false
+      });
+    });
+
+    await batch.commit();
+  }catch(e){
+    console.error('createDayCommentNotifications error', e);
+  }
 }
 
