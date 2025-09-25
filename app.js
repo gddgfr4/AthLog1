@@ -1,6 +1,4 @@
-
 // ===== Firebase Initialization =====
-// あるなら残してOK（ガード必須）。無ければ何も書かなくて良い。
 if (!firebase.apps || !firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
@@ -12,12 +10,10 @@ const $  = (q, el = document) => el.querySelector(q);
 const $$ = (q, el = document) => Array.from(el.querySelectorAll(q));
 
 function ymd(d){
-  // ローカル日付→UTCずれ防止
   const date = new Date(d.getTime() - d.getTimezoneOffset()*60000);
   return date.toISOString().slice(0,10);
 }
 function parseDateInput(value){
-  // "YYYY-MM-DD" をローカル時刻の Date に（Safari/時差ずれ対策）
   const [y,m,d] = value.split("-").map(Number);
   return new Date(y, (m||1)-1, d||1);
 }
@@ -38,12 +34,10 @@ async function sumWeekKm(d){
   return s;
 }
 
-// --- マルチタッチ管理（2本以上は塗らないでピンチに委ねる）---
 const MT = { pointers: new Set() };
-
 function setOverlayTouchAction(mode){
   const ov = document.getElementById('mmOverlay');
-  if (ov) ov.style.touchAction = mode;   // 'none' | 'auto' | 'pan-x pan-y pinch-zoom'
+  if (ov) ov.style.touchAction = mode;
 }
 
 
@@ -154,7 +148,7 @@ let dashboardOffset=0, dashboardMode='month';
 let conditionChartOffset=0;
 let unsubscribePlans, unsubscribeMemo, unsubscribeMonthChat, unsubscribeJournal;
 let dirty={ dist:false, train:false, feel:false };
-let lastJournal=null;  // ← 追加：未宣言だったので明示
+let lastJournal=null;
 let unsubscribeNotify = null;
 
 
@@ -205,10 +199,8 @@ function initTeamSwitcher(){
   const btnAdd = $("#addTeamBtn");
   if(!wrap || !sel || !btnMain) return;
 
-  // 以前は「1チームしか無いと非表示」でしたが、常時表示に変更
   wrap.style.display = 'flex';
 
-  // 現在の teamId をプロフィールに確実に含めておく
   if (teamId && !getProfiles().some(p => p.team===teamId && p.member===memberId)){
     upsertProfile(teamId, memberId);
   }
@@ -224,7 +216,7 @@ function initTeamSwitcher(){
   sel.onchange = async (e)=>{
     teamId = e.target.value;
     $("#teamLabel").textContent = teamId;
-    await populateMemberSelect();   // チームのメンバー一覧を更新
+    await populateMemberSelect();
     refreshBadges();
     switchTab($(".tab.active")?.dataset.tab, true);
   };
@@ -240,7 +232,7 @@ function initTeamSwitcher(){
       await getMembersRef(teamId).doc(memberId).set({ name:memberId }, { merge:true });
       await populateMemberSelect();
       refreshBadges();
-      initTeamSwitcher(); // セレクトを再生成
+      initTeamSwitcher();
       switchTab($(".tab.active")?.dataset.tab, true);
     };
   }
@@ -253,7 +245,7 @@ function initTeamSwitcher(){
   };
 }
 
-
+// ▼▼▼ 変更点 ▼▼▼
 function switchTab(id, forceRender=false){
   if(!forceRender && $(".tab.active")?.dataset.tab===id) return;
   $$(".tab").forEach(btn=>btn.classList.toggle("active", btn.dataset.tab===id));
@@ -262,6 +254,16 @@ function switchTab(id, forceRender=false){
   if(unsubscribeMemo) unsubscribeMemo();
   if(unsubscribeMonthChat) unsubscribeMonthChat();
   if(unsubscribeJournal) unsubscribeJournal();
+  
+  // 時計タブ選択時の特殊処理
+  if(id === "clock"){
+    document.body.classList.add('mode-clock');
+    applyClockPreset(); // プリセット情報をUIに反映
+    initClock();        // 時計機能のイベントリスナーなどを初期化
+  } else {
+    document.body.classList.remove('mode-clock');
+  }
+
   if(id==="journal") renderJournal();
   if(id==="month") renderMonth();
   if(id==="plans") renderPlans();
@@ -269,6 +271,7 @@ function switchTab(id, forceRender=false){
   if(id==="memo"){ renderMemo(); markMemoRead(); }
   if(id==="notify"){ renderNotify(); } 
 }
+// ▲▲▲ 変更点 ▲▲▲
 
 // ===== Login & Logout =====
 $("#logoutBtn")?.addEventListener("click", ()=>{
@@ -278,7 +281,6 @@ $("#logoutBtn")?.addEventListener("click", ()=>{
 });
 $$(".tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 
-// ----- 旧SVG（存在しない場合は即return）-----
 function renderRegions(regions={}){
   document.querySelectorAll('#bodyMap .region').forEach(el=>{
     el.classList.remove('f1','f2','f3');
@@ -301,7 +303,6 @@ function initRegionMap(){
   });
 }
 
-// 入力の自動保存（デバウンス）
 function makeJournalAutoSaver(delayMs=700){
   let t=null;
   return function(){
@@ -366,7 +367,7 @@ function initJournal(){
   $("#datePicker")?.addEventListener("change",(e)=>{ selDate=parseDateInput(e.target.value); renderJournal(); });
 
   $("#mergeBtn")?.addEventListener("click", async ()=>{
-    const scope  = $("#mergeScope").value;                // auto / 自分 / team
+    const scope  = $("#mergeScope").value;
     const tagCSV = ($("#mergeTagFilter")?.value || "").trim();
   
     const text  = await collectPlansTextForDay(selDate, scope, tagCSV);
@@ -374,7 +375,6 @@ function initJournal(){
       $("#trainInput").value = ($("#trainInput").value ? ($("#trainInput").value+"\n") : "") + text;
     }
   
-    // タグで絞った types を日誌タグへ最大2つ反映（任意）
     const types = await collectPlansTypesForDay(selDate, scope, tagCSV);
     if(types.length){
       const docRef=getJournalRef(teamId,memberId,selDate);
@@ -393,13 +393,12 @@ function initJournal(){
     });
   });
 
-  initMuscleMap();       // ← 新筋マップ
-  initRegionMap();       // ← 旧SVG（存在しなければ何もしない）
+  initMuscleMap();
+  initRegionMap();
   initJournalSwipeNav();
 }
 
 
-// ===== Journal: 左右スワイプで日付移動 =====
 function initJournalSwipeNav(){
   const root = document.getElementById('journal');
   if (!root) return;
@@ -410,13 +409,12 @@ function initJournalSwipeNav(){
   };
 
   const shouldIgnore = (el) => {
-    // 筋マップや入力系の上ではスワイプで日付移動しない
     return el.closest?.('#mmWrap') || isEditableEl(el);
   };
 
   const SW = { x0:0, y0:0, active:false, moved:false };
-  const THRESH = 50;   // 横方向の発火しきい値(px)
-  const V_TOL  = 40;   // 縦方向の許容ズレ(px)
+  const THRESH = 50;
+  const V_TOL  = 40;
 
   root.addEventListener('touchstart', (e)=>{
     if (e.touches.length !== 1) return;
@@ -432,7 +430,6 @@ function initJournalSwipeNav(){
     const dx = t.clientX - SW.x0;
     const dy = t.clientY - SW.y0;
     if (Math.abs(dx) > 10 && Math.abs(dy) < V_TOL) {
-      // 横スワイプの意図が明確ならスクロールを止める
       e.preventDefault();
       SW.moved = true;
     }
@@ -448,7 +445,6 @@ function initJournalSwipeNav(){
     const dy = t.clientY - SW.y0;
 
     if (Math.abs(dx) >= THRESH && Math.abs(dy) < V_TOL) {
-      // 右→左にスワイプ（dx<0）で翌日、左→右（dx>0）で前日
       selDate = addDays(selDate, dx < 0 ? +1 : -1);
       const dp = document.getElementById('datePicker');
       if (dp) dp.value = ymd(selDate);
@@ -456,12 +452,8 @@ function initJournalSwipeNav(){
     }
   }, { passive:true });
 
-  // デスクトップの横スクロール（トラックパッド）にも対応
   root.addEventListener('wheel', (e)=>{
-    // 入力中 or キャンバス上は無視
     if (shouldIgnore(e.target)) return;
-
-    // 横方向の意図が強いときだけ
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 20) {
       e.preventDefault();
       selDate = addDays(selDate, e.deltaX > 0 ? +1 : -1);
@@ -473,7 +465,6 @@ function initJournalSwipeNav(){
 }
 
 
-// 週合計と「直近7日」を“下の表示(#weekSum)”だけに出す完成版
 async function renderJournal(){
   if (unsubscribeJournal) unsubscribeJournal();
   if (!viewingMemberId) viewingMemberId = memberId;
@@ -499,7 +490,6 @@ async function renderJournal(){
 
   $("#datePicker").value = ymd(selDate);
 
-  // --- 下部の距離表示を更新するヘルパ ---
   async function recent7Km(d){
     const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
     let s = 0;
@@ -511,8 +501,7 @@ async function renderJournal(){
     return s;
   }
 
-
-  await renderWeek();           // 週チップ描画（内部でも週合計を更新するが）
+  await renderWeek();
 
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   unsubscribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc=>{
@@ -532,7 +521,6 @@ async function renderJournal(){
     tscInitOnce();
     tscRefresh();
 
-    // 日誌の変更が入ったら下の距離表示も更新
     updateDistanceSummary();
   });
 }
@@ -564,7 +552,6 @@ async function renderWeek(){
 }
 
 async function rolling7Km(d){
-  // dの週と同じ終了日基準（現在の選択日の0:00を終端とする）
   const end=new Date(d); end.setHours(0,0,0,0);
   const start=addDays(end,-6);
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
@@ -606,12 +593,9 @@ function initMonth(){
 
 async function renderMonth(){
   const editableHere = isEditableHere(teamId,memberId,viewingMemberId);
-// monthGoalInput が存在する時だけ触る（存在しないページ構成でも安全）
   const goalInputEl = document.getElementById("monthGoalInput");
   if (goalInputEl) goalInputEl.disabled = !editableHere;
-  // 保存ボタンはUIから削除したので、参照もしない
   
-
   const box=$("#monthList"); if(!box) return;
   box.innerHTML="";
 
@@ -626,7 +610,7 @@ async function renderMonth(){
   let sum=0;
   for (let d = 1; d <= lastDay; d++) {
     const dt = new Date(yy, mm - 1, d);
-    const dayKey = ymd(dt); // ← 追加：この日のキー
+    const dayKey = ymd(dt);
     const dow = ["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()];
   
     const row = document.createElement("div");
@@ -641,13 +625,11 @@ async function renderMonth(){
     row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
     box.appendChild(row);
   
-    // ← 以降は同じ非同期読み込みだが、dayKey をキャプチャして使う
     (async (dtLocal, key) => {
       try {
         const snap = await getJournalRef(srcTeam, viewingMemberId, dtLocal).get();
         const j = snap.data() || {};
   
-        // 合計距離の更新（既存処理をそのまま）
         const add = Number(j.dist || 0);
         if (!Number.isNaN(add)) {
           sum += add;
@@ -655,7 +637,6 @@ async function renderMonth(){
           if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
         }
   
-        // ── 縦色ラベル（typebar）の色反映（文字タグは出さない） ──
         const typebar = document.getElementById(`tb_${key}`);
         const tags = Array.isArray(j.tags) ? j.tags.slice(0, 2) : [];
         const colorMap = {
@@ -677,7 +658,6 @@ async function renderMonth(){
           }
         }
   
-        // コンディション表示と本文（タグ文字は出さない）
         const cond = (j.condition != null) ? Number(j.condition) : null;
         const condHtml = (cond && cond >= 1 && cond <= 5)
           ? `<span class="cond-pill cond-${cond}">${cond}</span>`
@@ -846,7 +826,7 @@ async function renderPlans(){
         if(!targetEl) return;
         targetEl.innerHTML = arr.length
           ? arr.map(x=>`
-              <span style="display:inline-flex; align-items:center; gap:6px; margin:2px 8px 2px 0;">
+              <span style="display:inline-flex; align-items:center; gap:6px; margin:2px 8px 2px 0; cursor:pointer;" onclick="setClockPresetFromSchedule(JSON.parse(this.dataset.plan))" data-plan='${JSON.stringify(x)}'>
                 <span class="cat-tag ${classMap[x.type]||""}">${x.type}</span>
                 <span>${x.content}</span>
               </span>`).join("")
@@ -858,7 +838,6 @@ async function renderPlans(){
       });
 
     unsubs.push(unsub);
-    setClockPresetFromSchedule(formData);
   }
 
   renderChat();
@@ -880,6 +859,8 @@ function renderChat(){
   });
 }
 let modalDiv=null;
+
+// ▼▼▼ 変更点 ▼▼▼
 function openPlanModal(dt){
   closePlanModal();
   const mon=getMonthStr(dt);
@@ -896,6 +877,10 @@ function openPlanModal(dt){
         <select id="pscope" class="form-control"><option value="self">${memberId}</option><option value="team">全員</option></select>
         <input id="ptags" placeholder="タグ(,区切り)" class="form-control" />
       </div>
+      <div id="p_advanced" class="hidden" style="display:flex;gap:6px;margin-bottom:6px">
+        <select id="p_subtype" class="form-control"><option value="pace">ペース走</option><option value="interval">インターバル</option></select>
+        <input id="p_dist" type="number" placeholder="距離(m)" class="form-control" />
+      </div>
       <textarea id="pcontent" rows="3" style="width:100%" class="form-control"></textarea>
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
         <button id="p_delete" class="ghost" style="color:red; display:none; margin-right:auto;">削除</button>
@@ -910,9 +895,15 @@ function openPlanModal(dt){
 
   const pActionBtn=$("#p_action",modalDiv), pDeleteBtn=$("#p_delete",modalDiv);
   const pType=$("#ptype",modalDiv), pScope=$("#pscope",modalDiv), pTags=$("#ptags",modalDiv), pContent=$("#pcontent",modalDiv);
+  const pAdvanced=$("#p_advanced",modalDiv), pSubtype=$("#p_subtype",modalDiv), pDist=$("#p_dist",modalDiv);
+
+  pType.onchange = () => { pAdvanced.classList.toggle('hidden', pType.value !== 'ポイント'); };
+
   const resetForm=()=>{
     editingId=null;
     pType.value="ジョグ"; pScope.value="self"; pTags.value=""; pContent.value="";
+    pSubtype.value="pace"; pDist.value="";
+    pAdvanced.classList.add('hidden');
     pActionBtn.textContent="追加"; pDeleteBtn.style.display="none";
     $$("#plist .row",modalDiv).forEach(r=>r.style.outline='none');
   };
@@ -923,6 +914,13 @@ function openPlanModal(dt){
       if(!item || item.mem!==memberId) return;
       editingId=id;
       pType.value=item.type; pScope.value=item.scope; pTags.value=(item.tags||[]).join(","); pContent.value=item.content;
+      if(item.type === 'ポイント'){
+        pAdvanced.classList.remove('hidden');
+        pSubtype.value = item.pointSubtype || 'pace';
+        pDist.value = item.pointDistance || '';
+      } else {
+        pAdvanced.classList.add('hidden');
+      }
       pActionBtn.textContent="更新"; pDeleteBtn.style.display="block";
       $$("#plist .row",modalDiv).forEach(r=>r.style.outline='none');
       targetRow.style.outline=`2px solid var(--primary)`;
@@ -943,6 +941,11 @@ function openPlanModal(dt){
       tags:(pTags.value||"").split(",").map(s=>s.trim()).filter(Boolean),
       month:mon, day:dayKey, team:teamId
     };
+    if (planData.type === 'ポイント') {
+        planData.pointSubtype = pSubtype.value;
+        planData.pointDistance = Number(pDist.value) || null;
+    }
+    
     if(editingId){
       await getPlansCollectionRef(teamId).doc(dayKey).collection('events').doc(editingId).set(planData);
     }else{
@@ -951,6 +954,8 @@ function openPlanModal(dt){
     resetForm();
   });
 }
+// ▲▲▲ 変更点 ▲▲▲
+
 function renderPlanListInModal(mon, dayKey, editCallback){
   const cont=$("#plist",modalDiv); cont.innerHTML='';
   getPlansCollectionRef(teamId).doc(dayKey).collection('events').orderBy('mem').get().then(snapshot=>{
@@ -975,7 +980,6 @@ function renderPlanListInModal(mon, dayKey, editCallback){
 }
 function closePlanModal(){ if(modalDiv){ modalDiv.remove(); modalDiv=null; } }
 
-// 予定本文取り込み（内容だけを返す：編集者名や種別は付けない）
 async function collectPlansTextForDay(day, scopeSel){
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   const dayKey  = ymd(day);
@@ -990,7 +994,7 @@ async function collectPlansTextForDay(day, scopeSel){
   snap.docs.forEach(doc=>{
     const it = doc.data();
     const content = (it.content || '').trim();
-    if (content) lines.push(content);     // ← 内容だけを集める
+    if (content) lines.push(content);
   });
   return lines.join('\n');
 }
@@ -1022,7 +1026,6 @@ async function collectPlansTypesForDay(day, scopeSel, tagCSV=""){
 
 let chartDay=null, chartWeek=null, chartMonth=null;
 
-// それぞれのグラフのスクロール位置（0=最新側）
 const distOffset = { day: 0, week: 0, month: 0 };
 
 // ===== Dashboard =====
@@ -1052,69 +1055,7 @@ function initDashboard(){
   document.getElementById('distMonthNext')?.addEventListener('click', ()=>{ distOffset.month++; renderAllDistanceCharts(); });
 }
 function renderDashboard(){ renderAllDistanceCharts(); renderConditionChart(); }
-async function renderDistanceChart(){
-  const cvs=document.getElementById('distanceChart'); if(!cvs) return;
-  const ctx=cvs.getContext('2d');
-  const toggleBtn=$("#distChartToggle");
-  if(toggleBtn) toggleBtn.textContent = (dashboardMode==='month') ? '週に切替' : (dashboardMode==='week') ? '日に切替' : '月に切替';
 
-  const labels=[], chartData=[];
-  const journalSnaps=await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
-  const journal={}; journalSnaps.forEach(doc=>journal[doc.id]=doc.data());
-
-  if(dashboardMode==='month'){
-    $("#distChartTitle").textContent="月間走行距離グラフ";
-    const monthlyTotals={};
-    for(const ymdStr in journal){
-      const monthStr=ymdStr.substring(0,7);
-      monthlyTotals[monthStr]=(monthlyTotals[monthStr]||0)+Number(journal[ymdStr].dist||0);
-    }
-    const targetMonth=new Date(); targetMonth.setMonth(targetMonth.getMonth()+dashboardOffset);
-    for(let i=5;i>=0;i--){
-      const d=new Date(targetMonth); d.setMonth(d.getMonth()-i);
-      const month=getMonthStr(d);
-      labels.push(month);
-      chartData.push(Number(monthlyTotals[month]||0).toFixed(1));
-    }
-  }else if(dashboardMode==='week'){
-    $("#distChartTitle").textContent="週間走行距離グラフ";
-    const today=new Date();
-    const currentWeekStart=startOfWeek(today);
-    const targetWeekStart=addDays(currentWeekStart, dashboardOffset*7);
-    for(let i=5;i>=0;i--){
-      const weekStart=addDays(targetWeekStart, -i*7);
-      labels.push(`${ymd(weekStart).slice(5)}~`);
-      let weeklyTotal=0;
-      for(let j=0;j<7;j++){
-        const day=addDays(weekStart,j);
-        const dayData=journal[ymd(day)];
-        if(dayData) weeklyTotal+=Number(dayData.dist||0);
-      }
-      chartData.push(weeklyTotal.toFixed(1));
-    }
-  }else{
-    $("#distChartTitle").textContent="日別走行距離グラフ";
-    const windowLen=14;
-    const today=new Date();
-    const end=addDays(today, dashboardOffset*windowLen);
-    const start=addDays(end, -windowLen+1);
-    for(let i=0;i<windowLen;i++){
-      const d=addDays(start,i);
-      labels.push(`${d.getMonth()+1}/${d.getDate()}`);
-      const dayData=journal[ymd(d)];
-      chartData.push(Number(dayData?.dist||0).toFixed(1));
-    }
-  }
-
-  if(distanceChart) distanceChart.destroy();
-  distanceChart=new Chart(ctx,{
-    type:'bar',
-    data:{ labels, datasets:[{ label:'走行距離 (km)', data:chartData, backgroundColor:'rgba(79,70,229,0.5)', borderColor:'rgba(79,70,229,1)', borderWidth:1 }] },
-    options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
-  });
-
-  renderDashboardInsight();
-}
 async function renderConditionChart(){
   const ctx=$('#conditionChart')?.getContext('2d'); if(!ctx) return;
   const labels=[], chartData=[];
@@ -1149,7 +1090,6 @@ async function renderAllDistanceCharts(){
   const snaps=await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
   const journal={}; snaps.forEach(doc=>journal[doc.id]=doc.data());
 
-  // === Day: 14日ウィンドウを day オフセット単位で横移動 ===
   {
     const cvs=document.getElementById('distanceChartDay');
     if(cvs){
@@ -1159,7 +1099,6 @@ async function renderAllDistanceCharts(){
       const labels=[], data=[];
       const windowLen=14;
 
-      // オフセット：1ステップ=14日
       const today = new Date(); today.setHours(0,0,0,0);
       const end   = addDays(today, distOffset.day * windowLen);
       const start = addDays(end, -(windowLen-1));
@@ -1170,7 +1109,6 @@ async function renderAllDistanceCharts(){
         data.push(Number(journal[ymd(d)]?.dist||0).toFixed(1));
       }
 
-      // タイトルに期間を表示
       const t1 = document.getElementById('distChartTitleDay');
       if(t1) t1.textContent = `日別走行距離（${ymd(start)} 〜 ${ymd(end)}）`;
 
@@ -1183,7 +1121,6 @@ async function renderAllDistanceCharts(){
     }
   }
 
-  // === Week: 6週ウィンドウを 1週単位で横移動 ===
   {
     const cvs=document.getElementById('distanceChartWeek');
     if(cvs){
@@ -1192,7 +1129,6 @@ async function renderAllDistanceCharts(){
       const today=new Date(); today.setHours(0,0,0,0);
       const currentWeekStart=startOfWeek(today);
 
-      // オフセット：1ステップ=1週間（ウィンドウの“右端の週”を動かす）
       const baseWeekStart = addDays(currentWeekStart, distOffset.week * 7);
 
       for(let i=5;i>=0;i--){
@@ -1207,7 +1143,7 @@ async function renderAllDistanceCharts(){
       }
 
       const firstWeekStart = addDays(baseWeekStart, -5*7);
-      const lastWeekEnd    = addDays(baseWeekStart, 6); // 右端週の+6日
+      const lastWeekEnd    = addDays(baseWeekStart, 6);
       const t2 = document.getElementById('distChartTitleWeek');
       if(t2) t2.textContent = `週間走行距離（${ymd(firstWeekStart)} 〜 ${ymd(lastWeekEnd)}）`;
 
@@ -1220,7 +1156,6 @@ async function renderAllDistanceCharts(){
     }
   }
 
-  // === Month: 6か月ウィンドウを 1か月単位で横移動 ===
   {
     const cvs=document.getElementById('distanceChartMonth');
     if(cvs){
@@ -1232,11 +1167,9 @@ async function renderAllDistanceCharts(){
         monthlyTotals[monthStr]=(monthlyTotals[monthStr]||0)+Number(journal[ymdStr].dist||0);
       }
 
-      // オフセット：1ステップ=1か月（右端の月を動かす）
       const base = new Date(); base.setDate(1); base.setHours(0,0,0,0);
       base.setMonth(base.getMonth() + distOffset.month);
 
-      // 左へ5か月戻ってから6か月分
       const startMonth = new Date(base); startMonth.setMonth(startMonth.getMonth()-5);
 
       for(let i=0;i<6;i++){
@@ -1360,41 +1293,25 @@ document.addEventListener("DOMContentLoaded",()=>{
         <li><b>予定表</b>：月の計画（自分/全員）。モーダルで追加・更新・削除</li>
         <li><b>ダッシュボード</b>：距離（週/月）・調子（直近14日）</li>
         <li><b>チームメモ</b>：LINE風。上スクロールで過去を追加読込</li>
+        <li><b>時計</b>：ポイント練習などで使うタイマー。予定から設定を読み込み、結果を日誌に自動保存できます。</li>
       </ul>
       <h2>3. 日誌の使い方</h2>
       <ol>
         <li>日付操作（← → 今日へ / ピッカー）</li>
         <li>クイック分類（ジョグ/ポイント/補強/オフ/その他）※最大2つ。3つ目で古い方が外れる</li>
-        <li>距離・内容・感想、調子(1〜5) を入れる → <b>この日を保存</b></li>
+        <li>距離・内容・感想、調子(1〜5) を入れる</li>
       </ol>
       <p>週カレンダーの色：ジョグ(水) / ポイント(橙) / 補強(緑) / オフ(灰) / その他(桃)。2つ選ぶと左右ツートン。</p>
       <h3>画像メモ</h3>
       <ul>
         <li>人体画像にペン3段階でメモ</li>
-        <li>元に戻す＝最後の1本を取り消し</li>
-        <li>消しゴム＝<b>1タップで1本消える</b>（スマホ対応）</li>
-      </ul>
-      <h2>4. 月一覧</h2>
-      <ul>
-        <li>月ピッカーで切替・行クリックで該当日を日誌で開く</li>
-        <li>月間合計距離が右上に自動更新、月間目標は編集→保存</li>
+        <li>消しゴム＝<b>1タップで1領域消える</b></li>
       </ul>
       <h2>5. 予定表</h2>
       <ul>
         <li>日クリックで編集モーダル。種別/対象(自分or全員)/タグ/内容</li>
-        <li>右肩でスコープ＆タグフィルタ</li>
-        <li>日誌の「反映」で計画を本文に取り込み可</li>
-      </ul>
-      <h2>6. ダッシュボード & メモ</h2>
-      <ul>
-        <li>距離：日/週/月切替・左右で期間移動</li>
-        <li>調子：直近14日</li>
-        <li>メモ：下に新着、上スクロールで過去</li>
-      </ul>
-      <h2>7. 困ったとき</h2>
-      <ul>
-        <li>編集できない→右上の表示中メンバーが自分か確認</li>
-        <li>色が変わらない→その日を保存</li>
+        <li><b>ポイント練習</b>の場合、種別（ペース走/インターバル）と距離を設定できます。</li>
+        <li>作成した予定をクリックすると、<b>時計に設定がプリセット</b>され、すぐに計測を開始できます。</li>
       </ul>
     `;
   }
@@ -1410,18 +1327,12 @@ function renderDashboardInsight(){ /* optional */ }
 // ===== Muscle-map (overlay/barrier) =====
 const MM = {
   IMG_CANDIDATES: ['human.webp','./human.webp','./assets/human.webp'],
-  VIEW: 'single',                 // 'single' | 'front' | 'back'
+  VIEW: 'single',
   LEVELS:{ 1:[199,210,254,210], 2:[253,186,116,210], 3:[239,68,68,210] },
-  TH_LINE: 130,                   // 線抽出しきい値（小さいほど濃い線のみ）
-  DILATE: 2,                      // 膨張回数（線を太らせる）
-  FRAME: 3,                       // 外枠を壁にする幅（px）
-  TOL: 22,                        // フィル許容
-  MAX_REGION_FRAC: 0.25,          // これ以上の巨大領域は塗らない（画像の25%）
-  MIN_REGION_PX: 25               // これ未満の極小領域は無視
+  TH_LINE: 130, DILATE: 2, FRAME: 3, TOL: 22, MAX_REGION_FRAC: 0.25, MIN_REGION_PX: 25
 };
 let mm = { base:null, overlay:null, barrier:null, bctx:null, octx:null, wctx:null, ready:false };
 
-// 画像ロード（候補順）
 function tryLoadImageSequential(srcs){
   return new Promise((resolve,reject)=>{
     const img=new Image(); let i=0;
@@ -1431,7 +1342,6 @@ function tryLoadImageSequential(srcs){
   });
 }
 
-// 使い捨てキャンバス
 let __tmpC=null, __tmpX=null;
 function tmpCtx(w,h){
   if(!__tmpC){ __tmpC=document.createElement('canvas'); __tmpX=__tmpC.getContext('2d', { willReadFrequently: true }); }
@@ -1439,7 +1349,6 @@ function tmpCtx(w,h){
   return __tmpX;
 }
 
-// ベースから“壁”を作る（線＋外枠＋外側全面）
 function makeBarrierFromBase(){
   const w=mm.base.width, h=mm.base.height;
   const t=tmpCtx(w,h);
@@ -1449,14 +1358,12 @@ function makeBarrierFromBase(){
   const src=t.getImageData(0,0,w,h); const s=src.data;
   const out=mm.wctx.createImageData(w,h); const d=out.data;
 
-  // 1) 濃い線を壁に
   for(let i=0;i<s.length;i+=4){
     const g=0.299*s[i]+0.587*s[i+1]+0.114*s[i+2];
     d[i]=d[i+1]=d[i+2]=0;
     d[i+3]=(g<MM.TH_LINE)?255:0;
   }
 
-  // 2) 線を太らせて隙間を埋める
   const a=(x,y)=>((y*w+x)<<2)+3;
   const A=new Uint8Array(w*h);
   for(let pass=0; pass<MM.DILATE; pass++){
@@ -1472,19 +1379,15 @@ function makeBarrierFromBase(){
       if(A[y*w+x]) d[a(x,y)]=255;
   }
 
-  // 3) 枠を壁に
   for(let f=0; f<MM.FRAME; f++){
     for(let x=0;x<w;x++){ d[((0*w+x)<<2)+3]=255; d[(((h-1-f)*w+x)<<2)+3]=255; }
     for(let y=0;y<h;y++){ d[((y*w+0)<<2)+3]=255; d[((y*w+(w-1-f))<<2)+3]=255; }
   }
 
-  // 4) 外側全域を壁に（四隅から塗りつぶし）
   blockOutsideAsBarrier(d,w,h);
-
   mm.wctx.putImageData(out,0,0);
 }
 
-// 外側すべてをバリア化（四隅から探索）
 function blockOutsideAsBarrier(alphaData,w,h){
   const idxA=(x,y)=>((y*w+x)<<2)+3;
   const seen=new Uint8Array(w*h);
@@ -1495,8 +1398,8 @@ function blockOutsideAsBarrier(alphaData,w,h){
     if(x<0||y<0||x>=w||y>=h) continue;
     const si=y*w+x;
     if(seen[si]) continue; seen[si]=1;
-    if(alphaData[idxA(x,y)]>0) continue; // 既に壁
-    alphaData[idxA(x,y)]=255;            // 外側→壁
+    if(alphaData[idxA(x,y)]>0) continue;
+    alphaData[idxA(x,y)]=255;
     st.push(si-1, si+1, si-w, si+w);
   }
 }
@@ -1505,7 +1408,6 @@ function barrierAlphaAt(x,y){
   return mm.wctx.getImageData(x, y, 1, 1).data[3];
 }
 
-// キャンバス座標（CSSスケール補正）
 function mmPixPos(canvas,e){
   const r=canvas.getBoundingClientRect();
   return {
@@ -1514,7 +1416,6 @@ function mmPixPos(canvas,e){
   };
 }
 
-// 事前に「この起点から塗れるピクセル数」を数える（実際には塗らない）
 function measureFillRegion(octx,wctx,sx,sy){
   const w=octx.canvas.width, h=octx.canvas.height;
   const o=octx.getImageData(0,0,w,h).data;
@@ -1532,15 +1433,14 @@ function measureFillRegion(octx,wctx,sx,sy){
     const si=y*w+x;
     if(seen[si]) continue; seen[si]=1;
     const i=idx(x,y);
-    if(b[i+3]>A_STOP) continue;   // 壁
-    if(o[i+3]>A_STOP) continue;   // 既に塗り
+    if(b[i+3]>A_STOP) continue;
+    if(o[i+3]>A_STOP) continue;
     cnt++;
     stack.push((y<<16)|(x-1),(y<<16)|(x+1),((y-1)<<16)|x,((y+1)<<16)|x);
   }
   return cnt;
 }
 
-// 面塗り（大面積/極小面ガードつき）
 function floodFill(octx,wctx,sx,sy,tol,rgba){
   const w=octx.canvas.width, h=octx.canvas.height;
   const maxArea = Math.floor(w*h*MM.MAX_REGION_FRAC);
@@ -1564,8 +1464,8 @@ function floodFill(octx,wctx,sx,sy,tol,rgba){
     if(seen[si]) continue; seen[si]=1;
 
     const i=idx(x,y);
-    if(bd[i+3]>A_STOP) continue;   // 壁
-    if(od[i+3]>A_STOP) continue;   // 既に塗り
+    if(bd[i+3]>A_STOP) continue;
+    if(od[i+3]>A_STOP) continue;
 
     od[i]=rgba[0]; od[i+1]=rgba[1]; od[i+2]=rgba[2]; od[i+3]=rgba[3];
 
@@ -1574,7 +1474,6 @@ function floodFill(octx,wctx,sx,sy,tol,rgba){
   octx.putImageData(o,0,0);
 }
 
-// 消し（面で）
 function floodErase(octx,wctx,sx,sy){
   const w=octx.canvas.width, h=octx.canvas.height;
   const o=octx.getImageData(0,0,w,h); const od=o.data;
@@ -1604,7 +1503,6 @@ function floodErase(octx,wctx,sx,sy){
   octx.putImageData(o,0,0);
 }
 
-// DataURL 描画
 function drawDataURL(ctx,url){
   return new Promise(res=>{
     if(!url) return res();
@@ -1614,7 +1512,6 @@ function drawDataURL(ctx,url){
   });
 }
 
-// Firestore → キャンバス
 function drawMuscleFromDoc(j){
   if(!mm.octx || !mm.wctx) return;
   mm.octx.clearRect(0,0,mm.octx.canvas.width, mm.octx.canvas.height);
@@ -1624,7 +1521,6 @@ function drawMuscleFromDoc(j){
   if(j?.mmOverlayWebp){ drawDataURL(mm.octx, j.mmOverlayWebp).then(()=>{}); }
 }
 
-// 保存（旧キー削除は可能な時だけ）
 async function saveMuscleLayerToDoc(){
   const docRef=getJournalRef(teamId,memberId,selDate);
   const overlayWebp = mm?.octx ? mm.octx.canvas.toDataURL('image/webp',0.65) : null;
@@ -1638,7 +1534,6 @@ async function saveMuscleLayerToDoc(){
   await docRef.set(payload,{merge:true});
 }
 
-// 統計（任意）
 function analyzeOverlay(octx){
   if(!octx) return {lv1:0,lv2:0,lv3:0,total:0};
   const w=octx.canvas.width, h=octx.canvas.height;
@@ -1660,7 +1555,6 @@ function analyzeOverlay(octx){
   return { lv1:S[0], lv2:S[1], lv3:S[2], total:S[0]+S[1]+S[2] };
 }
 
-// ===== 初期化（ここにだけイベントを生やす！） =====
 function initMuscleMap(){
   mm.base   = document.getElementById('mmBase');
   mm.overlay= document.getElementById('mmOverlay');
@@ -1672,29 +1566,23 @@ function initMuscleMap(){
   mm.wctx = mm.barrier.getContext('2d', { willReadFrequently: true });
 
   tryLoadImageSequential(MM.IMG_CANDIDATES).then(img=>{
-    // single: 全体 / front/back: 左右半分
     const fullW=img.naturalWidth, fullH=img.naturalHeight;
     const halfW=Math.floor(fullW/2);
     const crop = (MM.VIEW==='front') ? {sx:0,     sy:0, sw:halfW, sh:fullH}
                : (MM.VIEW==='back')  ? {sx:halfW, sy:0, sw:halfW, sh:fullH}
                :                       {sx:0,     sy:0, sw:fullW, sh:fullH};
 
-    // 実キャンバスサイズ
     [mm.base, mm.overlay, mm.barrier].forEach(c=>{ c.width=crop.sw; c.height=crop.sh; });
 
-    // ベースへ描画（表示は<img>任せ／これは解析用）
     mm.bctx.clearRect(0,0,crop.sw,crop.sh);
     mm.bctx.drawImage(img, crop.sx,crop.sy,crop.sw,crop.sh, 0,0,crop.sw,crop.sh);
 
-    // ラッパのアスペクト比を画像に合わせる（ズレ防止）
     const wrap = document.getElementById('mmWrap') || document.querySelector('.canvas-wrap');
     if(wrap) wrap.style.aspectRatio = `${crop.sw} / ${crop.sh}`;
 
-    // 壁生成
     makeBarrierFromBase();
     mm.ready=true;
 
-    // 既存の保存があれば反映
     drawMuscleFromDoc(lastJournal);
   }).catch(err=>{
     console.error(err);
@@ -1702,33 +1590,28 @@ function initMuscleMap(){
     mm.bctx.fillRect(0,0,mm.base.width, mm.base.height);
   });
 
-  // === マルチタッチ：2本指以上はピンチ/スクロール、1本指のみ塗る ===
   const activePointers = new Set();
   const ov = mm.overlay;
 
-  // 既定はピンチOKにしておく。単指描画時だけ 'none' へ。
   ov.style.touchAction = 'pan-x pan-y pinch-zoom';
 
   function setOverlayTouchAction(mode){
-    ov.style.touchAction = mode; // 'none' | 'pan-x pan-y pinch-zoom' | 'auto'
+    ov.style.touchAction = mode;
   }
 
   function onPointerDown(e){
     ov.setPointerCapture?.(e.pointerId);
     activePointers.add(e.pointerId);
 
-    // 2本以上 → ピンチ優先（塗らない）
     if(e.pointerType==='touch' && activePointers.size>=2){
       setOverlayTouchAction('pan-x pan-y pinch-zoom');
       return;
     }
 
-    // 単指 → スクロール抑止し描画
     setOverlayTouchAction('none');
     if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
 
     const p=mmPixPos(ov,e);
-    // 壁（外側/輪郭/枠）は反応しない
     if (barrierAlphaAt(p.x,p.y) > 10) return;
 
     if(brush.erase){
@@ -1751,18 +1634,13 @@ function initMuscleMap(){
   ov.addEventListener('pointercancel', onPointerEnd,       { passive:true });
   ov.addEventListener('pointerleave',  onPointerEnd,       { passive:true });
 
-  // リサイズで再描画
   window.addEventListener('resize', ()=> drawMuscleFromDoc(lastJournal));
 }
 
-/* ===========================
- * ログイン注意文（ログイン画面に1回だけ表示）
- * =========================== */
 (function addLoginNoteOnce(){
-  // ログインボタンのIDは index.html で定義されているものに合わせる
   var startBtn = document.getElementById('loginBtn');
   if (!startBtn) return;
-  if (document.querySelector('.login-note')) return; // 重複防止
+  if (document.querySelector('.login-note')) return;
   var p = document.createElement('p');
   p.className = 'login-note';
   p.innerHTML =
@@ -1771,166 +1649,7 @@ function initMuscleMap(){
   startBtn.insertAdjacentElement('afterend', p);
 })();
 
-/* ちょいスタイル（必要なら style.css に移動可） */
-(function injectLoginNoteStyle(){
-  if (document.getElementById('loginNoteStyle')) return;
-  var css = '.login-note{font-size:12px;color:#6b7280;margin-top:8px;line-height:1.6}'+
-            '.comment-box{margin-top:12px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;background:#fafafa}'+
-            '#daynote-text{width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:6px;resize:vertical}'+
-            '.muted{color:#6b7280}';
-  var s = document.createElement('style');
-  s.id = 'loginNoteStyle';
-  s.appendChild(document.createTextNode(css));
-  document.head.appendChild(s);
-})();
-
-/* ===========================
- * 日誌ページ：日付×人ごとの1欄を自動保存（Firestore v8）
- * =========================== */
-(function dayNotePerDatePerMember(){
-  // Firestore 未ロードの画面では無視
-  if (!(window.firebase && firebase.firestore)) return;
-  var db = firebase.firestore();
-
-  // ---- ユーティリティ ----
-  function getDateKey(){
-    var inp = document.getElementById('datePicker');
-    var val = inp && inp.value;
-    if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-    var d = new Date();
-    var y = d.getFullYear();
-    var m = String(d.getMonth()+1).padStart(2,'0');
-    var day = String(d.getDate()).padStart(2,'0');
-    return y + '-' + m + '-' + day;
-  }
-  function getText(el){ return (el && (el.textContent || el.value || '')).trim() || ''; }
-  function sanitizeId(s){ return String(s).replace(/[\/#?[\]\s]+/g,'_').slice(0,120); }
-
-  function getTeam(){
-    try {
-      return getText(document.getElementById('teamLabel')) ||
-             getText(document.getElementById('teamId')) ||
-             (JSON.parse(localStorage.getItem('athlog_user')||'{}').team || '');
-    } catch(e){ return ''; }
-  }
-  function getMember(){
-    try {
-      return getText(document.getElementById('memberLabel')) ||
-             getText(document.getElementById('memberName')) ||
-             (JSON.parse(localStorage.getItem('athlog_user')||'{}').name || '');
-    } catch(e){ return ''; }
-  }
-
-  // ★チームも区別したい場合は true にする
-  var USE_TEAM_IN_KEY = false;
-
-  function makeDocId(){
-    var dateKey = getDateKey();
-    var member  = sanitizeId(getMember() || 'unknown');
-    if (USE_TEAM_IN_KEY) {
-      var team = sanitizeId(getTeam() || 'team');
-      return team + '_' + dateKey + '_' + member;   // 例: UTokyo_2025-09-19_吉澤登吾
-    }
-    return dateKey + '_' + member;                  // 例: 2025-09-19_吉澤登吾
-  }
-
-  // ---- DOM 取得 ----
-  var $text   = document.getElementById('daynote-text');
-  var $status = document.getElementById('daynote-status');
-  if (!$text || !$status) return; // 日誌タブ以外の画面では何もしない
-
-  var currentDocId = null;
-  var saveTimer = null, dirty = false;
-
-  function setStatus(msg){ $status.textContent = msg; }
-
-  async function loadNote(docId){
-    try{
-      var ref = db.collection('dayNotes').doc(docId);
-      var snap = await ref.get();
-      $text.value = snap.exists ? (snap.data().text || '') : '';
-      setStatus('キー: ' + docId + ' ／ 参照OK');
-    }catch(e){
-      console.error(e);
-      setStatus('キー: ' + docId + ' ／ 読み込み失敗');
-    }
-  }
-
-  async function saveNote(docId, text){
-    try{
-      await db.collection('dayNotes').doc(docId).set(
-        { text: text, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
-        { merge: true }
-      );
-      dirty = false;
-      setStatus('キー: ' + docId + ' ／ 保存済み');
-    }catch(e){
-      console.error(e);
-      setStatus('キー: ' + docId + ' ／ 保存失敗（自動再試行）');
-      setTimeout(function(){ scheduleSave(); }, 1500);
-    }
-  }
-
-  function scheduleSave(){
-    dirty = true;
-    var docId = currentDocId || makeDocId();
-    setStatus('キー: ' + docId + ' ／ 保存待ち…');
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(function(){
-      saveNote(docId, $text.value);
-    }, 800); // 800ms デバウンス
-  }
-
-  function init(){
-    currentDocId = makeDocId();
-    loadNote(currentDocId);
-  }
-
-  // 入力で自動保存
-  $text.addEventListener('input', scheduleSave);
-
-  // 日付変更で再ロード
-  var datePicker = document.getElementById('datePicker');
-  if (datePicker) {
-    datePicker.addEventListener('change', function(){
-      currentDocId = makeDocId();
-      loadNote(currentDocId);
-    });
-  }
-
-  // メンバー切替（存在すれば）で再ロード
-  var memberSelect = document.getElementById('memberSelect');
-  if (memberSelect) {
-    memberSelect.addEventListener('change', function(){
-      currentDocId = makeDocId();
-      loadNote(currentDocId);
-    });
-  }
-  var teamSwitchSelect = document.getElementById('teamSwitchSelect');
-  if (teamSwitchSelect) {
-    teamSwitchSelect.addEventListener('change', function(){
-      currentDocId = makeDocId();
-      loadNote(currentDocId);
-    });
-  }
-
-  // 画面離脱時：未保存があればセーブ試行
-  window.addEventListener('beforeunload', function(){
-    if (dirty) {
-      try { saveNote(currentDocId || makeDocId(), $text.value); } catch(e){}
-    }
-  });
-
-  // 実行
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
-})();
-
-
-// ===== チームコメント（日付×表示中メンバー）誰でも編集可 =====
+// ===== チームコメント =====
 let tscDirty = false, tscTimer = null;
 
 function tscSetStatus(msg){ const el=document.getElementById('teamSharedCommentStatus'); if(el) el.textContent=msg; }
@@ -1941,7 +1660,7 @@ async function tscLoad(){
     const snap = await getJournalRef(srcTeam, viewingMemberId, selDate).get();
     const text = (snap.data() || {}).teamComment || '';
     const ta = document.getElementById('teamSharedComment');
-    if(ta && !tscDirty) ta.value = text; // 入力中に上書きしない
+    if(ta && !tscDirty) ta.value = text;
   }catch(e){
     console.error('tscLoad', e);
   }
@@ -1952,7 +1671,7 @@ async function tscSave(){
     const ta = document.getElementById('teamSharedComment');
     if(!ta) return;
     const text = ta.value;
-    const ref  = getJournalRef(teamId, viewingMemberId, selDate); // ← “表示中の人”のドキュメントに保存
+    const ref  = getJournalRef(teamId, viewingMemberId, selDate);
     await ref.set({ teamComment: text }, { merge:true });
     tscDirty = false;
     tscSetStatus('保存済み');
@@ -1971,22 +1690,18 @@ function tscScheduleSave(){
   tscDirty = true;
   tscSetStatus('保存待ち…');
   clearTimeout(tscTimer);
-  tscTimer = setTimeout(tscSave, 700); // デバウンス
+  tscTimer = setTimeout(tscSave, 700);
 }
 
 function tscInitOnce(){
   const ta = document.getElementById('teamSharedComment');
   if(!ta) return;
-  // だれでも編集可に固定
   ta.removeAttribute('disabled');
-  // 入力で自動保存
   ta.addEventListener('input', tscScheduleSave);
-  // ラベルの対象名表示
   const nm = document.getElementById('tscTargetName');
   if(nm) nm.textContent = viewingMemberId || '';
 }
 
-// 画面遷移・人/日付変更時に呼ぶ
 async function tscRefresh(){
   const nm = document.getElementById('tscTargetName');
   if(nm) nm.textContent = viewingMemberId || '';
@@ -1994,57 +1709,7 @@ async function tscRefresh(){
   await tscLoad();
 }
 
-/***** ==========================
- * 週合計 / 直近7日距離 表示ブロック
- * ========================== *****/
 
-
-// 画面から team / member / 選択日 を拾う（既存DOMに依存）
-function getCurrentTeam(){ return ($('#teamLabel')?.textContent || $('#teamId')?.value || '').trim(); }
-function getCurrentMember(){ return ($('#memberLabel')?.textContent || $('#memberName')?.value || '').trim(); }
-function getSelectedDate(){
-  const v = $('#datePicker')?.value;
-  if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
-    const [Y,M,D] = v.split('-').map(Number);
-    return new Date(Y, M-1, D);
-  }
-  const d = new Date(); d.setHours(0,0,0,0); return d;
-}
-
-
-// 1日ぶんの距離（数値）を取得
-async function getDayDistance(team, member, day){
-  try{
-    const snap = await getJournalRef(team, member, day).get();
-    const dist = Number(snap.data()?.dist ?? 0);
-    return Number.isFinite(dist) ? dist : 0;
-  }catch(_){
-    return 0;
-  }
-}
-
-// 週合計と直近7日合計を計算
-async function calcWeekAndRolling7(team, member, baseDate){
-  // 週（ISO想定：月はじまり）
-  const ws = startOfWeek(baseDate);
-  const weekDates = Array.from({length:7}, (_,i)=> addDays(ws,i));
-
-  // 直近7日（baseDate含む過去6日）
-  const r7Start = addDays(baseDate, -6);
-  const r7Dates = Array.from({length:7}, (_,i)=> addDays(r7Start,i));
-
-  const weekVals = await Promise.all(weekDates.map(d => getDayDistance(team,member,d)));
-  const r7Vals   = await Promise.all(r7Dates.map(d => getDayDistance(team,member,d)));
-
-  const weekSum = weekVals.reduce((a,b)=>a+b,0);
-  const r7Sum   = r7Vals.reduce((a,b)=>a+b,0);
-  return { weekSum, r7Sum };
-}
-
-// 表示DOMへ反映
-// ==== 距離サマリ（週合計 & 直近7日）====
-
-// 1日ぶんの距離を安全に取得
 async function safeDayDist(srcTeam, member, day){
   try{
     const snap = await getJournalRef(srcTeam, member, day).get();
@@ -2057,7 +1722,6 @@ async function updateDistanceSummary(){
   const box = document.getElementById('distanceSummary');
   if (!box) return;
 
-  // グローバル状態を直接利用
   const team   = teamId;
   const member = viewingMemberId || memberId;
   const base   = selDate instanceof Date ? selDate : new Date();
@@ -2067,16 +1731,13 @@ async function updateDistanceSummary(){
     return;
   }
 
-  // ミラー先対応
   const srcTeam = await getViewSourceTeamId(team, member);
 
-  // 週（月曜はじまり）
   const ws = startOfWeek(base);
   const weekDates = Array.from({length:7}, (_,i)=> addDays(ws, i));
   const wVals = await Promise.all(weekDates.map(d => safeDayDist(srcTeam, member, d)));
   const weekSum = wVals.reduce((a,b)=> a+b, 0);
 
-  // 直近7日（base 含む過去6日）
   const r0 = addDays(base, -6);
   const rDates = Array.from({length:7}, (_,i)=> addDays(r0, i));
   const rVals = await Promise.all(rDates.map(d => safeDayDist(srcTeam, member, d)));
@@ -2086,20 +1747,15 @@ async function updateDistanceSummary(){
 }
 
 
-// ---- イベントにぶら下げ（日時・メンバー変更時に更新）----
 document.addEventListener('DOMContentLoaded', ()=>{
   $('#datePicker')?.addEventListener('change', updateDistanceSummary);
   $('#memberSelect')?.addEventListener('change', updateDistanceSummary);
   $('#teamSwitchSelect')?.addEventListener('change', updateDistanceSummary);
-  updateDistanceSummary(); // 初回
+  updateDistanceSummary();
 });
 
-// 任意：当日データが保存されたら更新したい場合、呼び出してください。
-// 例）日誌の保存処理の末尾や onSnapshot の中で：
-//    updateDistanceSummary();
-
-// ===== Global: 端/上部スワイプでタブ移動 =====
-const TAB_ORDER = ['journal','month','plans','dashboard','memo'];
+// ===== Global Tab Swipe =====
+const TAB_ORDER = ['journal','month','plans','dashboard','memo','notify','clock'];
 
 function getActiveTabIndex(){
   const id = document.querySelector('.tab.active')?.dataset.tab;
@@ -2113,25 +1769,22 @@ function goTabDelta(delta){
   switchTab(TAB_ORDER[i], true);
 }
 
-// 入力や編集要素上は無視
 function isInteractive(el){
   const t = el?.tagName;
   return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || el?.isContentEditable;
 }
-// mmWrap など描画系の上は無視
 function shouldIgnoreForTabSwipe(el){
   return isInteractive(el) || el?.closest?.('#mmWrap');
 }
 
 function initGlobalTabSwipe(){
   const bar = document.getElementById('globalSwipeBar');
-  const EDGE = 20;     // 端スワイプの開始許容(px)
-  const THRESH = 60;   // 発火しきい値(px)
-  const V_TOL  = 40;   // 縦の許容ズレ(px)
+  const EDGE = 20;
+  const THRESH = 60;
+  const V_TOL  = 40;
 
   let SW = {active:false, fromEdge:false, x0:0, y0:0, moved:false};
 
-  // --- 上部バー：常に対象（入力中でもタブ切替したいならここはtrueで動く）
   function bindArea(el){
     if (!el) return;
 
@@ -2147,7 +1800,7 @@ function initGlobalTabSwipe(){
       const dx = t.clientX - SW.x0;
       const dy = t.clientY - SW.y0;
       if (Math.abs(dx) > 10 && Math.abs(dy) < V_TOL){
-        e.preventDefault(); // 横意図が明確ならスクロール阻止
+        e.preventDefault();
         SW.moved = true;
       }
     }, {passive:false});
@@ -2160,11 +1813,10 @@ function initGlobalTabSwipe(){
       const dx = t.clientX - SW.x0;
       const dy = t.clientY - SW.y0;
       if (Math.abs(dx) >= THRESH && Math.abs(dy) < V_TOL){
-        goTabDelta(dx < 0 ? +1 : -1); // ←→で順送り
+        goTabDelta(dx < 0 ? +1 : -1);
       }
     }, {passive:true});
 
-    // トラックパッド横スクロールでも切替
     el.addEventListener('wheel', (e)=>{
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 20){
         e.preventDefault();
@@ -2173,7 +1825,6 @@ function initGlobalTabSwipe(){
     }, {passive:false});
   }
 
-  // --- 画面端スワイプ（全画面有効。ただし編集/描画要素の上は無視）
   document.addEventListener('touchstart', (e)=>{
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
@@ -2215,7 +1866,6 @@ function initGlobalTabSwipe(){
 }
 
 async function renderNotify(){
-  // 既存の購読解除
   if (unsubscribeNotify) { try{ unsubscribeNotify(); }catch{} unsubscribeNotify=null; }
 
   const box = document.getElementById('notifyList');
@@ -2224,13 +1874,11 @@ async function renderNotify(){
   box.innerHTML = '';
   empty.style.display = 'none';
 
-  // 自分宛の未読だけを新しい順に
   const col = db.collection('teams').doc(teamId).collection('notifications');
   const q = col.where('to','==', viewingMemberId || memberId)
                .where('read','==', false)
                .orderBy('ts','desc');
 
-  // スナップショット購読
   unsubscribeNotify = q.onSnapshot(async (snap)=>{
     box.innerHTML = '';
     if (snap.empty){
@@ -2239,30 +1887,27 @@ async function renderNotify(){
     }
     empty.style.display = 'none';
 
-    const toMark = [];  // 既読化対象
+    const toMark = [];
 
     snap.docs.forEach(doc=>{
       const n = doc.data();
-      // 行を作る
       const div = document.createElement('div');
       div.className = 'msg';
 
       const at = new Date(n.ts || Date.now()).toLocaleString('ja-JP');
-      // 表示本文
       const bodyHtml = (n.type === 'dayComment')
         ? (
           `<div><b>${n.day}</b> の練習にコメントがつきました（${n.from}）</div>` +
           (n.text ? `<div class="muted" style="white-space:pre-wrap;">${escapeHtml(n.text)}</div>` : ``) +
-          `<div class="link" data-day="${n.day}">この日誌を開く</div>`
+          `<div class="link" data-day="${n.day}" style="cursor:pointer; color:var(--primary); text-decoration:underline;">この日誌を開く</div>`
         )
         : `<div>通知</div>`;
 
       div.innerHTML = `
-        <span class="date">${at}</span>
+        <span class="date muted">${at}</span>
         <div class="body">${bodyHtml}</div>
       `;
 
-      // クリックで該当日へ
       div.querySelector('.link')?.addEventListener('click', (e)=>{
         const day = e.currentTarget.getAttribute('data-day');
         if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)){
@@ -2273,11 +1918,9 @@ async function renderNotify(){
 
       box.appendChild(div);
 
-      // 「開けば次回以降なくなる」＝一覧を開いた時点で既読化
       toMark.push(doc.ref);
     });
 
-    // 既読フラグ更新（まとめて）
     const batch = db.batch();
     toMark.forEach(ref => batch.update(ref, { read: true }));
     try{ await batch.commit(); }catch(e){ console.error('notify read commit error', e); }
@@ -2287,14 +1930,12 @@ async function renderNotify(){
   });
 }
 
-// XSS対策の軽いエスケープ
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
 async function createDayCommentNotifications({ teamId, from, day, text }){
   try{
-    // チームのメンバー一覧
     const ms = await getMembersRef(teamId).get();
     const col = db.collection('teams').doc(teamId).collection('notifications');
     const batch = db.batch();
@@ -2302,8 +1943,8 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
 
     ms.docs.forEach(m=>{
       const to = m.id;
-      if (to === from) return; // 自分には送らない
-      const ref = col.doc();   // ランダムID
+      if (to === from) return;
+      const ref = col.doc();
       batch.set(ref, {
         type:'dayComment',
         team: teamId,
@@ -2318,54 +1959,34 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
   }
 }
 
-// ===== 予定→時計プリセット（内容のみ） =====
-function setClockPresetFromSchedule(data){
+// ▼▼▼ 変更点 ▼▼▼
+// ===== 時計プリセット ⇔ 予定連携 =====
+function setClockPresetFromSchedule(planData){
   const preset = {
-    type: data.sessionType,                    // 'point' 等
-    subtype: data.pointSubtype || null,        // 'pace' | 'interval'
-    distance: Number(data.pointDistance || 0) || null,
-    note: data.note || '',
-    date: data.date
+    type: planData.type,
+    subtype: planData.pointSubtype || null,
+    distance: planData.pointDistance || null,
+    note: planData.content || '',
+    date: planData.day
   };
   localStorage.setItem('clockPreset', JSON.stringify(preset));
+  alert(`${planData.day}の「${planData.content}」を時計にセットしました。`);
+  switchTab('clock');
 }
 
-// ▼ 「ポイント」詳細の表示/非表示（初期化時に1回呼ぶ）
-(function initPointAdvancedToggle(){
-  const typeSel = document.getElementById('sessionType');
-  const adv = document.getElementById('point-advanced');
-  if (!typeSel || !adv) return;
-  const sync = ()=> adv.classList.toggle('hidden', typeSel.value !== 'point');
-  typeSel.addEventListener('change', sync);
-  sync();
-})();
-
-// ===== タブ切替に「時計」対応 =====
-function showTab(tab){
-  // 既存のタブ切替ロジックに以下2行を追加（clock入場/退場）
-  if (tab === 'clock') {
-    document.body.classList.add('mode-clock');
-    applyClockPreset(); // ← 下の関数
-  } else {
-    document.body.classList.remove('mode-clock');
-  }
-
-  // ・・・（既存の各ビューの表示/非表示処理はそのまま）
-}
-
-// ===== 時計プリセット表示 =====
 function loadClockPreset(){
   const raw = localStorage.getItem('clockPreset');
   if(!raw) return null;
   try{ return JSON.parse(raw); }catch{ return null; }
 }
+
 function applyClockPreset(){
   const p = loadClockPreset();
   const meta = document.getElementById('clock-meta');
   const title = document.getElementById('clock-title');
   if(!meta || !title) return;
-  if(p && p.type === 'point'){
-    const typeJ = p.subtype==='interval'?'インターバル':'ペース走';
+  if(p && p.type === 'ポイント'){
+    const typeJ = p.subtype === 'interval' ? 'インターバル' : 'ペース走';
     const d = p.distance ? `${p.distance}m` : '';
     meta.textContent = [typeJ, d, p.date||''].filter(Boolean).join(' / ');
     title.textContent = 'ポイント計測';
@@ -2378,88 +1999,107 @@ function applyClockPreset(){
   }
 }
 
-
-// ===== 時計（Ltimer風） =====
-(function initClock(){
-  const elDisplay = document.getElementById('clock-display');
-  const elLapList = document.getElementById('lap-list');
-  const btnStart  = document.getElementById('btn-start');
-  const btnLap    = document.getElementById('btn-lap');
-  const btnStop   = document.getElementById('btn-stop');
-  const btnReset  = document.getElementById('btn-reset');
-  const btnSave   = document.getElementById('btn-save');
-  if (!elDisplay) return; // 時計ビューがまだ無い場合は何もしない
-
-  let running=false, startMs=0, elapsedMs=0, rafId=null, laps=[];
-
-  const fmt = (ms)=>{
-    const m = Math.floor(ms/60000);
-    const s = Math.floor((ms%60000)/1000);
-    const ms3 = String(ms%1000).padStart(3,'0');
-    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${ms3}`;
-  };
-  const tick = ()=>{
-    const now = performance.now();
-    const total = elapsedMs + (now - startMs);
-    elDisplay.textContent = fmt(total|0);
-    rafId = requestAnimationFrame(tick);
-  };
-  const ui = ()=>{
-    btnStart.disabled = running;
-    btnLap.disabled   = !running;
-    btnStop.disabled  = !running;
-    btnReset.disabled = running || (!elapsedMs && !laps.length);
-    btnSave.disabled  = running || (!laps.length);
-  };
-  const vibrate = p=>{ try{ navigator.vibrate?.(p); }catch{} };
-
-  btnStart?.addEventListener('click', ()=>{
-    if (running) return;
-    running = true; startMs = performance.now();
-    vibrate(10); ui(); rafId = requestAnimationFrame(tick);
-  });
-  btnLap?.addEventListener('click', ()=>{
-    if (!running) return;
-    const now = performance.now();
-    const total = elapsedMs + (now - startMs);
-    const last = laps.reduce((a,b)=>a+b,0);
-    const split = total - last;
-    laps.push(split);
-    const li = document.createElement('li');
-    li.textContent = `Lap ${laps.length}: ${fmt(split|0)}`;
-    elLapList.prepend(li);
-    vibrate(5);
-  });
-  btnStop?.addEventListener('click', ()=>{
-    if (!running) return;
-    cancelAnimationFrame(rafId);
-    elapsedMs += (performance.now() - startMs);
-    running = false; vibrate([10,40,10]); ui();
-  });
-  btnReset?.addEventListener('click', ()=>{
-    cancelAnimationFrame(rafId);
-    running=false; startMs=0; elapsedMs=0; laps=[];
-    elDisplay.textContent='00:00.000'; elLapList.innerHTML='';
-    ui();
-  });
-  btnSave?.addEventListener('click', ()=>{
-    const p = loadClockPreset()||{};
-    const date = p.date || new Date().toISOString().slice(0,10);
-    const header = (p.type==='point')
-      ? `【ポイント結果】${p.subtype==='interval'?'インターバル':'ペース走'} ${p.distance?`${p.distance}m`:''}`
-      : '【計測結果】';
-    const lines = laps.map((t,i)=>`Lap ${i+1}: ${fmt(t|0)}`);
-    const text = `${header}\n${lines.join('\n')}`;
-    if (window.addDiaryEntry) {
-      window.addDiaryEntry({date, text});   // ← AthLog の日誌APIがあれば使用
-    } else {
-      const key = `diary:${date}`;          // ← 無ければローカル保存
-      const prev = localStorage.getItem(key) || '';
-      localStorage.setItem(key, prev ? `${prev}\n${text}` : text);
+async function addDiaryEntry({ date, text }) {
+    if (!teamId || !memberId) {
+        alert("ログイン情報が見つかりません。");
+        return;
     }
-    alert('結果を日誌に保存しました。');
-  });
+    const docRef = getJournalRef(teamId, memberId, parseDateInput(date));
+    try {
+        await db.runTransaction(async (tx) => {
+            const doc = await tx.get(docRef);
+            const currentFeel = doc.data()?.feel || '';
+            const newFeel = currentFeel ? `${currentFeel}\n\n${text}` : text;
+            tx.set(docRef, { feel: newFeel }, { merge: true });
+        });
+        alert(`${date} の日誌に結果を保存しました。`);
+    } catch (e) {
+        console.error("日誌への書き込みに失敗:", e);
+        alert("日誌への結果の保存に失敗しました。");
+    }
+}
 
-  // 初期状態
-  ui();
-})();
+
+// ===== 時計（Ltimer風）機能 =====
+let clockInitialized = false;
+function initClock(){
+    if (clockInitialized) return;
+
+    const elDisplay = document.getElementById('clock-display');
+    const elLapList = document.getElementById('lap-list');
+    const btnStart  = document.getElementById('btn-start');
+    const btnLap    = document.getElementById('btn-lap');
+    const btnStop   = document.getElementById('btn-stop');
+    const btnReset  = document.getElementById('btn-reset');
+    const btnSave   = document.getElementById('btn-save');
+    if (!elDisplay) return;
+
+    let running=false, startMs=0, elapsedMs=0, rafId=null, laps=[];
+
+    const fmt = (ms)=>{
+        const m = Math.floor(ms/60000);
+        const s = Math.floor((ms%60000)/1000);
+        const ms3 = String(ms%1000).padStart(3,'0');
+        return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${ms3}`;
+    };
+    const tick = ()=>{
+        if (!running) return;
+        const now = performance.now();
+        const total = elapsedMs + (now - startMs);
+        elDisplay.textContent = fmt(total|0);
+        rafId = requestAnimationFrame(tick);
+    };
+    const ui = ()=>{
+        btnStart.disabled = running;
+        btnLap.disabled   = !running;
+        btnStop.disabled  = !running;
+        btnReset.disabled = running || (!elapsedMs && !laps.length);
+        btnSave.disabled  = running || (!laps.length);
+    };
+    const vibrate = p => { try{ navigator.vibrate?.(p); }catch{} };
+
+    btnStart?.addEventListener('click', ()=>{
+        if (running) return;
+        running = true; startMs = performance.now();
+        vibrate(10); ui(); rafId = requestAnimationFrame(tick);
+    });
+    btnLap?.addEventListener('click', ()=>{
+        if (!running) return;
+        const now = performance.now();
+        const total = elapsedMs + (now - startMs);
+        const last = laps.reduce((a,b)=>a+b,0);
+        const split = total - last;
+        laps.push(split);
+        const li = document.createElement('li');
+        li.textContent = `Lap ${laps.length}: ${fmt(split|0)}`;
+        elLapList.prepend(li);
+        vibrate(5);
+    });
+    btnStop?.addEventListener('click', ()=>{
+        if (!running) return;
+        cancelAnimationFrame(rafId);
+        elapsedMs += (performance.now() - startMs);
+        running = false; vibrate([10,40,10]); ui();
+    });
+    btnReset?.addEventListener('click', ()=>{
+        cancelAnimationFrame(rafId);
+        running=false; startMs=0; elapsedMs=0; laps=[];
+        elDisplay.textContent='00:00.000'; elLapList.innerHTML='';
+        ui();
+    });
+    btnSave?.addEventListener('click', ()=>{
+        const p = loadClockPreset() || {};
+        const date = p.date || ymd(new Date());
+        const header = (p.type==='ポイント')
+            ? `【ポイント結果】${p.subtype==='interval'?'インターバル':'ペース走'} ${p.distance?`${p.distance}m`:''}`
+            : '【計測結果】';
+        const lines = laps.map((t,i)=>`Lap ${i+1}: ${fmt(t|0)}`);
+        const text = `${header}\n${lines.join('\n')}`;
+        
+        addDiaryEntry({ date, text });
+    });
+
+    ui();
+    clockInitialized = true;
+}
+// ▲▲▲ 変更点 ▲▲▲
