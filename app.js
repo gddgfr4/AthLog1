@@ -23,6 +23,20 @@ function getMonthStr(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).pad
 function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
 function getWeekDates(d){ const s=startOfWeek(d); return [...Array(7).keys()].map(i=>addDays(s,i)); }
 
+function openLtimer() {
+  if (teamId && memberId) {
+    // URLエンコードして、特殊文字が問題を起こさないようにする
+    const encodedTeamId = encodeURIComponent(teamId);
+    const encodedMemberId = encodeURIComponent(memberId);
+    const ltimerUrl = `https://gddgfr4.github.io/Ltimer/?team=${encodedTeamId}&member=${encodedMemberId}`;
+    window.open(ltimerUrl, '_blank');
+  } else {
+    // ログイン情報がない場合は、パラメータなしで開く
+    window.open('https://gddgfr4.github.io/Ltimer/', '_blank');
+  }
+}
+
+
 async function sumWeekKm(d){
   const dates=getWeekDates(d);
   let s=0;
