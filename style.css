@@ -458,3 +458,18 @@ html,body{
   background: transparent;
 }
 
+/* ▼ 時計タブ時は上部共通UIを隠す */
+.mode-clock header,
+.mode-clock .global-nav { display: none !important; }
+
+/* ▼ Ltimer 風（最低限） */
+.ltimer { max-width: 720px; margin: 0 auto; display: grid; gap: 12px; }
+.ltimer-face { display:flex; justify-content:center; padding: 12px 0; }
+#clock-display { font-size: clamp(40px, 8vw, 80px); letter-spacing:.02em; font-variant-numeric: tabular-nums; }
+.ltimer-controls { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+.ltimer-controls button { padding:10px 16px; border-radius:12px; border:1px solid #333; background:#151517; color:#eee; cursor:pointer; }
+.ltimer-laps { background:#0e0e10; border:1px solid #222; border-radius:12px; padding:8px 12px; max-height:45vh; overflow:auto; }
+#lap-list { margin:0; padding-left: 20px; }
+#lap-list li { padding:6px 0; border-bottom:1px dashed #222; }
+#lap-list li:last-child { border-bottom:none; }
+
