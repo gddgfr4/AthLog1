@@ -825,11 +825,14 @@ async function renderPlans(){
         const targetEl=document.getElementById("pl_"+dayKey);
         if(!targetEl) return;
         targetEl.innerHTML = arr.length
-          ? arr.map(x=>`
-              <span style="display:inline-flex; align-items:center; gap:6px; margin:2px 8px 2px 0; cursor:pointer;" onclick="setClockPresetFromSchedule(JSON.parse(this.dataset.plan))" data-plan='${JSON.stringify(x)}'>
+          ? arr.map(x=> {
+              const planJson = JSON.stringify(x).replace(/"/g, '&quot;');
+              return `
+              <span style="display:inline-flex; align-items:center; gap:6px; margin:2px 8px 2px 0; cursor:pointer;" onclick="setClockPresetFromSchedule(JSON.parse(this.dataset.plan))" data-plan="${planJson}">
                 <span class="cat-tag ${classMap[x.type]||""}">${x.type}</span>
                 <span>${x.content}</span>
-              </span>`).join("")
+              </span>`;
+            }).join("")
           : "—";
       }, (err)=>{
         const targetEl=document.getElementById("pl_"+dayKey);
