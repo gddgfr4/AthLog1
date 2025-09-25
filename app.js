@@ -858,6 +858,7 @@ async function renderPlans(){
       });
 
     unsubs.push(unsub);
+    setClockPresetFromSchedule(formData);
   }
 
   renderChat();
@@ -2317,3 +2318,148 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
   }
 }
 
+// ===== 予定→時計プリセット（内容のみ） =====
+function setClockPresetFromSchedule(data){
+  const preset = {
+    type: data.sessionType,                    // 'point' 等
+    subtype: data.pointSubtype || null,        // 'pace' | 'interval'
+    distance: Number(data.pointDistance || 0) || null,
+    note: data.note || '',
+    date: data.date
+  };
+  localStorage.setItem('clockPreset', JSON.stringify(preset));
+}
+
+// ▼ 「ポイント」詳細の表示/非表示（初期化時に1回呼ぶ）
+(function initPointAdvancedToggle(){
+  const typeSel = document.getElementById('sessionType');
+  const adv = document.getElementById('point-advanced');
+  if (!typeSel || !adv) return;
+  const sync = ()=> adv.classList.toggle('hidden', typeSel.value !== 'point');
+  typeSel.addEventListener('change', sync);
+  sync();
+})();
+
+// ===== タブ切替に「時計」対応 =====
+function showTab(tab){
+  // 既存のタブ切替ロジックに以下2行を追加（clock入場/退場）
+  if (tab === 'clock') {
+    document.body.classList.add('mode-clock');
+    applyClockPreset(); // ← 下の関数
+  } else {
+    document.body.classList.remove('mode-clock');
+  }
+
+  // ・・・（既存の各ビューの表示/非表示処理はそのまま）
+}
+
+// ===== 時計プリセット表示 =====
+function loadClockPreset(){
+  const raw = localStorage.getItem('clockPreset');
+  if(!raw) return null;
+  try{ return JSON.parse(raw); }catch{ return null; }
+}
+function applyClockPreset(){
+  const p = loadClockPreset();
+  const meta = document.getElementById('clock-meta');
+  const title = document.getElementById('clock-title');
+  if(!meta || !title) return;
+  if(p && p.type === 'point'){
+    const typeJ = p.subtype==='interval'?'インターバル':'ペース走';
+    const d = p.distance ? `${p.distance}m` : '';
+    meta.textContent = [typeJ, d, p.date||''].filter(Boolean).join(' / ');
+    title.textContent = 'ポイント計測';
+  } else if(p){
+    meta.textContent = p.note || p.date || '';
+    title.textContent = '計測';
+  } else {
+    meta.textContent = 'プリセットなし';
+    title.textContent = '計測';
+  }
+}
+
+
+// ===== 時計（Ltimer風） =====
+(function initClock(){
+  const elDisplay = document.getElementById('clock-display');
+  const elLapList = document.getElementById('lap-list');
+  const btnStart  = document.getElementById('btn-start');
+  const btnLap    = document.getElementById('btn-lap');
+  const btnStop   = document.getElementById('btn-stop');
+  const btnReset  = document.getElementById('btn-reset');
+  const btnSave   = document.getElementById('btn-save');
+  if (!elDisplay) return; // 時計ビューがまだ無い場合は何もしない
+
+  let running=false, startMs=0, elapsedMs=0, rafId=null, laps=[];
+
+  const fmt = (ms)=>{
+    const m = Math.floor(ms/60000);
+    const s = Math.floor((ms%60000)/1000);
+    const ms3 = String(ms%1000).padStart(3,'0');
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${ms3}`;
+  };
+  const tick = ()=>{
+    const now = performance.now();
+    const total = elapsedMs + (now - startMs);
+    elDisplay.textContent = fmt(total|0);
+    rafId = requestAnimationFrame(tick);
+  };
+  const ui = ()=>{
+    btnStart.disabled = running;
+    btnLap.disabled   = !running;
+    btnStop.disabled  = !running;
+    btnReset.disabled = running || (!elapsedMs && !laps.length);
+    btnSave.disabled  = running || (!laps.length);
+  };
+  const vibrate = p=>{ try{ navigator.vibrate?.(p); }catch{} };
+
+  btnStart?.addEventListener('click', ()=>{
+    if (running) return;
+    running = true; startMs = performance.now();
+    vibrate(10); ui(); rafId = requestAnimationFrame(tick);
+  });
+  btnLap?.addEventListener('click', ()=>{
+    if (!running) return;
+    const now = performance.now();
+    const total = elapsedMs + (now - startMs);
+    const last = laps.reduce((a,b)=>a+b,0);
+    const split = total - last;
+    laps.push(split);
+    const li = document.createElement('li');
+    li.textContent = `Lap ${laps.length}: ${fmt(split|0)}`;
+    elLapList.prepend(li);
+    vibrate(5);
+  });
+  btnStop?.addEventListener('click', ()=>{
+    if (!running) return;
+    cancelAnimationFrame(rafId);
+    elapsedMs += (performance.now() - startMs);
+    running = false; vibrate([10,40,10]); ui();
+  });
+  btnReset?.addEventListener('click', ()=>{
+    cancelAnimationFrame(rafId);
+    running=false; startMs=0; elapsedMs=0; laps=[];
+    elDisplay.textContent='00:00.000'; elLapList.innerHTML='';
+    ui();
+  });
+  btnSave?.addEventListener('click', ()=>{
+    const p = loadClockPreset()||{};
+    const date = p.date || new Date().toISOString().slice(0,10);
+    const header = (p.type==='point')
+      ? `【ポイント結果】${p.subtype==='interval'?'インターバル':'ペース走'} ${p.distance?`${p.distance}m`:''}`
+      : '【計測結果】';
+    const lines = laps.map((t,i)=>`Lap ${i+1}: ${fmt(t|0)}`);
+    const text = `${header}\n${lines.join('\n')}`;
+    if (window.addDiaryEntry) {
+      window.addDiaryEntry({date, text});   // ← AthLog の日誌APIがあれば使用
+    } else {
+      const key = `diary:${date}`;          // ← 無ければローカル保存
+      const prev = localStorage.getItem(key) || '';
+      localStorage.setItem(key, prev ? `${prev}\n${text}` : text);
+    }
+    alert('結果を日誌に保存しました。');
+  });
+
+  // 初期状態
+  ui();
+})();
