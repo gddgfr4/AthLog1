@@ -358,13 +358,6 @@
 </script>
 
 <script>
-/* ===== 日誌ページ：日付ごとに1欄だけのコメントを自動保存（Firestore v8） =====
-   前提：上部で firebase-app.js / firebase-firestore.js(v8) を読込済み
-   仕様：
-   - キーは #datePicker の値(YYYY-MM-DD)。無ければ今日。
-   - /dayNotes/{dateKey} に { text, updatedAt } を保存（上書き）。
-   - 入力は800msデバウンスで自動保存。状態を #daynote-status に表示。
-*/
 (function(){
   try {
     if (!window.firebase || !firebase.firestore) return; // Firestore未読込なら何もしない
@@ -458,6 +451,7 @@
 
 </body>
 </html>
+
 
 
 
