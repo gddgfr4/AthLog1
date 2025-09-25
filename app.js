@@ -106,28 +106,6 @@ function refreshBadges(){
   }
 }
 
-// ===== Insight helpers =====
-async function getPeriodStats({ teamId, memberId, start, end }){
-  let distance=0, fatigueScore=0, condSum=0, condCount=0;
-  const tagCount={};
-  for(let d=new Date(start); d<=end; d=addDays(d,1)){
-    const snap=await getJournalRef(teamId, memberId, d).get();
-    if(!snap.exists) continue;
-    const j=snap.data()||{};
-    distance += Number(j.dist||0);
-    if(j.regions && typeof j.regions==='object'){
-      fatigueScore += Object.values(j.regions).reduce((a,v)=>a+(Number(v)||0),0);
-    }
-    if(Array.isArray(j.tags)) j.tags.forEach(t => { tagCount[t]=(tagCount[t]||0)+1; });
-    if(typeof j.condition === 'number'){ condSum+=j.condition; condCount++; }
-  }
-  const topTags = Object.entries(tagCount).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([t])=>t);
-  const avgCond = condCount ? (condSum/condCount) : null;
-  return { distance, fatigueScore, topTags, avgCond };
-}
-
-
-
 // ===== Team Memo paging state =====
 let memoPageSize=30, memoOldestDoc=null, memoLatestTs=0, memoLiveUnsub=null, memoLoadingOlder=false;
 const memoLastViewKey = () => `athlog:${teamId}:${memberId}:lastMemoView`;
@@ -248,21 +226,15 @@ function initTeamSwitcher(){
 // ▼▼▼ 変更点 ▼▼▼
 function switchTab(id, forceRender=false){
   if(!forceRender && $(".tab.active")?.dataset.tab===id) return;
+  // 'clock' はリンクになったので、タブ切り替えロジックから除外
+  if(id === 'clock') return;
+
   $$(".tab").forEach(btn=>btn.classList.toggle("active", btn.dataset.tab===id));
   $$(".tabpanel").forEach(p=>p.classList.toggle("active", p.id===id));
   if(unsubscribePlans) unsubscribePlans();
   if(unsubscribeMemo) unsubscribeMemo();
   if(unsubscribeMonthChat) unsubscribeMonthChat();
   if(unsubscribeJournal) unsubscribeJournal();
-  
-  // 時計タブ選択時の特殊処理
-  if(id === "clock"){
-    document.body.classList.add('mode-clock');
-    applyClockPreset(); // プリセット情報をUIに反映
-    initClock();        // 時計機能のイベントリスナーなどを初期化
-  } else {
-    document.body.classList.remove('mode-clock');
-  }
 
   if(id==="journal") renderJournal();
   if(id==="month") renderMonth();
@@ -279,7 +251,12 @@ $("#logoutBtn")?.addEventListener("click", ()=>{
   teamId=null; memberId=null; viewingMemberId=null;
   window.location.reload();
 });
-$$(".tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
+$$(".tab").forEach(b=>{
+  // 'clock' のaタグには data-tab がないので、このイベントリスナーは適用されない
+  if(b.dataset.tab) {
+    b.addEventListener("click",()=>switchTab(b.dataset.tab));
+  }
+});
 
 function renderRegions(regions={}){
   document.querySelectorAll('#bodyMap .region').forEach(el=>{
@@ -490,17 +467,6 @@ async function renderJournal(){
 
   $("#datePicker").value = ymd(selDate);
 
-  async function recent7Km(d){
-    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-    let s = 0;
-    for (let i = 6; i >= 0; i--) {
-      const dt  = addDays(d, -i);
-      const doc = await getJournalRef(srcTeam, viewingMemberId, dt).get();
-      if (doc.exists) s += Number(doc.data().dist || 0);
-    }
-    return s;
-  }
-
   await renderWeek();
 
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
@@ -550,19 +516,6 @@ async function renderWeek(){
     chips.appendChild(btn);
   }
 }
-
-async function rolling7Km(d){
-  const end=new Date(d); end.setHours(0,0,0,0);
-  const start=addDays(end,-6);
-  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-  let s=0;
-  for(let dt=new Date(start); dt<=end; dt=addDays(dt,1)){
-    const doc=await getJournalRef(srcTeam, viewingMemberId, dt).get();
-    if(doc.exists) s+=Number(doc.data().dist||0);
-  }
-  return s;
-}
-
 
 function renderQuickButtons(j){
   const currentTags=j?.tags||[];
@@ -825,14 +778,11 @@ async function renderPlans(){
         const targetEl=document.getElementById("pl_"+dayKey);
         if(!targetEl) return;
         targetEl.innerHTML = arr.length
-          ? arr.map(x=> {
-              const planJson = JSON.stringify(x).replace(/"/g, '&quot;');
-              return `
-              <span style="display:inline-flex; align-items:center; gap:6px; margin:2px 8px 2px 0; cursor:pointer;" onclick="setClockPresetFromSchedule(JSON.parse(this.dataset.plan))" data-plan="${planJson}">
+          ? arr.map(x=>`
+              <span style="display:inline-flex; align-items:center; gap:6px; margin:2px 8px 2px 0;">
                 <span class="cat-tag ${classMap[x.type]||""}">${x.type}</span>
                 <span>${x.content}</span>
-              </span>`;
-            }).join("")
+              </span>`).join("")
           : "—";
       }, (err)=>{
         const targetEl=document.getElementById("pl_"+dayKey);
@@ -863,7 +813,7 @@ function renderChat(){
 }
 let modalDiv=null;
 
-// ▼▼▼ 変更点 ▼▼▼
+// ▼▼▼ 変更点（元の正常な状態に戻す）▼▼▼
 function openPlanModal(dt){
   closePlanModal();
   const mon=getMonthStr(dt);
@@ -880,10 +830,6 @@ function openPlanModal(dt){
         <select id="pscope" class="form-control"><option value="self">${memberId}</option><option value="team">全員</option></select>
         <input id="ptags" placeholder="タグ(,区切り)" class="form-control" />
       </div>
-      <div id="p_advanced" class="hidden" style="display:flex;gap:6px;margin-bottom:6px">
-        <select id="p_subtype" class="form-control"><option value="pace">ペース走</option><option value="interval">インターバル</option></select>
-        <input id="p_dist" type="number" placeholder="距離(m)" class="form-control" />
-      </div>
       <textarea id="pcontent" rows="3" style="width:100%" class="form-control"></textarea>
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
         <button id="p_delete" class="ghost" style="color:red; display:none; margin-right:auto;">削除</button>
@@ -898,15 +844,10 @@ function openPlanModal(dt){
 
   const pActionBtn=$("#p_action",modalDiv), pDeleteBtn=$("#p_delete",modalDiv);
   const pType=$("#ptype",modalDiv), pScope=$("#pscope",modalDiv), pTags=$("#ptags",modalDiv), pContent=$("#pcontent",modalDiv);
-  const pAdvanced=$("#p_advanced",modalDiv), pSubtype=$("#p_subtype",modalDiv), pDist=$("#p_dist",modalDiv);
-
-  pType.onchange = () => { pAdvanced.classList.toggle('hidden', pType.value !== 'ポイント'); };
 
   const resetForm=()=>{
     editingId=null;
     pType.value="ジョグ"; pScope.value="self"; pTags.value=""; pContent.value="";
-    pSubtype.value="pace"; pDist.value="";
-    pAdvanced.classList.add('hidden');
     pActionBtn.textContent="追加"; pDeleteBtn.style.display="none";
     $$("#plist .row",modalDiv).forEach(r=>r.style.outline='none');
   };
@@ -917,13 +858,6 @@ function openPlanModal(dt){
       if(!item || item.mem!==memberId) return;
       editingId=id;
       pType.value=item.type; pScope.value=item.scope; pTags.value=(item.tags||[]).join(","); pContent.value=item.content;
-      if(item.type === 'ポイント'){
-        pAdvanced.classList.remove('hidden');
-        pSubtype.value = item.pointSubtype || 'pace';
-        pDist.value = item.pointDistance || '';
-      } else {
-        pAdvanced.classList.add('hidden');
-      }
       pActionBtn.textContent="更新"; pDeleteBtn.style.display="block";
       $$("#plist .row",modalDiv).forEach(r=>r.style.outline='none');
       targetRow.style.outline=`2px solid var(--primary)`;
@@ -944,10 +878,6 @@ function openPlanModal(dt){
       tags:(pTags.value||"").split(",").map(s=>s.trim()).filter(Boolean),
       month:mon, day:dayKey, team:teamId
     };
-    if (planData.type === 'ポイント') {
-        planData.pointSubtype = pSubtype.value;
-        planData.pointDistance = Number(pDist.value) || null;
-    }
     
     if(editingId){
       await getPlansCollectionRef(teamId).doc(dayKey).collection('events').doc(editingId).set(planData);
@@ -1033,21 +963,6 @@ const distOffset = { day: 0, week: 0, month: 0 };
 
 // ===== Dashboard =====
 function initDashboard(){
-  const toggleBtn=$("#distChartToggle");
-  const prevBtn=$("#distChartPrev");
-  const nextBtn=$("#distChartNext");
-  if(toggleBtn) toggleBtn.addEventListener('click',()=>{
-    dashboardMode = (dashboardMode==='month') ? 'week' : (dashboardMode==='week') ? 'day' : 'month';
-    dashboardOffset=0;
-    renderDashboard();
-  });
-  if(prevBtn) prevBtn.addEventListener('click',()=>{ dashboardOffset--; renderDashboard(); });
-  if(nextBtn) nextBtn.addEventListener('click',()=>{ dashboardOffset++; renderDashboard(); });
-
-  const condPrevBtn=$("#condChartPrev");
-  const condNextBtn=$("#condChartNext");
-  if(condPrevBtn) condPrevBtn.addEventListener('click',()=>{ conditionChartOffset-=7; renderConditionChart(); });
-  if(condNextBtn) condNextBtn.addEventListener('click',()=>{ conditionChartOffset+=7; renderConditionChart(); });
   document.getElementById('distDayPrev')  ?.addEventListener('click', ()=>{ distOffset.day--;   renderAllDistanceCharts(); });
   document.getElementById('distDayNext')  ?.addEventListener('click', ()=>{ distOffset.day++;   renderAllDistanceCharts(); });
 
@@ -1056,6 +971,11 @@ function initDashboard(){
 
   document.getElementById('distMonthPrev')?.addEventListener('click', ()=>{ distOffset.month--; renderAllDistanceCharts(); });
   document.getElementById('distMonthNext')?.addEventListener('click', ()=>{ distOffset.month++; renderAllDistanceCharts(); });
+  
+  const condPrevBtn=$("#condChartPrev");
+  const condNextBtn=$("#condChartNext");
+  if(condPrevBtn) condPrevBtn.addEventListener('click',()=>{ conditionChartOffset-=7; renderConditionChart(); });
+  if(condNextBtn) condNextBtn.addEventListener('click',()=>{ conditionChartOffset+=7; renderConditionChart(); });
 }
 function renderDashboard(){ renderAllDistanceCharts(); renderConditionChart(); }
 
@@ -1096,8 +1016,6 @@ async function renderAllDistanceCharts(){
   {
     const cvs=document.getElementById('distanceChartDay');
     if(cvs){
-      cvs.style.height = '180px';
-      cvs.height = 180;
       const ctx=cvs.getContext('2d');
       const labels=[], data=[];
       const windowLen=14;
@@ -1291,30 +1209,13 @@ document.addEventListener("DOMContentLoaded",()=>{
       </ul>
       <h2>2. 画面構成</h2>
       <ul>
-        <li><b>日誌</b>：日々の記録（週カレンダー、クイック分類、距離/内容/調子、AIコメント）</li>
+        <li><b>日誌</b>：日々の記録</li>
         <li><b>月一覧</b>：月の一覧／月目標／合計距離</li>
-        <li><b>予定表</b>：月の計画（自分/全員）。モーダルで追加・更新・削除</li>
-        <li><b>ダッシュボード</b>：距離（週/月）・調子（直近14日）</li>
-        <li><b>チームメモ</b>：LINE風。上スクロールで過去を追加読込</li>
-        <li><b>時計</b>：ポイント練習などで使うタイマー。予定から設定を読み込み、結果を日誌に自動保存できます。</li>
-      </ul>
-      <h2>3. 日誌の使い方</h2>
-      <ol>
-        <li>日付操作（← → 今日へ / ピッカー）</li>
-        <li>クイック分類（ジョグ/ポイント/補強/オフ/その他）※最大2つ。3つ目で古い方が外れる</li>
-        <li>距離・内容・感想、調子(1〜5) を入れる</li>
-      </ol>
-      <p>週カレンダーの色：ジョグ(水) / ポイント(橙) / 補強(緑) / オフ(灰) / その他(桃)。2つ選ぶと左右ツートン。</p>
-      <h3>画像メモ</h3>
-      <ul>
-        <li>人体画像にペン3段階でメモ</li>
-        <li>消しゴム＝<b>1タップで1領域消える</b></li>
-      </ul>
-      <h2>5. 予定表</h2>
-      <ul>
-        <li>日クリックで編集モーダル。種別/対象(自分or全員)/タグ/内容</li>
-        <li><b>ポイント練習</b>の場合、種別（ペース走/インターバル）と距離を設定できます。</li>
-        <li>作成した予定をクリックすると、<b>時計に設定がプリセット</b>され、すぐに計測を開始できます。</li>
+        <li><b>予定表</b>：月の計画（自分/全員）</li>
+        <li><b>グラフ</b>：距離・調子の可視化</li>
+        <li><b>メモ</b>：チーム共有のチャット</li>
+        <li><b>通知</b>：あなた宛の通知</li>
+        <li><b>時計</b>：別タブで高機能タイマー（Ltimer）を開きます</li>
       </ul>
     `;
   }
@@ -1325,7 +1226,6 @@ document.addEventListener("DOMContentLoaded",()=>{
   window.addEventListener("keydown",(e)=>{ if(e.key==="Escape") $("#helpOverlay")?.classList.add("hidden"); });
 });
 
-function renderDashboardInsight(){ /* optional */ }
 
 // ===== Muscle-map (overlay/barrier) =====
 const MM = {
@@ -1419,38 +1319,8 @@ function mmPixPos(canvas,e){
   };
 }
 
-function measureFillRegion(octx,wctx,sx,sy){
-  const w=octx.canvas.width, h=octx.canvas.height;
-  const o=octx.getImageData(0,0,w,h).data;
-  const b=wctx.getImageData(0,0,w,h).data;
-  const A_STOP=10;
-  const stack=[(sy<<16)|sx];
-  const seen=new Uint8Array(w*h);
-  const within=(x,y)=>x>=0&&y>=0&&x<w&&y<h;
-  const idx=(x,y)=>((y*w+x)<<2);
-  let cnt=0;
-  while(stack.length){
-    const p=stack.pop();
-    const x=p & 0xffff, y=p>>>16;
-    if(!within(x,y)) continue;
-    const si=y*w+x;
-    if(seen[si]) continue; seen[si]=1;
-    const i=idx(x,y);
-    if(b[i+3]>A_STOP) continue;
-    if(o[i+3]>A_STOP) continue;
-    cnt++;
-    stack.push((y<<16)|(x-1),(y<<16)|(x+1),((y-1)<<16)|x,((y+1)<<16)|x);
-  }
-  return cnt;
-}
-
 function floodFill(octx,wctx,sx,sy,tol,rgba){
   const w=octx.canvas.width, h=octx.canvas.height;
-  const maxArea = Math.floor(w*h*MM.MAX_REGION_FRAC);
-  const tryArea = measureFillRegion(octx,wctx,sx,sy);
-  if (tryArea < MM.MIN_REGION_PX) return;
-  if (tryArea > maxArea)         return;
-
   const o=octx.getImageData(0,0,w,h); const od=o.data;
   const b=wctx.getImageData(0,0,w,h); const bd=b.data;
   const A_STOP=10;
@@ -1506,15 +1376,6 @@ function floodErase(octx,wctx,sx,sy){
   octx.putImageData(o,0,0);
 }
 
-function drawDataURL(ctx,url){
-  return new Promise(res=>{
-    if(!url) return res();
-    const im=new Image();
-    im.onload=()=>{ ctx.drawImage(im,0,0); res(); };
-    im.src=url;
-  });
-}
-
 function drawMuscleFromDoc(j){
   if(!mm.octx || !mm.wctx) return;
   mm.octx.clearRect(0,0,mm.octx.canvas.width, mm.octx.canvas.height);
@@ -1527,35 +1388,8 @@ function drawMuscleFromDoc(j){
 async function saveMuscleLayerToDoc(){
   const docRef=getJournalRef(teamId,memberId,selDate);
   const overlayWebp = mm?.octx ? mm.octx.canvas.toDataURL('image/webp',0.65) : null;
-  const stats       = analyzeOverlay(mm.octx);
-  const payload     = { mmOverlayWebp: overlayWebp, mmStats: stats };
-  try{
-    if(firebase?.firestore?.FieldValue?.delete){
-      payload.mmBarrierPng = firebase.firestore.FieldValue.delete();
-    }
-  }catch(_){}
+  const payload     = { mmOverlayWebp: overlayWebp };
   await docRef.set(payload,{merge:true});
-}
-
-function analyzeOverlay(octx){
-  if(!octx) return {lv1:0,lv2:0,lv3:0,total:0};
-  const w=octx.canvas.width, h=octx.canvas.height;
-  const im=octx.getImageData(0,0,w,h).data;
-  const C=[MM.LEVELS[1],MM.LEVELS[2],MM.LEVELS[3]];
-  const S=[0,0,0];
-  for(let y=0;y<h;y+=2){
-    for(let x=0;x<w;x+=2){
-      const i=(y*w+x)*4, a=im[i+3];
-      if(a<10) continue;
-      let best=-1, dist=1e9;
-      for(let k=0;k<3;k++){
-        const c=C[k]; const d=(im[i]-c[0])**2+(im[i+1]-c[1])**2+(im[i+2]-c[2])**2;
-        if(d<dist){ dist=d; best=k; }
-      }
-      if(best>=0) S[best]++;
-    }
-  }
-  return { lv1:S[0], lv2:S[1], lv3:S[2], total:S[0]+S[1]+S[2] };
 }
 
 function initMuscleMap(){
@@ -1570,17 +1404,14 @@ function initMuscleMap(){
 
   tryLoadImageSequential(MM.IMG_CANDIDATES).then(img=>{
     const fullW=img.naturalWidth, fullH=img.naturalHeight;
-    const halfW=Math.floor(fullW/2);
-    const crop = (MM.VIEW==='front') ? {sx:0,     sy:0, sw:halfW, sh:fullH}
-               : (MM.VIEW==='back')  ? {sx:halfW, sy:0, sw:halfW, sh:fullH}
-               :                       {sx:0,     sy:0, sw:fullW, sh:fullH};
+    const crop = {sx:0, sy:0, sw:fullW, sh:fullH};
 
     [mm.base, mm.overlay, mm.barrier].forEach(c=>{ c.width=crop.sw; c.height=crop.sh; });
 
     mm.bctx.clearRect(0,0,crop.sw,crop.sh);
     mm.bctx.drawImage(img, crop.sx,crop.sy,crop.sw,crop.sh, 0,0,crop.sw,crop.sh);
 
-    const wrap = document.getElementById('mmWrap') || document.querySelector('.canvas-wrap');
+    const wrap = document.getElementById('mmWrap');
     if(wrap) wrap.style.aspectRatio = `${crop.sw} / ${crop.sh}`;
 
     makeBarrierFromBase();
@@ -1589,68 +1420,21 @@ function initMuscleMap(){
     drawMuscleFromDoc(lastJournal);
   }).catch(err=>{
     console.error(err);
-    mm.bctx.fillStyle='#f1f5f9';
-    mm.bctx.fillRect(0,0,mm.base.width, mm.base.height);
   });
 
-  const activePointers = new Set();
   const ov = mm.overlay;
-
-  ov.style.touchAction = 'pan-x pan-y pinch-zoom';
-
-  function setOverlayTouchAction(mode){
-    ov.style.touchAction = mode;
-  }
-
-  function onPointerDown(e){
-    ov.setPointerCapture?.(e.pointerId);
-    activePointers.add(e.pointerId);
-
-    if(e.pointerType==='touch' && activePointers.size>=2){
-      setOverlayTouchAction('pan-x pan-y pinch-zoom');
-      return;
-    }
-
-    setOverlayTouchAction('none');
+  ov.addEventListener('pointerdown', (e) => {
     if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
-
     const p=mmPixPos(ov,e);
     if (barrierAlphaAt(p.x,p.y) > 10) return;
-
     if(brush.erase){
       floodErase(mm.octx, mm.wctx, p.x, p.y);
     }else{
       floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]);
     }
     saveMuscleLayerToDoc();
-  }
-  function onPointerEnd(e){
-    ov.releasePointerCapture?.(e.pointerId);
-    activePointers.delete(e.pointerId);
-    if(activePointers.size===0){
-      setOverlayTouchAction('pan-x pan-y pinch-zoom');
-    }
-  }
-
-  ov.addEventListener('pointerdown',   onPointerDown,      { passive:true });
-  ov.addEventListener('pointerup',     onPointerEnd,       { passive:true });
-  ov.addEventListener('pointercancel', onPointerEnd,       { passive:true });
-  ov.addEventListener('pointerleave',  onPointerEnd,       { passive:true });
-
-  window.addEventListener('resize', ()=> drawMuscleFromDoc(lastJournal));
+  }, { passive:true });
 }
-
-(function addLoginNoteOnce(){
-  var startBtn = document.getElementById('loginBtn');
-  if (!startBtn) return;
-  if (document.querySelector('.login-note')) return;
-  var p = document.createElement('p');
-  p.className = 'login-note';
-  p.innerHTML =
-    '※ 次回以降は自動ログインとなります。<br>' +
-    '※ チーム名と名前は<strong>完全一致</strong>が必要です（スペースや全角・半角にご注意ください）。';
-  startBtn.insertAdjacentElement('afterend', p);
-})();
 
 // ===== チームコメント =====
 let tscDirty = false, tscTimer = null;
@@ -1664,9 +1448,7 @@ async function tscLoad(){
     const text = (snap.data() || {}).teamComment || '';
     const ta = document.getElementById('teamSharedComment');
     if(ta && !tscDirty) ta.value = text;
-  }catch(e){
-    console.error('tscLoad', e);
-  }
+  }catch(e){ console.error('tscLoad', e); }
 }
 
 async function tscSave(){
@@ -1701,17 +1483,12 @@ function tscInitOnce(){
   if(!ta) return;
   ta.removeAttribute('disabled');
   ta.addEventListener('input', tscScheduleSave);
-  const nm = document.getElementById('tscTargetName');
-  if(nm) nm.textContent = viewingMemberId || '';
 }
 
 async function tscRefresh(){
-  const nm = document.getElementById('tscTargetName');
-  if(nm) nm.textContent = viewingMemberId || '';
   tscDirty = false;
   await tscLoad();
 }
-
 
 async function safeDayDist(srcTeam, member, day){
   try{
@@ -1758,7 +1535,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 
 // ===== Global Tab Swipe =====
-const TAB_ORDER = ['journal','month','plans','dashboard','memo','notify','clock'];
+const TAB_ORDER = ['journal','month','plans','dashboard','memo','notify'];
 
 function getActiveTabIndex(){
   const id = document.querySelector('.tab.active')?.dataset.tab;
@@ -1790,13 +1567,11 @@ function initGlobalTabSwipe(){
 
   function bindArea(el){
     if (!el) return;
-
     el.addEventListener('touchstart', (e)=>{
       if (e.touches.length !== 1) return;
       const t = e.touches[0];
       SW = {active:true, fromEdge:false, x0:t.clientX, y0:t.clientY, moved:false};
     }, {passive:true});
-
     el.addEventListener('touchmove', (e)=>{
       if (!SW.active || e.touches.length !== 1) return;
       const t = e.touches[0];
@@ -1807,7 +1582,6 @@ function initGlobalTabSwipe(){
         SW.moved = true;
       }
     }, {passive:false});
-
     el.addEventListener('touchend', (e)=>{
       if (!SW.active) return;
       SW.active = false;
@@ -1819,7 +1593,6 @@ function initGlobalTabSwipe(){
         goTabDelta(dx < 0 ? +1 : -1);
       }
     }, {passive:true});
-
     el.addEventListener('wheel', (e)=>{
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 20){
         e.preventDefault();
@@ -1841,7 +1614,6 @@ function initGlobalTabSwipe(){
       SW.active = false;
     }
   }, {passive:true});
-
   document.addEventListener('touchmove', (e)=>{
     if (!SW.active || !SW.fromEdge || e.touches.length !== 1) return;
     const t = e.touches[0];
@@ -1852,7 +1624,6 @@ function initGlobalTabSwipe(){
       SW.moved = true;
     }
   }, {passive:false});
-
   document.addEventListener('touchend', (e)=>{
     if (!SW.active || !SW.fromEdge) return;
     SW.active = false;
@@ -1961,148 +1732,3 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
     console.error('createDayCommentNotifications error', e);
   }
 }
-
-// ▼▼▼ 変更点 ▼▼▼
-// ===== 時計プリセット ⇔ 予定連携 =====
-function setClockPresetFromSchedule(planData){
-  const preset = {
-    type: planData.type,
-    subtype: planData.pointSubtype || null,
-    distance: planData.pointDistance || null,
-    note: planData.content || '',
-    date: planData.day
-  };
-  localStorage.setItem('clockPreset', JSON.stringify(preset));
-  alert(`${planData.day}の「${planData.content}」を時計にセットしました。`);
-  switchTab('clock');
-}
-
-function loadClockPreset(){
-  const raw = localStorage.getItem('clockPreset');
-  if(!raw) return null;
-  try{ return JSON.parse(raw); }catch{ return null; }
-}
-
-function applyClockPreset(){
-  const p = loadClockPreset();
-  const meta = document.getElementById('clock-meta');
-  const title = document.getElementById('clock-title');
-  if(!meta || !title) return;
-  if(p && p.type === 'ポイント'){
-    const typeJ = p.subtype === 'interval' ? 'インターバル' : 'ペース走';
-    const d = p.distance ? `${p.distance}m` : '';
-    meta.textContent = [typeJ, d, p.date||''].filter(Boolean).join(' / ');
-    title.textContent = 'ポイント計測';
-  } else if(p){
-    meta.textContent = p.note || p.date || '';
-    title.textContent = '計測';
-  } else {
-    meta.textContent = 'プリセットなし';
-    title.textContent = '計測';
-  }
-}
-
-async function addDiaryEntry({ date, text }) {
-    if (!teamId || !memberId) {
-        alert("ログイン情報が見つかりません。");
-        return;
-    }
-    const docRef = getJournalRef(teamId, memberId, parseDateInput(date));
-    try {
-        await db.runTransaction(async (tx) => {
-            const doc = await tx.get(docRef);
-            const currentFeel = doc.data()?.feel || '';
-            const newFeel = currentFeel ? `${currentFeel}\n\n${text}` : text;
-            tx.set(docRef, { feel: newFeel }, { merge: true });
-        });
-        alert(`${date} の日誌に結果を保存しました。`);
-    } catch (e) {
-        console.error("日誌への書き込みに失敗:", e);
-        alert("日誌への結果の保存に失敗しました。");
-    }
-}
-
-
-// ===== 時計（Ltimer風）機能 =====
-let clockInitialized = false;
-function initClock(){
-    if (clockInitialized) return;
-
-    const elDisplay = document.getElementById('clock-display');
-    const elLapList = document.getElementById('lap-list');
-    const btnStart  = document.getElementById('btn-start');
-    const btnLap    = document.getElementById('btn-lap');
-    const btnStop   = document.getElementById('btn-stop');
-    const btnReset  = document.getElementById('btn-reset');
-    const btnSave   = document.getElementById('btn-save');
-    if (!elDisplay) return;
-
-    let running=false, startMs=0, elapsedMs=0, rafId=null, laps=[];
-
-    const fmt = (ms)=>{
-        const m = Math.floor(ms/60000);
-        const s = Math.floor((ms%60000)/1000);
-        const ms3 = String(ms%1000).padStart(3,'0');
-        return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${ms3}`;
-    };
-    const tick = ()=>{
-        if (!running) return;
-        const now = performance.now();
-        const total = elapsedMs + (now - startMs);
-        elDisplay.textContent = fmt(total|0);
-        rafId = requestAnimationFrame(tick);
-    };
-    const ui = ()=>{
-        btnStart.disabled = running;
-        btnLap.disabled   = !running;
-        btnStop.disabled  = !running;
-        btnReset.disabled = running || (!elapsedMs && !laps.length);
-        btnSave.disabled  = running || (!laps.length);
-    };
-    const vibrate = p => { try{ navigator.vibrate?.(p); }catch{} };
-
-    btnStart?.addEventListener('click', ()=>{
-        if (running) return;
-        running = true; startMs = performance.now();
-        vibrate(10); ui(); rafId = requestAnimationFrame(tick);
-    });
-    btnLap?.addEventListener('click', ()=>{
-        if (!running) return;
-        const now = performance.now();
-        const total = elapsedMs + (now - startMs);
-        const last = laps.reduce((a,b)=>a+b,0);
-        const split = total - last;
-        laps.push(split);
-        const li = document.createElement('li');
-        li.textContent = `Lap ${laps.length}: ${fmt(split|0)}`;
-        elLapList.prepend(li);
-        vibrate(5);
-    });
-    btnStop?.addEventListener('click', ()=>{
-        if (!running) return;
-        cancelAnimationFrame(rafId);
-        elapsedMs += (performance.now() - startMs);
-        running = false; vibrate([10,40,10]); ui();
-    });
-    btnReset?.addEventListener('click', ()=>{
-        cancelAnimationFrame(rafId);
-        running=false; startMs=0; elapsedMs=0; laps=[];
-        elDisplay.textContent='00:00.000'; elLapList.innerHTML='';
-        ui();
-    });
-    btnSave?.addEventListener('click', ()=>{
-        const p = loadClockPreset() || {};
-        const date = p.date || ymd(new Date());
-        const header = (p.type==='ポイント')
-            ? `【ポイント結果】${p.subtype==='interval'?'インターバル':'ペース走'} ${p.distance?`${p.distance}m`:''}`
-            : '【計測結果】';
-        const lines = laps.map((t,i)=>`Lap ${i+1}: ${fmt(t|0)}`);
-        const text = `${header}\n${lines.join('\n')}`;
-        
-        addDiaryEntry({ date, text });
-    });
-
-    ui();
-    clockInitialized = true;
-}
-// ▲▲▲ 変更点 ▲▲▲
