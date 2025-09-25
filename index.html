@@ -51,7 +51,8 @@
       <button data-tab="dashboard" class="tab">グラフ</button>
       <button data-tab="memo" class="tab">メモ</button>
       <button data-tab="notify" class="tab">通知</button>
-      <button class="tab-btn" data-tab="clock">時計</button>
+      <!-- 追加: 時計タブ -->
+      <button class="tab" data-tab="clock">時計</button>
     </nav>
     <!-- 画面上部 共通スワイプバー（透明） -->
     <div id="globalSwipeBar" aria-hidden="true"></div>
@@ -181,6 +182,17 @@
         </div>
       </div>
 
+      <!-- ▼ 追加: 予定入力のポイント詳細（ポイント時のみ使用） -->
+      <div class="panel" id="planAdvanced" style="display:none; gap:8px; align-items:center;">
+        <label>ポイント種別</label>
+        <select id="pointSubtype">
+          <option value="pace">ペース走</option>
+          <option value="interval">インターバル</option>
+        </select>
+        <label>距離(m)</label>
+        <input id="pointDistance" type="number" min="50" step="50" placeholder="1000" />
+      </div>
+
       <div class="chatwrap" style="margin-bottom:12px;">
         <button id="toggleChat" class="ghost">月コメント</button>
         <div id="chatBox" class="chat hidden">
@@ -265,6 +277,29 @@
         </div>
       </div>
     </section>
+
+    <!-- ===== CLOCK (Ltimer風) ===== -->
+    <section id="clock" class="tabpanel" style="display:none;">
+      <div class="ltimer">
+        <div class="ltimer-header">
+          <h2 id="clock-title">計測</h2>
+          <div id="clock-meta" class="muted">プリセットなし</div>
+        </div>
+        <div class="ltimer-face">
+          <div id="clock-display">00:00.000</div>
+        </div>
+        <div class="ltimer-controls">
+          <button id="btn-start">Start</button>
+          <button id="btn-lap" disabled>Lap</button>
+          <button id="btn-stop" disabled>Stop</button>
+          <button id="btn-reset" disabled>Reset</button>
+          <button id="btn-save" disabled>結果を日誌へ</button>
+        </div>
+        <div class="ltimer-laps">
+          <ol id="lap-list"></ol>
+        </div>
+      </div>
+    </section>
   </div>
 
   <!-- LOGIN -->
@@ -319,27 +354,37 @@
     </div>
   </noscript>
  
-<!-- ▼▼ 最終版：ログイン注意＆日誌コメント（1欄/自動保存） ▼▼ -->
+<!-- ▼▼ 追加: 時計用スタイル（最小限）＋ ログイン注意＆日誌コメントの既存スタイル ▼▼ -->
 <style>
   /* ログイン注意文 */
   .login-note{font-size:12px;color:#6b7280;margin-top:8px;line-height:1.6}
 
   /* 日ごとのコメント欄（AIコメントの直後に置く） */
-  .comment-box {
-    margin-top: 12px; padding: 10px;
-    border: 1px solid #e5e7eb; border-radius: 6px; background: #fafafa;
-  }
-  #daynote-text {
-    width: 100%; padding: 8px;
-    border: 1px solid #e5e7eb; border-radius: 6px; resize: vertical;
-  }
+  .comment-box { margin-top: 12px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fafafa; }
+  #daynote-text { width: 100%; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; resize: vertical; }
+
+  /* 時計タブ時は上部共通UIを隠す */
+  .mode-clock .topbar,
+  .mode-clock .tabs,
+  .mode-clock #globalSwipeBar{ display:none !important; }
+
+  /* Ltimer 風（最小） */
+  .ltimer { max-width: 720px; margin: 12px auto; display: grid; gap: 12px; padding: 0 12px; }
+  .ltimer-face { display:flex; justify-content:center; padding: 12px 0; }
+  #clock-display { font-size: clamp(40px, 8vw, 80px); letter-spacing:.02em; font-variant-numeric: tabular-nums; }
+  .ltimer-controls { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .ltimer-controls button { padding:10px 16px; border-radius:12px; border:1px solid #333; background:#151517; color:#eee; cursor:pointer; }
+  .ltimer-laps { background:#0e0e10; border:1px solid #222; border-radius:12px; padding:8px 12px; max-height:45vh; overflow:auto; }
+  #lap-list { margin:0; padding-left: 20px; }
+  #lap-list li { padding:6px 0; border-bottom:1px dashed #222; }
+  #lap-list li:last-child { border-bottom:none; }
 </style>
 
 <script>
 /* ===== ログイン画面の注意書きを追加（IDは実体に合わせて loginBtn） ===== */
 (function(){
   function addLoginNote(){
-    const startBtn = document.getElementById('loginBtn'); // ← あなたのログインボタンID
+    const startBtn = document.getElementById('loginBtn');
     if(!startBtn) return;
     if (document.querySelector('.login-note')) return; // 重複防止
     const note = document.createElement('p');
@@ -353,6 +398,102 @@
     document.addEventListener('DOMContentLoaded', addLoginNote);
   } else {
     addLoginNote();
+  }
+})();
+</script>
+
+<script>
+/* ===== 予定: ポイント詳細（ポイント選択時だけ表示するためのフック。既存UI側から使う） ===== */
+(function(){
+  // もし既存の予定入力UIが select#planType を使っている場合の例。無ければスキップ。
+  const typeSel = document.getElementById('planType') || document.getElementById('sessionType');
+  const adv = document.getElementById('planAdvanced');
+  if (!adv) return;
+  function sync(){ adv.style.display = (typeSel && typeSel.value === 'point') ? 'flex' : 'none'; }
+  if (typeSel) { typeSel.addEventListener('change', sync); sync(); }
+})();
+</script>
+
+<script>
+/* ===== 時計タブ入場時のUI調整 + プリセット表示（最小版） ===== */
+(function(){
+  const tabs = document.querySelectorAll('.tabs .tab');
+  const clockTab = Array.from(tabs).find(b=>b.dataset.tab==='clock');
+  const sections = {
+    journal: document.getElementById('journal'),
+    month: document.getElementById('month'),
+    plans: document.getElementById('plans'),
+    dashboard: document.getElementById('dashboard'),
+    memo: document.getElementById('memo'),
+    notify: document.getElementById('notify'),
+    clock: document.getElementById('clock')
+  };
+  function show(name){
+    Object.entries(sections).forEach(([k,el])=>{ if(el) el.style.display = (k===name)?'block':'none'; });
+    if (name==='clock') { document.body.classList.add('mode-clock'); applyClockPreset(); initClockOnce(); }
+    else { document.body.classList.remove('mode-clock'); }
+  }
+  // 既存のタブ制御がある場合はそれを尊重。ここはフォールバックとしてだけ機能。
+  if (clockTab) {
+    clockTab.addEventListener('click', ()=>show('clock'));
+  }
+
+  function loadClockPreset(){
+    try { return JSON.parse(localStorage.getItem('clockPreset')||'null'); } catch { return null; }
+  }
+  function applyClockPreset(){
+    const p = loadClockPreset();
+    const meta = document.getElementById('clock-meta');
+    const title = document.getElementById('clock-title');
+    if (!meta || !title) return;
+    if (p && p.type==='point'){
+      const typeJ = p.subtype==='interval'?'インターバル':'ペース走';
+      const d = p.distance ? `${p.distance}m` : '';
+      meta.textContent = [typeJ, d, p.date||''].filter(Boolean).join(' / ');
+      title.textContent = 'ポイント計測';
+    } else if (p){
+      meta.textContent = p.note || p.date || 'プリセットあり';
+      title.textContent = '計測';
+    } else {
+      meta.textContent = 'プリセットなし';
+      title.textContent = '計測';
+    }
+  }
+
+  let inited=false;
+  function initClockOnce(){ if(inited) return; inited=true; initClock(); }
+
+  function initClock(){
+    const elDisplay = document.getElementById('clock-display');
+    const elLapList = document.getElementById('lap-list');
+    const btnStart  = document.getElementById('btn-start');
+    const btnLap    = document.getElementById('btn-lap');
+    const btnStop   = document.getElementById('btn-stop');
+    const btnReset  = document.getElementById('btn-reset');
+    const btnSave   = document.getElementById('btn-save');
+    if (!elDisplay) return;
+
+    let running=false, startMs=0, elapsedMs=0, rafId=null, laps=[];
+    const fmt = (ms)=>{ const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=String(ms%1000).padStart(3,'0'); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${ms3}`; };
+    const tick=()=>{ const now=performance.now(); const total=elapsedMs+(now-startMs); elDisplay.textContent=fmt(total|0); rafId=requestAnimationFrame(tick); };
+    const ui=()=>{ btnStart.disabled=running; btnLap.disabled=!running; btnStop.disabled=!running; btnReset.disabled=running||(!elapsedMs&&!laps.length); btnSave.disabled=running||(!laps.length); };
+    const vibrate = (p)=>{ try{ navigator.vibrate?.(p); }catch{} };
+
+    btnStart?.addEventListener('click', ()=>{ if(running) return; running=true; startMs=performance.now(); vibrate(10); ui(); rafId=requestAnimationFrame(tick); });
+    btnLap?.addEventListener('click', ()=>{ if(!running) return; const now=performance.now(); const total=elapsedMs+(now-startMs); const last=laps.reduce((a,b)=>a+b,0); const split=total-last; laps.push(split); const li=document.createElement('li'); li.textContent=`Lap ${laps.length}: ${fmt(split|0)}`; elLapList.prepend(li); vibrate(5); });
+    btnStop?.addEventListener('click', ()=>{ if(!running) return; cancelAnimationFrame(rafId); elapsedMs += (performance.now()-startMs); running=false; vibrate([10,40,10]); ui(); });
+    btnReset?.addEventListener('click', ()=>{ cancelAnimationFrame(rafId); running=false; startMs=0; elapsedMs=0; laps=[]; elDisplay.textContent='00:00.000'; elLapList.innerHTML=''; ui(); });
+    btnSave?.addEventListener('click', ()=>{
+      const p = (function(){ try{ return JSON.parse(localStorage.getItem('clockPreset')||'null'); }catch{return null;} })() || {};
+      const date = p.date || new Date().toISOString().slice(0,10);
+      const header = (p.type==='point') ? `【ポイント結果】${p.subtype==='interval'?'インターバル':'ペース走'} ${p.distance?`${p.distance}m`:''}` : '【計測結果】';
+      const text = `${header}\n${laps.map((t,i)=>`Lap ${i+1}: ${fmt(t|0)}`).join('\n')}`;
+      if (window.addDiaryEntry) { window.addDiaryEntry({date, text}); }
+      else { const key=`diary:${date}`; const prev=localStorage.getItem(key)||''; localStorage.setItem(key, prev?`${prev}\n${text}`:text); }
+      alert('結果を日誌に保存しました。');
+    });
+
+    ui();
   }
 })();
 </script>
@@ -451,23 +592,3 @@
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
