@@ -1,14 +1,12 @@
 // functions/index.js
 
-// ▼▼▼ 冒頭で一度だけ初期化するように修正 ▼▼▼
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 admin.initializeApp();
-// ▲▲▲ ここまで ▲▲▲
 
 const ALLOWED_ORIGINS = [
   'https://gddgfr4.github.io', // 本番
-  'http://localhost:5173',     // 開発用（不要なら削除）
+  'http://localhost:5173',     // 開発用
   'http://127.0.0.1:5500'
 ];
 
@@ -21,8 +19,8 @@ function setCors(res, origin) {
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
+// (geminiComment関数は変更ありません)
 exports.geminiComment = async (req, res) => {
-  // (geminiCommentの中身は変更なし)
   setCors(res, req.headers.origin || '');
   if (req.method === 'OPTIONS') return res.status(204).send('');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
@@ -36,47 +34,40 @@ exports.geminiComment = async (req, res) => {
   }
 };
 
+// ▼▼▼ この関数を修正 ▼▼▼
 exports.createCommentNotification = functions.firestore
   .document('teams/{teamId}/members/{memberId}/journal/{journalId}')
   .onUpdate(async (change, context) => {
     const before = change.before.data();
     const after = change.after.data();
 
+    // コメントが更新された場合のみ実行
     if (before.teamComment !== after.teamComment && after.teamComment) {
-      const { teamId, journalId } = context.params;
+      const { teamId, memberId, journalId } = context.params;
       const commenterId = after.lastCommentBy;
 
-      if (!commenterId) {
-        console.log('Commenter ID not found. Skipping notification.');
+      // コメント投稿者IDがない、または自分で自分の日誌にコメントした場合は通知しない
+      if (!commenterId || commenterId === memberId) {
+        console.log(`Skipping notification for journal ${journalId} (self-comment or no commenter ID).`);
         return null;
       }
 
+      // 日誌の持ち主(memberId)にだけ通知を作成する
       const db = admin.firestore();
-      const membersSnap = await db.collection('teams').doc(teamId).collection('members').get();
+      const notificationRef = db.collection('teams').doc(teamId).collection('notifications').doc();
       
-      const batch = db.batch();
-      const ts = Date.now();
-
-      membersSnap.docs.forEach(memberDoc => {
-        const toMemberId = memberDoc.id;
-        
-        // ▼▼▼ if文を削除し、全員に通知を作成するように修正 ▼▼▼
-        const notificationRef = db.collection('teams').doc(teamId).collection('notifications').doc();
-        batch.set(notificationRef, {
-          type: 'dayComment',
-          team: teamId,
-          day: journalId,
-          text: after.teamComment,
-          from: commenterId,
-          to: toMemberId,
-          ts: ts,
-          read: false
-        });
-        // ▲▲▲ ここまで ▲▲▲
+      console.log(`Creating notification for ${memberId} about a comment on ${journalId} by ${commenterId}.`);
+      
+      return notificationRef.set({
+        type: 'dayComment',
+        team: teamId,
+        day: journalId,
+        text: after.teamComment,
+        from: commenterId,
+        to: memberId, // 通知の宛先は日誌の持ち主
+        ts: Date.now(),
+        read: false
       });
-      
-      console.log(`Creating notifications for comment on ${journalId} by ${commenterId}`);
-      return batch.commit();
     }
     return null;
   });
