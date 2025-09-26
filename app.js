@@ -1500,12 +1500,12 @@ async function tscSave(){
     if(!ta) return;
     const text = ta.value;
     const ref  = getJournalRef(teamId, viewingMemberId, selDate);
-    await ref.set({ teamComment: text }, { merge:true });
+    // lastCommentBy フィールドに現在のユーザーIDを追加
+    await ref.set({ teamComment: text, lastCommentBy: memberId }, { merge:true });
     tscDirty = false;
     tscSetStatus('保存済み');
-    await createDayCommentNotifications({
-      teamId, from: memberId, day: ymd(selDate), text
-    });
+    // クライアントサイドでの通知作成処理は不要になるので削除
+    // await createDayCommentNotifications(...) // ← この行を削除
   }catch(e){
     console.error('tscSave', e);
     tscSetStatus('保存失敗（自動再試行）');
