@@ -400,7 +400,7 @@ html,body{
 
 /* 月一覧の縦色ラベル */
 .typebar {
-  width: 8px;               /* 縦棒の太さ */
+  width: 8px !important;               /* 縦棒の太さ */
   align-self: stretch;      /* 行の高さに合わせて伸びる */
   border-radius: 3px;
   background: #e5e7eb;      /* デフォルト（無色時の薄グレー） */
@@ -498,3 +498,4 @@ html,body{
 #startup-video-container {
   transition: opacity 0.5s ease-in-out;
 }
+
