@@ -1,6 +1,62 @@
+handleStartupVideo();
+
 // ===== Firebase Initialization =====
 if (!firebase.apps || !firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
+}
+
+let appReadyResolve;
+const appReadyPromise = new Promise(resolve => { appReadyResolve = resolve; });
+
+function getInitialDataAndListen(ref, callback) {
+  return new Promise((resolve, reject) => {
+    let isFirstCall = true;
+    const unsubscribe = ref.onSnapshot(doc => {
+      callback(doc);
+      if (isFirstCall) {
+        isFirstCall = false;
+        resolve(unsubscribe);
+      }
+    }, reject);
+  });
+}
+
+async function handleStartupVideo() {
+  const container = document.getElementById('startup-video-container');
+  const video = document.getElementById('startup-video');
+  
+  if (!container || !video) {
+    appReadyResolve();
+    return;
+  }
+
+  video.playbackRate = 2.0;
+
+  const hideVideo = () => {
+    container.style.opacity = '0';
+    setTimeout(() => {
+      container.style.display = 'none';
+    }, 500); // style.css の transition 時間と合わせる
+  };
+
+  const videoEndedPromise = new Promise(resolve => {
+    video.addEventListener('ended', resolve);
+  });
+
+  video.play().catch(error => {
+    console.warn("Startup video autoplay was blocked.", error);
+    hideVideo();
+  });
+
+  try {
+    await Promise.all([appReadyPromise, videoEndedPromise]);
+  } catch (e) {
+    console.error("Error during startup sync:", e);
+  } finally {
+    if (container.style.display !== 'none') {
+        hideVideo();
+    }
+  }
 }
 const db = firebase.firestore();
 
@@ -191,7 +247,7 @@ async function showApp(){
   selDate=new Date();
   const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
   refreshBadges();
-  switchTab("journal");
+  await switchTab("journal");
   checkNewMemo();
   initTeamSwitcher();
   initGlobalTabSwipe();
@@ -249,7 +305,7 @@ function initTeamSwitcher(){
   };
 }
 
-function switchTab(id, forceRender=false){
+async function switchTab(id, forceRender=false){
   if (id === 'clock') {
     openLtimer();
     return;
@@ -267,12 +323,12 @@ function switchTab(id, forceRender=false){
   if(unsubscribeMonthChat) unsubscribeMonthChat();
   if(unsubscribeJournal) unsubscribeJournal();
 
-  if(id==="journal") renderJournal();
-  if(id==="month") renderMonth();
-  if(id==="plans") renderPlans();
-  if(id==="dashboard") renderDashboard();
-  if(id==="memo"){ renderMemo(); markMemoRead(); }
-  if(id==="notify"){ renderNotify(); } 
+  if(id==="journal") await renderJournal();
+  if(id==="month") await renderMonth();
+  if(id==="plans") await renderPlans();
+  if(id==="dashboard") await renderDashboard();
+  if(id==="memo"){ await renderMemo(); markMemoRead(); }
+  if(id==="notify"){ await renderNotify(); } 
 }
 
 // ===== Login & Logout =====
@@ -470,7 +526,9 @@ function initJournalSwipeNav(){
   }, { passive:false });
 }
 
+// app.js
 
+// ▼▼▼ 既存の renderJournal 関数をこれで置き換え ▼▼▼
 async function renderJournal(){
   if (unsubscribeJournal) unsubscribeJournal();
   if (!viewingMemberId) viewingMemberId = memberId;
@@ -499,7 +557,8 @@ async function renderJournal(){
   await renderWeek();
 
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-  unsubscribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc=>{
+  
+  unsubscribeJournal = await getInitialDataAndListen(getJournalRef(srcTeam, viewingMemberId, selDate), doc=>{
     const j = doc.data() || { dist:0, train:"", feel:"", tags:[], condition:null, regions:{} };
     lastJournal = j;
     drawMuscleFromDoc(j);
@@ -519,6 +578,7 @@ async function renderJournal(){
     updateDistanceSummary();
   });
 }
+// ▲▲▲ 置き換えここまで ▲▲▲
 
 async function renderWeek(){
   const chips=$("#weekChips"); if(!chips) return;
@@ -1211,11 +1271,14 @@ window.addEventListener("hashchange",()=>{ closePlanModal(); });
       await showApp();
       selDate=new Date();
       const dp=document.getElementById("datePicker"); if(dp) dp.value=ymd(selDate);
-      renderJournal();
+      appReadyResolve();
+    } else {
+      appReadyResolve();
     }
   }catch(e){
     console.error("Failed to auto-login from saved session:", e);
     localStorage.removeItem("athlog:last");
+    appReadyResolve();
   }
 })();
 async function doLogin(){
@@ -1233,7 +1296,6 @@ async function doLogin(){
     await showApp();
     selDate=new Date();
     const dp=document.getElementById("datePicker"); if(dp) dp.value=ymd(selDate);
-    renderJournal();
   }catch(e){
     console.error("Error during app initialization:", e);
     alert("アプリの起動中にエラーが発生しました。HTMLファイルが最新でない可能性があります。");
@@ -1256,7 +1318,6 @@ async function populateMemberSelect(){
   refreshBadges();
 }
 document.addEventListener("DOMContentLoaded",()=>{
-  handleStartupVideo();
   const btn=$("#loginBtn"); if(btn) btn.onclick=doLogin;
   const t=$("#teamId"), m=$("#memberName");
   if(t && m) [t,m].forEach(inp=>inp.addEventListener("keydown",(e)=>{ if(e.key==="Enter") doLogin(); }));
