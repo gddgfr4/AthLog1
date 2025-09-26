@@ -829,7 +829,7 @@ function renderChat(){
 }
 let modalDiv=null;
 
-// ▼▼▼ 変更点（元の正常な状態に戻す）▼▼▼
+// app.js内のこの関数をまるごと置き換えてください
 function openPlanModal(dt){
   closePlanModal();
   const mon=getMonthStr(dt);
@@ -903,7 +903,6 @@ function openPlanModal(dt){
     resetForm();
   });
 }
-// ▲▲▲ 変更点 ▲▲▲
 
 function renderPlanListInModal(mon, dayKey, editCallback){
   const cont=$("#plist",modalDiv); cont.innerHTML='';
