@@ -34,7 +34,6 @@ exports.geminiComment = async (req, res) => {
   }
 };
 
-// ▼▼▼ この関数を修正 ▼▼▼
 exports.createCommentNotification = functions.firestore
   .document('teams/{teamId}/members/{memberId}/journal/{journalId}')
   .onUpdate(async (change, context) => {
@@ -46,11 +45,13 @@ exports.createCommentNotification = functions.firestore
       const { teamId, memberId, journalId } = context.params;
       const commenterId = after.lastCommentBy;
 
-      // コメント投稿者IDがない、または自分で自分の日誌にコメントした場合は通知しない
-      if (!commenterId || commenterId === memberId) {
-        console.log(`Skipping notification for journal ${journalId} (self-comment or no commenter ID).`);
+      // ▼▼▼ 変更点: 自分自身のコメントでも通知を送るように修正 ▼▼▼
+      // コメント投稿者のIDが記録されていない場合のみ、処理を中断します。
+      if (!commenterId) {
+        console.log(`Commenter ID not found for journal ${journalId}. Skipping notification.`);
         return null;
       }
+      // ▲▲▲ ここまでが変更点 ▲▲▲
 
       // 日誌の持ち主(memberId)にだけ通知を作成する
       const db = admin.firestore();
