@@ -659,7 +659,7 @@ async function renderMonth(){
     row.className = "row";
     row.innerHTML = `
       <div class="dow" style="display:flex; align-items:center; gap:6px;">
-        <span class="typebar" id="tb_${dayKey}" style="width:6px;height:28px;border-radius:2px;background:#e5e7eb;"></span>
+        <span class="typebar" id="tb_${dayKey}" style="height:28px;border-radius:2px;background:#e5e7eb;"></span>
         <span>${dow}${d}</span>
       </div>
       <div class="txt"><div>—</div></div>
@@ -703,7 +703,7 @@ async function renderMonth(){
         const cond = (j.condition != null) ? Number(j.condition) : null;
         const condHtml = (cond && cond >= 1 && cond <= 5)
           ? `<span class="cond-pill cond-${cond}">${cond}</span>`
-          : `<span class="cond-pill cond-3" style="opacity:.4">–</span>`;
+          : '';
   
         const txt = row.querySelector(".txt");
         if (txt) {
