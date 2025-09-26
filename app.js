@@ -239,9 +239,11 @@ function initTeamSwitcher(){
 
 // ▼▼▼ 変更点 ▼▼▼
 function switchTab(id, forceRender=false){
+  if (id === 'clock') {
+    openLtimer();
+    return;
+  }
   if(!forceRender && $(".tab.active")?.dataset.tab===id) return;
-  // 'clock' はリンクになったので、タブ切り替えロジックから除外
-  if(id === 'clock') return;
 
   $$(".tab").forEach(btn=>btn.classList.toggle("active", btn.dataset.tab===id));
   $$(".tabpanel").forEach(p=>p.classList.toggle("active", p.id===id));
