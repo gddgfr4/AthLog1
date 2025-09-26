@@ -1,4 +1,4 @@
-//handleStartupVideo();
+handleStartupVideo();
 
 // ===== Firebase Initialization =====
 if (!firebase.apps || !firebase.apps.length) {
