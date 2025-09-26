@@ -698,6 +698,7 @@ async function renderMonth(){
             const c2 = colorMap[tags[1]] || '#e5e7eb';
             typebar.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`;
           }
+          typebar.style.width = '8px';
         }
   
         const cond = (j.condition != null) ? Number(j.condition) : null;
