@@ -1952,13 +1952,12 @@ async function tscSave(){
     const ta = document.getElementById('teamSharedComment');
     if(!ta) return;
     const text = ta.value;
-    const ref  = getJournalRef(teamId, viewingMemberId, selDate); // ← “表示中の人”のドキュメントに保存
-    await ref.set({ teamComment: text }, { merge:true });
+    const ref  = getJournalRef(teamId, viewingMemberId, selDate);
+    
+    // ▼▼▼ 変更点: lastCommentBy を追加し、古い通知コードを削除 ▼▼▼
+    await ref.set({ teamComment: text, lastCommentBy: memberId }, { merge:true });
     tscDirty = false;
     tscSetStatus('保存済み');
-    await createDayCommentNotifications({
-      teamId, from: memberId, day: ymd(selDate), text
-    });
   }catch(e){
     console.error('tscSave', e);
     tscSetStatus('保存失敗（自動再試行）');
