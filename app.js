@@ -254,6 +254,10 @@ function switchTab(id, forceRender=false){
     openLtimer();
     return;
   }
+  if (id === 'stadium') {
+    openStadiumMap();
+    return;
+  }
   if(!forceRender && $(".tab.active")?.dataset.tab===id) return;
 
   $$(".tab").forEach(btn=>btn.classList.toggle("active", btn.dataset.tab===id));
