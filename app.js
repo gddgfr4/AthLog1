@@ -36,6 +36,18 @@ function openLtimer() {
   }
 }
 
+function openStadiumMap() {
+  if (teamId && memberId) {
+    const encodedTeamId = encodeURIComponent(teamId);
+    const encodedMemberId = encodeURIComponent(memberId);
+    // マップのURL（公開場所に合わせて変更してください）
+    const stadiumMapUrl = `https://gddgfr4.github.io/stadiummap/?team=${encodedTeamId}&member=${encodedMemberId}`;
+    window.open(stadiumMapUrl, '_blank');
+  } else {
+    window.open('https://gddgfr4.github.io/stadiummap/', '_blank');
+  }
+}
+
 
 async function sumWeekKm(d){
   const dates=getWeekDates(d);
