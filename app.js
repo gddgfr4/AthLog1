@@ -1181,6 +1181,25 @@ async function checkNewMemo(){
   }
 }
 
+// ===== Startup Video =====
+function handleStartupVideo() {
+  const container = document.getElementById('startup-video-container');
+  const video = document.getElementById('startup-video');
+  if (!container || !video) return;
+
+  video.playbackRate = 2.0; // 再生速度を2倍に設定
+
+  const hideVideo = () => container.style.display = 'none';
+
+  video.addEventListener('ended', hideVideo); // 再生終了時に非表示にする
+
+  // 自動再生を試みる
+  video.play().catch(error => {
+    console.warn("Startup video autoplay was blocked.", error);
+    hideVideo(); // 自動再生に失敗した場合はすぐに非表示にする
+  });
+}
+
 // ===== Boot and Login =====
 window.addEventListener("hashchange",()=>{ closePlanModal(); });
 (async function boot(){
@@ -1237,6 +1256,7 @@ async function populateMemberSelect(){
   refreshBadges();
 }
 document.addEventListener("DOMContentLoaded",()=>{
+  handleStartupVideo();
   const btn=$("#loginBtn"); if(btn) btn.onclick=doLogin;
   const t=$("#teamId"), m=$("#memberName");
   if(t && m) [t,m].forEach(inp=>inp.addEventListener("keydown",(e)=>{ if(e.key==="Enter") doLogin(); }));
