@@ -237,7 +237,6 @@ function initTeamSwitcher(){
   };
 }
 
-// ▼▼▼ 変更点 ▼▼▼
 function switchTab(id, forceRender=false){
   if (id === 'clock') {
     openLtimer();
@@ -259,7 +258,6 @@ function switchTab(id, forceRender=false){
   if(id==="memo"){ renderMemo(); markMemoRead(); }
   if(id==="notify"){ renderNotify(); } 
 }
-// ▲▲▲ 変更点 ▲▲▲
 
 // ===== Login & Logout =====
 $("#logoutBtn")?.addEventListener("click", ()=>{
@@ -268,7 +266,6 @@ $("#logoutBtn")?.addEventListener("click", ()=>{
   window.location.reload();
 });
 $$(".tab").forEach(b=>{
-  // 'clock' のaタグには data-tab がないので、このイベントリスナーは適用されない
   if(b.dataset.tab) {
     b.addEventListener("click",()=>switchTab(b.dataset.tab));
   }
@@ -778,7 +775,8 @@ async function renderPlans(){
     if(editableHere) row.addEventListener("click", ()=>openPlanModal(dt));
     box.appendChild(row);
 
-    const unsub = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events').orderBy('mem')
+    // ▼▼▼ 変更点: orderByを削除し、クライアント側でソートする ▼▼▼
+    const unsub = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events')
       .onSnapshot(snapshot=>{
         const scope=$("#planScope")?.value || "all";
         const tagText=$("#tagFilter")?.value.trim() || "";
@@ -791,6 +789,10 @@ async function renderPlans(){
           if(tagSet.size && !(it.tags||[]).some(t=>tagSet.has(t))) return;
           arr.push(it);
         });
+
+        // クライアントサイドでソート
+        arr.sort((a, b) => (a.mem || "").localeCompare(b.mem || ""));
+
         const targetEl=document.getElementById("pl_"+dayKey);
         if(!targetEl) return;
         targetEl.innerHTML = arr.length
@@ -805,6 +807,7 @@ async function renderPlans(){
         if(targetEl) targetEl.textContent="—";
         console.error("plans onSnapshot error:", err);
       });
+    // ▲▲▲ 変更点ここまで ▲▲▲
 
     unsubs.push(unsub);
   }
@@ -829,7 +832,6 @@ function renderChat(){
 }
 let modalDiv=null;
 
-// app.js内のこの関数をまるごと置き換えてください
 function openPlanModal(dt){
   closePlanModal();
   const mon=getMonthStr(dt);
@@ -904,11 +906,19 @@ function openPlanModal(dt){
   });
 }
 
+// ▼▼▼ 変更点: orderByを削除し、クライアント側でソートする ▼▼▼
 function renderPlanListInModal(mon, dayKey, editCallback){
   const cont=$("#plist",modalDiv); cont.innerHTML='';
-  getPlansCollectionRef(teamId).doc(dayKey).collection('events').orderBy('mem').get().then(snapshot=>{
+  getPlansCollectionRef(teamId).doc(dayKey).collection('events').get().then(snapshot=>{
     if(snapshot.empty){ cont.innerHTML='<div class="muted" style="text-align:center;">予定はありません</div>'; return; }
-    snapshot.docs.forEach((doc,i)=>{
+
+    const sortedDocs = snapshot.docs.sort((a, b) => {
+        const memA = a.data().mem || "";
+        const memB = b.data().mem || "";
+        return memA.localeCompare(memB);
+    });
+
+    sortedDocs.forEach((doc,i)=>{
       const x=doc.data();
       const isMyPlan=x.mem===memberId;
       const row=document.createElement("div"); row.className="row";
@@ -926,6 +936,8 @@ function renderPlanListInModal(mon, dayKey, editCallback){
     });
   });
 }
+// ▲▲▲ 変更点ここまで ▲▲▲
+
 function closePlanModal(){ if(modalDiv){ modalDiv.remove(); modalDiv=null; } }
 
 async function collectPlansTextForDay(day, scopeSel){
