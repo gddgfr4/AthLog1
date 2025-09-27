@@ -60,6 +60,10 @@ async function handleStartupVideo() {
   } finally {
     if (container.style.display !== 'none') {
         hideVideo();
+        selDate = new Date();
+        if (document.querySelector('.tab[data-tab="journal"]')?.classList.contains('active')) {
+          renderJournal();
+        }
     }
   }
 }
