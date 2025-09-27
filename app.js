@@ -1,4 +1,4 @@
-// handleStartupVideo(); // 動画再生はコメントアウト
+handleStartupVideo(); // 動画再生はコメントアウト
 
 // ===== Firebase Initialization =====
 if (!firebase.apps || !firebase.apps.length) {
