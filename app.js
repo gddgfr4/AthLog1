@@ -1498,6 +1498,9 @@ async function saveMuscleLayerToDoc(){
   await docRef.set(payload,{merge:true});
 }
 
+// app.js
+
+// ▼▼▼ 既存の initMuscleMap 関数を、このコードで完全に置き換えてください ▼▼▼
 function initMuscleMap(){
   mm.base   = document.getElementById('mmBase');
   mm.overlay= document.getElementById('mmOverlay');
@@ -1529,7 +1532,17 @@ function initMuscleMap(){
   });
 
   const ov = mm.overlay;
+
+  // ★★★ここからが修正箇所です★★★
+  // 画面上の指の数を追跡し、ピンチ操作中は描画しないようにします
   ov.addEventListener('pointerdown', (e) => {
+    MT.pointers.add(e.pointerId);
+    
+    // 指が1本の時だけ描画処理を実行
+    if (MT.pointers.size !== 1) {
+      return;
+    }
+
     if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
     const p=mmPixPos(ov,e);
     if (barrierAlphaAt(p.x,p.y) > 10) return;
@@ -1540,7 +1553,16 @@ function initMuscleMap(){
     }
     saveMuscleLayerToDoc();
   }, { passive:true });
+
+  // 指が画面から離れたら追跡を解除
+  const clearPointer = (e) => {
+    MT.pointers.delete(e.pointerId);
+  };
+  ov.addEventListener('pointerup', clearPointer);
+  ov.addEventListener('pointercancel', clearPointer);
+  // ★★★修正ここまで★★★
 }
+// ▲▲▲ ここまでで置き換え ▲▲▲
 
 // ===== チームコメント =====
 let tscDirty = false, tscTimer = null;
