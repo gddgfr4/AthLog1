@@ -528,57 +528,109 @@ function initJournalSwipeNav(){
 
 // app.js
 
-// ▼▼▼ 既存の renderJournal 関数をこれで置き換え ▼▼▼
-async function renderJournal(){
-  if (unsubscribeJournal) unsubscribeJournal();
-  if (!viewingMemberId) viewingMemberId = memberId;
+// app.js
 
-  dirty = { dist:false, train:false, feel:false };
+// ▼▼▼ 既存の renderMonth 関数を、このコードブロックで完全に置き換えてください ▼▼▼
+async function renderMonth(){
+  const editableHere = isEditableHere(teamId,memberId,viewingMemberId);
+  const goalInputEl = document.getElementById("monthGoalInput");
+  if (goalInputEl) goalInputEl.disabled = !editableHere;
+  
+  const box=$("#monthList"); if(!box) return;
+  box.innerHTML="";
 
-  const editableHere = isEditableHere(teamId, memberId, viewingMemberId);
-  $$('#journal input, #journal textarea, #journal .qbtn, #saveBtn, #mergeBtn, #conditionBtns button, .palette button')
-    .forEach(el=>{
-      const isNavControl = ['weekPrev','weekNext','gotoToday','datePicker'].includes(el.id);
-      if (!isNavControl) el.disabled = !editableHere;
-    });
-  $("#teamSharedComment")?.removeAttribute("disabled");
-  refreshBadges();
+  const mp=$("#monthPick");
+  const monStr=(mp && mp.value) ? mp.value : getMonthStr(new Date());
+  if(mp && !mp.value) mp.value=monStr;
 
-  const mergeScopeSelect = $("#mergeScope");
-  if (mergeScopeSelect){
-    mergeScopeSelect.innerHTML =
-      `<option value="auto">予定から追加(自動)</option>
-       <option value="${memberId}">${memberId}の予定</option>
-       <option value="team">全員の予定</option>`;
+  const [yy,mm]=monStr.split("-").map(Number);
+  const lastDay=endOfMonth(new Date(yy, mm-1, 1)).getDate();
+  const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
+
+  let sum=0;
+  for (let d = 1; d <= lastDay; d++) {
+    const dt = new Date(yy, mm - 1, d);
+    const dayKey = ymd(dt);
+    const dow = ["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()];
+  
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <div class="dow">
+        <div class="date-box" id="db_${dayKey}">${dow}${d}</div>
+      </div>
+      <div class="txt"><div>—</div></div>
+    `;
+    row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
+    box.appendChild(row);
+  
+    (async (dtLocal, key) => {
+      try {
+        const snap = await getJournalRef(srcTeam, viewingMemberId, dtLocal).get();
+        const j = snap.data() || {};
+  
+        const add = Number(j.dist || 0);
+        if (!Number.isNaN(add)) {
+          sum += add;
+          const sumEl = document.getElementById("monthSum");
+          if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
+        }
+  
+        const dateBox = document.getElementById(`db_${key}`);
+        const tags = Array.isArray(j.tags) ? j.tags.slice(0, 2) : [];
+        const colorMap = {
+          ジョグ:   'var(--q-jog)',
+          ポイント: 'var(--q-point)',
+          補強:     'var(--q-sup)',
+          オフ:     'var(--q-off)',
+          その他:   'var(--q-other)'
+        };
+
+        if (dateBox) {
+          if (tags.length === 0) {
+            dateBox.style.background = 'transparent';
+            dateBox.style.color = 'var(--muted)';
+          } else {
+            dateBox.style.color = '#1f2937'; // Darker text for colored backgrounds
+            if (tags.length === 1) {
+              dateBox.style.background = colorMap[tags[0]] || 'transparent';
+            } else {
+              const c1 = colorMap[tags[0]] || '#e5e7eb';
+              const c2 = colorMap[tags[1]] || '#e5e7eb';
+              dateBox.style.background = `linear-gradient(180deg, ${c1} 50%, ${c2} 50%)`;
+            }
+          }
+        }
+  
+        const cond = (j.condition != null) ? Number(j.condition) : null;
+        const condHtml = (cond && cond >= 1 && cond <= 5)
+          ? `<span class="cond-pill cond-${cond}">${cond}</span>`
+          : '';
+  
+        const txt = row.querySelector(".txt");
+        if (txt) {
+          txt.innerHTML = `
+            <div class="month-one-line">
+              ${condHtml}
+              <span class="month-train-ellipsis">${(j.train || "—")}</span>
+              <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span>
+            </div>`;
+        }
+      } catch (err) {
+        console.error("renderMonth day read error:", yy, mm, d, err);
+        const txt = row.querySelector(".txt");
+        if (txt) txt.textContent = "—";
+      }
+    })(dt, dayKey);
   }
 
-  $("#datePicker").value = ymd(selDate);
 
-  await renderWeek();
-
-  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-  
-  unsubscribeJournal = await getInitialDataAndListen(getJournalRef(srcTeam, viewingMemberId, selDate), doc=>{
-    const j = doc.data() || { dist:0, train:"", feel:"", tags:[], condition:null, regions:{} };
-    lastJournal = j;
-    drawMuscleFromDoc(j);
-
-    if (!dirty.dist)  $("#distInput").value  = j.dist ?? "";
-    if (!dirty.train) $("#trainInput").value = j.train ?? "";
-    if (!dirty.feel)  $("#feelInput").value  = j.feel ?? "";
-
-    $$('#conditionBtns button').forEach(b=>b.classList.remove('active'));
-    if (j.condition) $(`#conditionBtns button[data-val="${j.condition}"]`)?.classList.add('active');
-
-    renderRegions(j.regions || {});
-    renderQuickButtons(j);
-    tscInitOnce();
-    tscRefresh();
-
-    updateDistanceSummary();
-  });
+  try{
+    const goalDoc=await getGoalsRef(srcTeam,viewingMemberId,monStr).get();
+    $("#monthGoalInput").value=goalDoc.data()?.goal || "";
+  }catch(e){ console.error("read goal error:", e); }
 }
-// ▲▲▲ 置き換えここまで ▲▲▲
+// ▲▲▲ ここまでで置き換え ▲▲▲
 
 async function renderWeek(){
   const chips=$("#weekChips"); if(!chips) return;
