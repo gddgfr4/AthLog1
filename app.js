@@ -24,7 +24,7 @@ function drawDataURL(ctx, url) {
   });
 }
 
-// handleStartupVideo(); // 動画は引き続きオフにしておきます
+handleStartupVideo(); // 動画は引き続きオフにしておきます
 
 async function handleStartupVideo() {
   const container = document.getElementById('startup-video-container');
