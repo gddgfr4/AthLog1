@@ -1,4 +1,4 @@
-handleStartupVideo();
+// handleStartupVideo(); // 動画再生はコメントアウト
 
 // ===== Firebase Initialization =====
 if (!firebase.apps || !firebase.apps.length) {
@@ -81,13 +81,11 @@ function getWeekDates(d){ const s=startOfWeek(d); return [...Array(7).keys()].ma
 
 function openLtimer() {
   if (teamId && memberId) {
-    // URLエンコードして、特殊文字が問題を起こさないようにする
     const encodedTeamId = encodeURIComponent(teamId);
     const encodedMemberId = encodeURIComponent(memberId);
     const ltimerUrl = `https://gddgfr4.github.io/Ltimer/?team=${encodedTeamId}&member=${encodedMemberId}`;
     window.open(ltimerUrl, '_blank');
   } else {
-    // ログイン情報がない場合は、パラメータなしで開く
     window.open('https://gddgfr4.github.io/Ltimer/', '_blank');
   }
 }
@@ -96,7 +94,6 @@ function openStadiumMap() {
   if (teamId && memberId) {
     const encodedTeamId = encodeURIComponent(teamId);
     const encodedMemberId = encodeURIComponent(memberId);
-    // マップのURL（公開場所に合わせて変更してください）
     const stadiumMapUrl = `https://gddgfr4.github.io/stadiummap/?team=${encodedTeamId}&member=${encodedMemberId}`;
     window.open(stadiumMapUrl, '_blank');
   } else {
@@ -526,11 +523,111 @@ function initJournalSwipeNav(){
   }, { passive:false });
 }
 
-// app.js
+// ▼▼▼ 以前の renderJournal 関数はここにあったが削除 ▼▼▼
+async function renderJournal(){
+  if (unsubscribeJournal) unsubscribeJournal();
+  if (!viewingMemberId) viewingMemberId = memberId;
 
-// app.js
+  dirty = { dist:false, train:false, feel:false };
 
-// ▼▼▼ 既存の renderMonth 関数を、このコードブロックで完全に置き換えてください ▼▼▼
+  const editableHere = isEditableHere(teamId, memberId, viewingMemberId);
+  $$('#journal input, #journal textarea, #journal .qbtn, #saveBtn, #mergeBtn, #conditionBtns button, .palette button')
+    .forEach(el=>{
+      const isNavControl = ['weekPrev','weekNext','gotoToday','datePicker'].includes(el.id);
+      if (!isNavControl) el.disabled = !editableHere;
+    });
+  $("#teamSharedComment")?.removeAttribute("disabled");
+  refreshBadges();
+
+  const mergeScopeSelect = $("#mergeScope");
+  if (mergeScopeSelect){
+    mergeScopeSelect.innerHTML =
+      `<option value="auto">予定から追加(自動)</option>
+       <option value="${memberId}">${memberId}の予定</option>
+       <option value="team">全員の予定</option>`;
+  }
+
+  $("#datePicker").value = ymd(selDate);
+
+  await renderWeek();
+
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  
+  unsubscribeJournal = await getInitialDataAndListen(getJournalRef(srcTeam, viewingMemberId, selDate), doc=>{
+    const j = doc.data() || { dist:0, train:"", feel:"", tags:[], condition:null, regions:{} };
+    lastJournal = j;
+    drawMuscleFromDoc(j);
+
+    if (!dirty.dist)  $("#distInput").value  = j.dist ?? "";
+    if (!dirty.train) $("#trainInput").value = j.train ?? "";
+    if (!dirty.feel)  $("#feelInput").value  = j.feel ?? "";
+
+    $$('#conditionBtns button').forEach(b=>b.classList.remove('active'));
+    if (j.condition) $(`#conditionBtns button[data-val="${j.condition}"]`)?.classList.add('active');
+
+    renderRegions(j.regions || {});
+    renderQuickButtons(j);
+    tscInitOnce();
+    tscRefresh();
+
+    updateDistanceSummary();
+  });
+}
+
+async function renderWeek(){
+  const chips=$("#weekChips"); if(!chips) return;
+  chips.innerHTML="";
+  const days=getWeekDates(selDate);
+  const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
+
+  for(const d of days){
+    const key=ymd(d);
+    const doc=await getJournalRef(srcTeam, viewingMemberId, d).get();
+    const j=doc.data()||{};
+    const btn=document.createElement("button");
+    btn.className="chip"+(ymd(selDate)===key?" active":"");
+    const tags=j.tags||[];
+    btn.innerHTML=`<div>${["日","月","火","水","木","金","土"][d.getDay()]} ${d.getDate()}</div><div class="km">${(j.dist||0)}km</div>`;
+    btn.style.background=''; btn.style.color='';
+    if(tags.length){
+      const map={ ジョグ:"var(--q-jog)", ポイント:"var(--q-point)", 補強:"var(--q-sup)", オフ:"var(--q-off)", その他:"var(--q-other)" };
+      btn.style.color='#1f2937';
+      if(tags.length===1) btn.style.backgroundColor=map[tags[0]];
+      else btn.style.background=`linear-gradient(90deg, ${map[tags[0]]} 50%, ${map[tags[1]]} 50%)`;
+    }
+    btn.addEventListener("click",()=>{ selDate=d; renderJournal(); });
+    chips.appendChild(btn);
+  }
+}
+
+function renderQuickButtons(j){
+  const currentTags=j?.tags||[];
+  $$(".qbtn").forEach(b=>{
+    const tag=b.textContent.trim();
+    b.classList.toggle('active', currentTags.includes(tag));
+  });
+}
+
+// ===== MONTH LIST =====
+function initMonth(){
+  $("#mPrev")?.addEventListener("click",()=>{ const m=$("#monthPick").value.split("-"); const d=new Date(Number(m[0]), Number(m[1])-2, 1); $("#monthPick").value=getMonthStr(d); renderMonth(); });
+  $("#mNext")?.addEventListener("click",()=>{ const m=$("#monthPick").value.split("-"); const d=new Date(Number(m[0]), Number(m[1]), 1); $("#monthPick").value=getMonthStr(d); renderMonth(); });
+  $("#monthPick")?.addEventListener("change", renderMonth);
+  
+   const goalInput=$("#monthGoalInput");
+   if(goalInput){
+     let t=null;
+     goalInput.addEventListener('input', ()=>{
+       clearTimeout(t);
+       t=setTimeout(async ()=>{
+         const monthStr=$("#monthPick").value;
+         await getGoalsRef(teamId,memberId,monthStr).set({ goal: goalInput.value }, { merge:true });
+       }, 500);
+     });
+   }                                                
+}
+
+// ▼▼▼ ここが正しい唯一の renderMonth 関数 ▼▼▼
 async function renderMonth(){
   const editableHere = isEditableHere(teamId,memberId,viewingMemberId);
   const goalInputEl = document.getElementById("monthGoalInput");
@@ -623,158 +720,6 @@ async function renderMonth(){
       }
     })(dt, dayKey);
   }
-
-
-  try{
-    const goalDoc=await getGoalsRef(srcTeam,viewingMemberId,monStr).get();
-    $("#monthGoalInput").value=goalDoc.data()?.goal || "";
-  }catch(e){ console.error("read goal error:", e); }
-}
-// ▲▲▲ ここまでで置き換え ▲▲▲
-
-async function renderWeek(){
-  const chips=$("#weekChips"); if(!chips) return;
-  chips.innerHTML="";
-  const days=getWeekDates(selDate);
-  const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
-
-  for(const d of days){
-    const key=ymd(d);
-    const doc=await getJournalRef(srcTeam, viewingMemberId, d).get();
-    const j=doc.data()||{};
-    const btn=document.createElement("button");
-    btn.className="chip"+(ymd(selDate)===key?" active":"");
-    const tags=j.tags||[];
-    btn.innerHTML=`<div>${["日","月","火","水","木","金","土"][d.getDay()]} ${d.getDate()}</div><div class="km">${(j.dist||0)}km</div>`;
-    btn.style.background=''; btn.style.color='';
-    if(tags.length){
-      const map={ ジョグ:"var(--q-jog)", ポイント:"var(--q-point)", 補強:"var(--q-sup)", オフ:"var(--q-off)", その他:"var(--q-other)" };
-      btn.style.color='#1f2937';
-      if(tags.length===1) btn.style.backgroundColor=map[tags[0]];
-      else btn.style.background=`linear-gradient(90deg, ${map[tags[0]]} 50%, ${map[tags[1]]} 50%)`;
-    }
-    btn.addEventListener("click",()=>{ selDate=d; renderJournal(); });
-    chips.appendChild(btn);
-  }
-}
-
-function renderQuickButtons(j){
-  const currentTags=j?.tags||[];
-  $$(".qbtn").forEach(b=>{
-    const tag=b.textContent.trim();
-    b.classList.toggle('active', currentTags.includes(tag));
-  });
-}
-
-// ===== MONTH LIST =====
-function initMonth(){
-  $("#mPrev")?.addEventListener("click",()=>{ const m=$("#monthPick").value.split("-"); const d=new Date(Number(m[0]), Number(m[1])-2, 1); $("#monthPick").value=getMonthStr(d); renderMonth(); });
-  $("#mNext")?.addEventListener("click",()=>{ const m=$("#monthPick").value.split("-"); const d=new Date(Number(m[0]), Number(m[1]), 1); $("#monthPick").value=getMonthStr(d); renderMonth(); });
-  $("#monthPick")?.addEventListener("change", renderMonth);
-  
-   const goalInput=$("#monthGoalInput");
-   if(goalInput){
-     let t=null;
-     goalInput.addEventListener('input', ()=>{
-       clearTimeout(t);
-       t=setTimeout(async ()=>{
-         const monthStr=$("#monthPick").value;
-         await getGoalsRef(teamId,memberId,monthStr).set({ goal: goalInput.value }, { merge:true });
-       }, 500);
-     });
-   }                                                
-}
-
-async function renderMonth(){
-  const editableHere = isEditableHere(teamId,memberId,viewingMemberId);
-  const goalInputEl = document.getElementById("monthGoalInput");
-  if (goalInputEl) goalInputEl.disabled = !editableHere;
-  
-  const box=$("#monthList"); if(!box) return;
-  box.innerHTML="";
-
-  const mp=$("#monthPick");
-  const monStr=(mp && mp.value) ? mp.value : getMonthStr(new Date());
-  if(mp && !mp.value) mp.value=monStr;
-
-  const [yy,mm]=monStr.split("-").map(Number);
-  const lastDay=endOfMonth(new Date(yy, mm-1, 1)).getDate();
-  const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
-
-  let sum=0;
-  for (let d = 1; d <= lastDay; d++) {
-    const dt = new Date(yy, mm - 1, d);
-    const dayKey = ymd(dt);
-    const dow = ["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()];
-  
-    const row = document.createElement("div");
-    row.className = "row";
-    row.innerHTML = `
-      <div class="dow" style="display:flex; align-items:center; gap:6px;">
-        <span class="typebar" id="tb_${dayKey}" style="height:28px;border-radius:2px;background:#e5e7eb;"></span>
-        <span>${dow}${d}</span>
-      </div>
-      <div class="txt"><div>—</div></div>
-    `;
-    row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
-    box.appendChild(row);
-  
-    (async (dtLocal, key) => {
-      try {
-        const snap = await getJournalRef(srcTeam, viewingMemberId, dtLocal).get();
-        const j = snap.data() || {};
-  
-        const add = Number(j.dist || 0);
-        if (!Number.isNaN(add)) {
-          sum += add;
-          const sumEl = document.getElementById("monthSum");
-          if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
-        }
-  
-        const typebar = document.getElementById(`tb_${key}`);
-        const tags = Array.isArray(j.tags) ? j.tags.slice(0, 2) : [];
-        const colorMap = {
-          ジョグ:   'var(--q-jog)',
-          ポイント: 'var(--q-point)',
-          補強:     'var(--q-sup)',
-          オフ:     'var(--q-off)',
-          その他:   'var(--q-other)'
-        };
-        if (typebar) {
-          if (tags.length === 0) {
-            typebar.style.background = '#e5e7eb';
-          } else if (tags.length === 1) {
-            typebar.style.background = colorMap[tags[0]] || '#e5e7eb';
-          } else {
-            const c1 = colorMap[tags[0]] || '#e5e7eb';
-            const c2 = colorMap[tags[1]] || '#e5e7eb';
-            typebar.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`;
-          }
-          typebar.style.width = '8px';
-        }
-  
-        const cond = (j.condition != null) ? Number(j.condition) : null;
-        const condHtml = (cond && cond >= 1 && cond <= 5)
-          ? `<span class="cond-pill cond-${cond}">${cond}</span>`
-          : '';
-  
-        const txt = row.querySelector(".txt");
-        if (txt) {
-          txt.innerHTML = `
-            <div class="month-one-line">
-              ${condHtml}
-              <span class="month-train-ellipsis">${(j.train || "—")}</span>
-              <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span>
-            </div>`;
-        }
-      } catch (err) {
-        console.error("renderMonth day read error:", yy, mm, d, err);
-        const txt = row.querySelector(".txt");
-        if (txt) txt.textContent = "—";
-      }
-    })(dt, dayKey);
-  }
-
 
   try{
     const goalDoc=await getGoalsRef(srcTeam,viewingMemberId,monStr).get();
@@ -904,7 +849,6 @@ async function renderPlans(){
     if(editableHere) row.addEventListener("click", ()=>openPlanModal(dt));
     box.appendChild(row);
 
-    // ▼▼▼ 変更点: orderByを削除し、クライアント側でソートする ▼▼▼
     const unsub = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events')
       .onSnapshot(snapshot=>{
         const scope=$("#planScope")?.value || "all";
@@ -919,7 +863,6 @@ async function renderPlans(){
           arr.push(it);
         });
 
-        // クライアントサイドでソート
         arr.sort((a, b) => (a.mem || "").localeCompare(b.mem || ""));
 
         const targetEl=document.getElementById("pl_"+dayKey);
@@ -936,8 +879,7 @@ async function renderPlans(){
         if(targetEl) targetEl.textContent="—";
         console.error("plans onSnapshot error:", err);
       });
-    // ▲▲▲ 変更点ここまで ▲▲▲
-
+    
     unsubs.push(unsub);
   }
 
@@ -1035,7 +977,6 @@ function openPlanModal(dt){
   });
 }
 
-// ▼▼▼ 変更点: orderByを削除し、クライアント側でソートする ▼▼▼
 function renderPlanListInModal(mon, dayKey, editCallback){
   const cont=$("#plist",modalDiv); cont.innerHTML='';
   getPlansCollectionRef(teamId).doc(dayKey).collection('events').get().then(snapshot=>{
@@ -1065,7 +1006,6 @@ function renderPlanListInModal(mon, dayKey, editCallback){
     });
   });
 }
-// ▲▲▲ 変更点ここまで ▲▲▲
 
 function closePlanModal(){ if(modalDiv){ modalDiv.remove(); modalDiv=null; } }
 
@@ -1292,25 +1232,6 @@ async function checkNewMemo(){
     if(memoTab && lastMessage.ts>lastView) memoTab.classList.add('new-message');
     else if(memoTab) memoTab.classList.remove('new-message');
   }
-}
-
-// ===== Startup Video =====
-function handleStartupVideo() {
-  const container = document.getElementById('startup-video-container');
-  const video = document.getElementById('startup-video');
-  if (!container || !video) return;
-
-  video.playbackRate = 2.0; // 再生速度を2倍に設定
-
-  const hideVideo = () => container.style.display = 'none';
-
-  video.addEventListener('ended', hideVideo); // 再生終了時に非表示にする
-
-  // 自動再生を試みる
-  video.play().catch(error => {
-    console.warn("Startup video autoplay was blocked.", error);
-    hideVideo(); // 自動再生に失敗した場合はすぐに非表示にする
-  });
 }
 
 // ===== Boot and Login =====
@@ -1638,8 +1559,6 @@ async function tscSave(){
     await ref.set({ teamComment: text, lastCommentBy: memberId }, { merge:true });
     tscDirty = false;
     tscSetStatus('保存済み');
-    // クライアントサイドでの通知作成処理は不要になるので削除
-    // await createDayCommentNotifications(...) // ← この行を削除
   }catch(e){
     console.error('tscSave', e);
     tscSetStatus('保存失敗（自動再試行）');
