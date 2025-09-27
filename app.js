@@ -1239,15 +1239,17 @@ async function checkNewMemo(){
 
 // ===== Boot and Login =====
 window.addEventListener("hashchange",()=>{ closePlanModal(); });
+// app.js
+
+// ▼▼▼ 既存の boot 関数をこれで置き換え ▼▼▼
 (async function boot(){
   try{
     const last=JSON.parse(localStorage.getItem("athlog:last")||"{}");
     if(last.team && last.member){
       teamId=last.team; memberId=last.member; viewingMemberId=last.member;
+      selDate = new Date(); // ★ 今日をセットする処理を showApp の前に移動
       await getMembersRef(teamId).doc(memberId).set({ name:memberId },{merge:true});
       await showApp();
-      selDate=new Date();
-      const dp=document.getElementById("datePicker"); if(dp) dp.value=ymd(selDate);
       if(appReadyResolve) appReadyResolve();
     } else {
       if(appReadyResolve) appReadyResolve();
@@ -1258,6 +1260,9 @@ window.addEventListener("hashchange",()=>{ closePlanModal(); });
     if(appReadyResolve) appReadyResolve();
   }
 })();
+// app.js
+
+// ▼▼▼ 既存の doLogin 関数をこれで置き換え ▼▼▼
 async function doLogin(){
   teamId=$("#teamId").value.trim();
   memberId=$("#memberName").value.trim();
@@ -1270,14 +1275,14 @@ async function doLogin(){
   const lg=$("#login"); if(lg){ lg.classList.add("hidden"); lg.style.display="none"; }
   const app=$("#app"); if(app){ app.classList.remove("hidden"); }
   try{
+    selDate = new Date(); // ★ 今日をセットする処理を showApp の前に移動
     await showApp();
-    selDate=new Date();
-    const dp=document.getElementById("datePicker"); if(dp) dp.value=ymd(selDate);
   }catch(e){
     console.error("Error during app initialization:", e);
     alert("アプリの起動中にエラーが発生しました。HTMLファイルが最新でない可能性があります。");
   }
 }
+// ▲▲▲ 置き換えここまで ▲▲▲
 async function populateMemberSelect(){
   const select=$("#memberSelect"); if(!select) return;
   select.innerHTML='';
