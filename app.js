@@ -1242,12 +1242,15 @@ window.addEventListener("hashchange",()=>{ closePlanModal(); });
 // app.js
 
 // ▼▼▼ 既存の boot 関数をこれで置き換え ▼▼▼
-(async function boot(){
+// app.js
+
+// ▼▼▼ boot 関数をこれで置き換え ▼▼▼
+async function boot(){
   try{
     const last=JSON.parse(localStorage.getItem("athlog:last")||"{}");
     if(last.team && last.member){
       teamId=last.team; memberId=last.member; viewingMemberId=last.member;
-      selDate = new Date(); // ★ 今日をセットする処理を showApp の前に移動
+      selDate = new Date(); // 今日をセット
       await getMembersRef(teamId).doc(memberId).set({ name:memberId },{merge:true});
       await showApp();
       if(appReadyResolve) appReadyResolve();
@@ -1259,8 +1262,7 @@ window.addEventListener("hashchange",()=>{ closePlanModal(); });
     localStorage.removeItem("athlog:last");
     if(appReadyResolve) appReadyResolve();
   }
-})();
-// app.js
+}
 
 // ▼▼▼ 既存の doLogin 関数をこれで置き換え ▼▼▼
 async function doLogin(){
@@ -1300,6 +1302,7 @@ async function populateMemberSelect(){
   refreshBadges();
 }
 document.addEventListener("DOMContentLoaded",()=>{
+  boot();
   const btn=$("#loginBtn"); if(btn) btn.onclick=doLogin;
   const t=$("#teamId"), m=$("#memberName");
   if(t && m) [t,m].forEach(inp=>inp.addEventListener("keydown",(e)=>{ if(e.key==="Enter") doLogin(); }));
