@@ -1,32 +1,37 @@
-handleStartupVideo(); // 動画再生はコメントアウト
-
 // ===== Firebase Initialization =====
 if (!firebase.apps || !firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
+// ▼▼▼ 修正点1: 変数宣言を関数の呼び出しより前に移動 ▼▼▼
 let appReadyResolve;
 const appReadyPromise = new Promise(resolve => { appReadyResolve = resolve; });
 
-function getInitialDataAndListen(ref, callback) {
+// ▼▼▼ 修正点2: 欠けていた drawDataURL 関数を追加 ▼▼▼
+function drawDataURL(ctx, url) {
   return new Promise((resolve, reject) => {
-    let isFirstCall = true;
-    const unsubscribe = ref.onSnapshot(doc => {
-      callback(doc);
-      if (isFirstCall) {
-        isFirstCall = false;
-        resolve(unsubscribe);
-      }
-    }, reject);
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      ctx.drawImage(img, 0, 0);
+      resolve();
+    };
+    img.onerror = (e) => {
+      console.error("Failed to load image from data URL", e);
+      reject(e);
+    };
+    img.src = url;
   });
 }
+
+// handleStartupVideo(); // 動画は引き続きオフにしておきます
 
 async function handleStartupVideo() {
   const container = document.getElementById('startup-video-container');
   const video = document.getElementById('startup-video');
   
   if (!container || !video) {
-    appReadyResolve();
+    if(appReadyResolve) appReadyResolve();
     return;
   }
 
@@ -36,7 +41,7 @@ async function handleStartupVideo() {
     container.style.opacity = '0';
     setTimeout(() => {
       container.style.display = 'none';
-    }, 500); // style.css の transition 時間と合わせる
+    }, 500);
   };
 
   const videoEndedPromise = new Promise(resolve => {
@@ -523,7 +528,6 @@ function initJournalSwipeNav(){
   }, { passive:false });
 }
 
-// ▼▼▼ 以前の renderJournal 関数はここにあったが削除 ▼▼▼
 async function renderJournal(){
   if (unsubscribeJournal) unsubscribeJournal();
   if (!viewingMemberId) viewingMemberId = memberId;
@@ -553,7 +557,8 @@ async function renderJournal(){
 
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   
-  unsubscribeJournal = await getInitialDataAndListen(getJournalRef(srcTeam, viewingMemberId, selDate), doc=>{
+  const docRef = getJournalRef(srcTeam, viewingMemberId, selDate);
+  const unsub = docRef.onSnapshot(doc => {
     const j = doc.data() || { dist:0, train:"", feel:"", tags:[], condition:null, regions:{} };
     lastJournal = j;
     drawMuscleFromDoc(j);
@@ -572,6 +577,7 @@ async function renderJournal(){
 
     updateDistanceSummary();
   });
+  unsubscribeJournal = unsub;
 }
 
 async function renderWeek(){
@@ -627,7 +633,6 @@ function initMonth(){
    }                                                
 }
 
-// ▼▼▼ ここが正しい唯一の renderMonth 関数 ▼▼▼
 async function renderMonth(){
   const editableHere = isEditableHere(teamId,memberId,viewingMemberId);
   const goalInputEl = document.getElementById("monthGoalInput");
@@ -1209,8 +1214,6 @@ async function renderAllDistanceCharts(){
   }
 }
 
-
-
 // ===== NEW: Team Memo =====
 function initMemo(){
   const memoInput=$("#memoChatInput");
@@ -1245,14 +1248,14 @@ window.addEventListener("hashchange",()=>{ closePlanModal(); });
       await showApp();
       selDate=new Date();
       const dp=document.getElementById("datePicker"); if(dp) dp.value=ymd(selDate);
-      appReadyResolve();
+      if(appReadyResolve) appReadyResolve();
     } else {
-      appReadyResolve();
+      if(appReadyResolve) appReadyResolve();
     }
   }catch(e){
     console.error("Failed to auto-login from saved session:", e);
     localStorage.removeItem("athlog:last");
-    appReadyResolve();
+    if(appReadyResolve) appReadyResolve();
   }
 })();
 async function doLogin(){
