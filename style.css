@@ -499,3 +499,34 @@ html,body{
   transition: opacity 0.5s ease-in-out;
 }
 
+/* style.css (末尾に追加) */
+
+/* 月一覧の日付表示を調整 */
+.row .dow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 56px;
+  padding: 0; /* 不要な余白を削除 */
+}
+
+/* 新しい日付ボックスのスタイル */
+.date-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+  color: var(--muted);
+  background-color: transparent;
+  text-align: center;
+  line-height: 1;
+}
+
+/* 以前のtypebarは不要なので非表示に */
+.typebar {
+  display: none;
+}
