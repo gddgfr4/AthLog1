@@ -322,7 +322,7 @@ function initTeamSwitcher(){
       teamId = t;
       localStorage.setItem("athlog:last", JSON.stringify({ team:teamId, member:memberId }));
       $("#teamLabel").textContent = teamId;
-      await getMembers_Ref(teamId).doc(memberId).set({ name: currentUser.displayName }, { merge:true }); // 修正前: { name:memberId }
+      await getMembersRef(teamId).doc(memberId).set({ name: currentUser.displayName }, { merge:true }); // 修正前: { name:memberId }
       await populateMemberSelect();
       refreshBadges();
       initTeamSwitcher();
