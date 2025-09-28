@@ -242,9 +242,12 @@ async function showApp(user) {
     auth.signOut();
     return;
   }
+  const memberDoc = await getMembersRef(teamId).doc(user.uid).get();
+  const memberName = memberDoc.data()?.name || user.displayName;
+
 
   $("#teamLabel").textContent = teamId;
-  $("#memberLabel").textContent = memberId;
+  $("#memberLabel").textContent = memberName;
   
   // ★ ログイン/アプリ画面の表示切り替え
   $("#login").classList.add("hidden");
@@ -258,13 +261,18 @@ async function showApp(user) {
   await populateMemberSelect();
   const memberSelect=$("#memberSelect");
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
-    viewingMemberId=$("#memberSelect").value;
-    $("#memberLabel").textContent=viewingMemberId;
+    viewingMemberId = $("#memberSelect").value; // ここは uid のまま
+    // ▼▼▼ 修正点: 選択されたメンバー名を表示 ▼▼▼
+    const selectedOption = memberSelect.options[memberSelect.selectedIndex];
+    $("#memberLabel").textContent = selectedOption.text;
+    
     selDate=new Date();
     const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
     refreshBadges();
     switchTab($(".tab.active")?.dataset.tab, true);
   });
+  
+  $("#migrateBtn").addEventListener("click", migrateDataFromNameToUid);
 
   initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
 
@@ -1350,25 +1358,32 @@ async function doSignup() {
   }
 }
 
+// app.js (1356行目あたり)
 async function populateMemberSelect(){
   const select=$("#memberSelect"); if(!select) return;
   select.innerHTML='';
   const snapshot=await getMembersRef(teamId).get();
+  
   snapshot.docs.forEach(doc=>{
-    const memId   = doc.id; // doc.id は uid
+    const memId = doc.id; // uid
     const memData = doc.data();
-    const memName = memData.name || memId; // docから名前を取得
+    const memName = memData.name || memId; // Firestoreのnameフィールド、なければuid
 
     const option=document.createElement('option');
     option.value = memId;       // 値は uid
     option.textContent = memName; // 表示は name
     select.appendChild(option);
   });
+  
   const want=viewingMemberId || memberId;
   const exists=[...select.options].some(o=>o.value===want);
   select.value=exists ? want : memberId;
   viewingMemberId=select.value;
-  $("#memberLabel").textContent = select.querySelector(`option[value="${viewingMemberId}"]`).textContent;
+  
+  // 表示中のメンバー名を更新
+  const selectedOption = select.options[select.selectedIndex];
+  if(selectedOption) $("#memberLabel").textContent = selectedOption.text;
+
   refreshBadges();
 }
 document.addEventListener("DOMContentLoaded",()=>{
@@ -1947,6 +1962,73 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
     }
   }
 })();
+
+// app.js (ファイルの末尾に追加)
+async function migrateDataFromNameToUid() {
+  if (!currentUser || !teamId) {
+    alert("ログイン情報が取得できません。");
+    return;
+  }
+
+  const oldName = prompt("データ移行を行います。\n【重要】以前使用していた「あなたのお名前」を正確に入力してください:", currentUser.displayName);
+
+  if (!oldName) {
+    alert("名前が入力されなかったため、処理を中断しました。");
+    return;
+  }
+
+  const confirmMsg = `「${oldName}」名義のデータを、現在の新しいアカウント（${currentUser.displayName}）に移行します。\n\n【注意】\n・この処理は一度しか実行できません。\n・大量のデータがある場合、少し時間がかかります。\n・処理が完了するまでこのページを閉じないでください。\n\n実行しますか？`;
+  if (!confirm(confirmMsg)) {
+    alert("処理を中断しました。");
+    return;
+  }
+
+  const newUid = currentUser.uid;
+  console.log(`Migration started: From '${oldName}' to UID '${newUid}' in team '${teamId}'`);
+  alert("データ移行を開始します。完了後にお知らせします。");
+
+  try {
+    let journalCount = 0;
+    let goalCount = 0;
+
+    // --- Journal データの移行 ---
+    const oldJournalRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('journal');
+    const journalSnapshot = await oldJournalRef.get();
+
+    if (!journalSnapshot.empty) {
+      const batch = db.batch();
+      journalSnapshot.forEach(doc => {
+        const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('journal').doc(doc.id);
+        batch.set(newDocRef, doc.data());
+        journalCount++;
+      });
+      await batch.commit();
+      console.log(`${journalCount} journal entries migrated.`);
+    }
+
+    // --- Goals データの移行 ---
+    const oldGoalsRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('goals');
+    const goalsSnapshot = await oldGoalsRef.get();
+
+    if (!goalsSnapshot.empty) {
+      const batch = db.batch();
+      goalsSnapshot.forEach(doc => {
+        const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('goals').doc(doc.id);
+        batch.set(newDocRef, doc.data());
+        goalCount++;
+      });
+      await batch.commit();
+      console.log(`${goalCount} goal entries migrated.`);
+    }
+
+    alert(`移行が完了しました。\n\n・日誌: ${journalCount}件\n・目標: ${goalCount}件\n\nページをリロードしてデータが反映されているか確認してください。`);
+    window.location.reload();
+
+  } catch (error) {
+    console.error("Data migration failed:", error);
+    alert("データ移行中にエラーが発生しました。コンソールログを確認してください。");
+  }
+}
 
 
 
