@@ -1865,3 +1865,19 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
     console.error('createDayCommentNotifications error', e);
   }
 }
+
+
+(function consentGate(){
+  const KEY = 'athlog_legal_consent_v1';
+  if (!localStorage.getItem(KEY)) {
+    const modal = document.getElementById('legal-consent');
+    const btn = document.getElementById('btn-consent-accept');
+    if (modal && btn) {
+      modal.style.display = 'block';
+      btn.addEventListener('click', () => {
+        localStorage.setItem(KEY, 'yes');
+        modal.style.display = 'none';
+      });
+    }
+  }
+})();
