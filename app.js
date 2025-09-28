@@ -1300,7 +1300,7 @@ async function boot(){
     $("#signup-form").classList.add("hidden");
     $("#login-form").classList.remove("hidden");
   };
-}
+
 
 async function doLogin() {
   const email = $("#login-email").value;
