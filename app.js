@@ -230,8 +230,8 @@ const getMembersRef=(team)=> db.collection('teams').doc(team).collection('member
 // ===== UI Boot & Tab Control (showAppの変更) =====
 async function showApp(user) {
   currentUser = user;
-  memberId = user.displayName; // ★ Authの表示名をmemberIdとして使用
-  viewingMemberId = user.displayName;
+  memberId = user.uid; // ★ Authの表示名をmemberIdとして使用
+  viewingMemberId = user.uid;
 
   // teamIdをFirestoreから取得する
   const userProfile = await db.collection('users').doc(user.uid).get();
@@ -1355,15 +1355,20 @@ async function populateMemberSelect(){
   select.innerHTML='';
   const snapshot=await getMembersRef(teamId).get();
   snapshot.docs.forEach(doc=>{
-    const mem=doc.id;
+    const memId   = doc.id; // doc.id は uid
+    const memData = doc.data();
+    const memName = memData.name || memId; // docから名前を取得
+
     const option=document.createElement('option');
-    option.value=mem; option.textContent=mem;
+    option.value = memId;       // 値は uid
+    option.textContent = memName; // 表示は name
     select.appendChild(option);
   });
   const want=viewingMemberId || memberId;
   const exists=[...select.options].some(o=>o.value===want);
   select.value=exists ? want : memberId;
   viewingMemberId=select.value;
+  $("#memberLabel").textContent = select.querySelector(`option[value="${viewingMemberId}"]`).textContent;
   refreshBadges();
 }
 document.addEventListener("DOMContentLoaded",()=>{
