@@ -248,7 +248,7 @@ async function showApp(user) {
 
   $("#teamLabel").textContent = teamId;
   $("#memberLabel").textContent = memberName;
-  
+  $("#memberLabel").title = `UID: ${user.uid}`;
   // ★ ログイン/アプリ画面の表示切り替え
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
@@ -322,7 +322,7 @@ function initTeamSwitcher(){
       teamId = t;
       localStorage.setItem("athlog:last", JSON.stringify({ team:teamId, member:memberId }));
       $("#teamLabel").textContent = teamId;
-      await getMembersRef(teamId).doc(memberId).set({ name:memberId }, { merge:true });
+      await getMembers_Ref(teamId).doc(memberId).set({ name: currentUser.displayName }, { merge:true }); // 修正前: { name:memberId }
       await populateMemberSelect();
       refreshBadges();
       initTeamSwitcher();
@@ -1380,10 +1380,14 @@ async function populateMemberSelect(){
   select.value=exists ? want : memberId;
   viewingMemberId=select.value;
   
-  // 表示中のメンバー名を更新
   const selectedOption = select.options[select.selectedIndex];
-  if(selectedOption) $("#memberLabel").textContent = selectedOption.text;
-
+  if(selectedOption){
+    $("#memberLabel").textContent = selectedOption.text;
+    
+    // ▼▼▼ この1行を追加 ▼▼▼
+    $("#memberLabel").title = `UID: ${select.value}`;
+    // ▲▲▲ 追加ここまで ▲▲▲
+  }
   refreshBadges();
 }
 document.addEventListener("DOMContentLoaded",()=>{
