@@ -382,10 +382,14 @@
     /* ログイン注意文 */
     .login-note { font-size: 12px; color: #6b7280; margin-top: 8px; line-height: 1.6; }
   </style>
+  <!-- ▼▼▼ Service Worker 登録処理を修正 ▼▼▼ -->
   <script>
-    if ('serviceWorker' in navigator) {
+    // 'blob:' プロトコルで実行されている場合、Service Workerはサポートされないため登録をスキップします。
+    if ('serviceWorker' in navigator && window.location.protocol !== 'blob:') {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(console.error);
+        navigator.serviceWorker.register('./sw.js').catch(err => {
+          console.error('ServiceWorker registration failed: ', err);
+        });
       });
     }
   </script>
@@ -398,3 +402,4 @@
 
   </body>
 </html>
+
