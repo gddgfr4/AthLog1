@@ -1260,35 +1260,21 @@ async function checkNewMemo(){
   }
 }
 
-// ===== Boot and Login =====
-window.addEventListener("hashchange",()=>{ closePlanModal(); });
-// app.js
-
-// ▼▼▼ 既存の boot 関数をこれで置き換え ▼▼▼
-// app.js
-
-// ▼▼▼ boot 関数をこれで置き換え ▼▼▼
-async function boot(){
-  try{
-    const last=JSON.parse(localStorage.getItem("athlog:last")||"{}");
-    if(last.team && last.member){
-      teamId=last.team; memberId=last.member; viewingMemberId=last.member;
-      selDate = new Date(); // 今日をセット
-      await getMembersRef(teamId).doc(memberId).set({ name:memberId },{merge:true});
-      await showApp();
-      if(appReadyResolve) appReadyResolve();
+function setupAuthListeners() {
+  // ログイン/ログアウトの状態を監視
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      // ログイン済みなら、アプリを表示
+      showApp(user);
     } else {
-      if(appReadyResolve) appReadyResolve();
+      // 未ログインなら、ログイン画面を表示
+      currentUser = null;
+      $("#app").classList.add("hidden");
+      $("#login").classList.remove("hidden");
     }
-  }catch(e){
-    console.error("Failed to auto-login from saved session:", e);
-    localStorage.removeItem("athlog:last");
-    if(appReadyResolve) appReadyResolve();
-  }
-}
+  });
 
-// ▼▼▼ 既存の doLogin 関数をこれで置き換え ▼▼▼
-// --- ボタンのイベントリスナー設定 ---
+  // --- ボタンのイベントリスナー設定 ---
   $("#loginBtn").onclick = doLogin;
   $("#signupBtn").onclick = doSignup;
 
@@ -1300,7 +1286,7 @@ async function boot(){
     $("#signup-form").classList.add("hidden");
     $("#login-form").classList.remove("hidden");
   };
-
+}
 
 async function doLogin() {
   const email = $("#login-email").value;
@@ -1341,7 +1327,6 @@ async function doSignup() {
     });
 
     // 3. Firestoreにユーザーの補助情報(チームIDなど)を保存
-    //    これにより、どのユーザーがどのチームに所属しているかを記録します。
     await db.collection('users').doc(user.uid).set({
       teamId: team,
       name: name,
@@ -1365,7 +1350,6 @@ async function doSignup() {
   }
 }
 
-// ▲▲▲ 置き換えここまで ▲▲▲
 async function populateMemberSelect(){
   const select=$("#memberSelect"); if(!select) return;
   select.innerHTML='';
