@@ -2,6 +2,8 @@
 if (!firebase.apps || !firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
+const db = firebase.firestore();
+const auth = firebase.auth();
 
 // ▼▼▼ 修正点1: 変数宣言を関数の呼び出しより前に移動 ▼▼▼
 let appReadyResolve;
@@ -67,8 +69,6 @@ async function handleStartupVideo() {
     }
   }
 }
-const db = firebase.firestore();
-
 
 // ===== Utilities =====
 const $  = (q, el = document) => el.querySelector(q);
@@ -207,6 +207,7 @@ async function markMemoRead(){
 
 // ===== App State =====
 let teamId=null, memberId=null, viewingMemberId=null;
+let currentUser = null; // ★ ログイン中のユーザー情報を保持
 let selDate=new Date();
 let brush={ lvl:1, erase:false };
 let distanceChart=null, conditionChart=null;
@@ -226,13 +227,30 @@ const getTeamMemoCollectionRef=(team)=> db.collection('teams').doc(team).collect
 const getMonthChatCollectionRef=(team,month)=> db.collection('teams').doc(team).collection('chat').doc(month).collection('messages');
 const getMembersRef=(team)=> db.collection('teams').doc(team).collection('members');
 
-// ===== UI Boot & Tab Control =====
-async function showApp(){
-  $("#teamLabel").textContent=teamId;
-  $("#memberLabel").textContent=viewingMemberId;
+// ===== UI Boot & Tab Control (showAppの変更) =====
+async function showApp(user) {
+  currentUser = user;
+  memberId = user.displayName; // ★ Authの表示名をmemberIdとして使用
+  viewingMemberId = user.displayName;
+
+  // teamIdをFirestoreから取得する
+  const userProfile = await db.collection('users').doc(user.uid).get();
+  teamId = userProfile.data()?.teamId || null;
+
+  if (!teamId) {
+    alert("チーム情報が見つかりません。アカウントを再作成する必要があるかもしれません。");
+    auth.signOut();
+    return;
+  }
+
+  $("#teamLabel").textContent = teamId;
+  $("#memberLabel").textContent = memberId;
+  
+  // ★ ログイン/アプリ画面の表示切り替え
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
-
+  
+  // (以降の showApp の処理は元のまま)
   const __nowMon=getMonthStr(new Date());
   if($("#monthPick") && !$("#monthPick").value) $("#monthPick").value=__nowMon;
   if($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value=__nowMon;
@@ -258,6 +276,7 @@ async function showApp(){
   initTeamSwitcher();
   initGlobalTabSwipe();
 }
+
 function initTeamSwitcher(){
   const wrap   = $("#teamSwitchWrap");
   const sel    = $("#teamSwitchSelect");
@@ -1269,25 +1288,83 @@ async function boot(){
 }
 
 // ▼▼▼ 既存の doLogin 関数をこれで置き換え ▼▼▼
-async function doLogin(){
-  teamId=$("#teamId").value.trim();
-  memberId=$("#memberName").value.trim();
-  viewingMemberId=memberId;
-  if(!teamId || !memberId){ alert("Team / Member を入力"); return; }
-  localStorage.setItem("athlog:last", JSON.stringify({ team:teamId, member:memberId }));
-  upsertProfile(teamId,memberId);
-  if(!getMainTeamOf(memberId)) setMainTeamOf(memberId,teamId);
-  await getMembersRef(teamId).doc(memberId).set({ name:memberId },{merge:true});
-  const lg=$("#login"); if(lg){ lg.classList.add("hidden"); lg.style.display="none"; }
-  const app=$("#app"); if(app){ app.classList.remove("hidden"); }
-  try{
-    selDate = new Date(); // ★ 今日をセットする処理を showApp の前に移動
-    await showApp();
-  }catch(e){
-    console.error("Error during app initialization:", e);
-    alert("アプリの起動中にエラーが発生しました。HTMLファイルが最新でない可能性があります。");
+// --- ボタンのイベントリスナー設定 ---
+  $("#loginBtn").onclick = doLogin;
+  $("#signupBtn").onclick = doSignup;
+
+  $("#show-signup").onclick = () => {
+    $("#login-form").classList.add("hidden");
+    $("#signup-form").classList.remove("hidden");
+  };
+  $("#show-login").onclick = () => {
+    $("#signup-form").classList.add("hidden");
+    $("#login-form").classList.remove("hidden");
+  };
+}
+
+async function doLogin() {
+  const email = $("#login-email").value;
+  const password = $("#login-password").value;
+  const errorEl = $("#login-error");
+  errorEl.textContent = "";
+
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    // 成功すると onAuthStateChanged が自動で呼ばれて画面遷移する
+  } catch (error) {
+    console.error("Login failed:", error);
+    errorEl.textContent = "メールアドレスまたはパスワードが違います。";
   }
 }
+
+async function doSignup() {
+  const team = $("#signup-team").value.trim();
+  const name = $("#signup-name").value.trim();
+  const email = $("#signup-email").value;
+  const password = $("#signup-password").value;
+  const errorEl = $("#signup-error");
+  errorEl.textContent = "";
+
+  if (!team || !name || !email || password.length < 6) {
+    errorEl.textContent = "すべての項目を正しく入力してください。";
+    return;
+  }
+
+  try {
+    // 1. Firebase Authにユーザーを作成
+    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+    const user = userCredential.user;
+
+    // 2. Authプロファイルに表示名(name)を設定
+    await user.updateProfile({
+      displayName: name
+    });
+
+    // 3. Firestoreにユーザーの補助情報(チームIDなど)を保存
+    //    これにより、どのユーザーがどのチームに所属しているかを記録します。
+    await db.collection('users').doc(user.uid).set({
+      teamId: team,
+      name: name,
+      email: email
+    });
+    
+    // 4. チームのメンバーリストに自分を追加
+    await db.collection('teams').doc(team).collection('members').doc(user.uid).set({
+      name: name,
+      role: 'member' // デフォルトの役割
+    });
+
+    // 成功すると onAuthStateChanged が自動で呼ばれて画面遷移する
+  } catch (error) {
+    console.error("Signup failed:", error);
+    if (error.code === 'auth/email-already-in-use') {
+      errorEl.textContent = "このメールアドレスは既に使用されています。";
+    } else {
+      errorEl.textContent = "登録に失敗しました。";
+    }
+  }
+}
+
 // ▲▲▲ 置き換えここまで ▲▲▲
 async function populateMemberSelect(){
   const select=$("#memberSelect"); if(!select) return;
@@ -1306,7 +1383,7 @@ async function populateMemberSelect(){
   refreshBadges();
 }
 document.addEventListener("DOMContentLoaded",()=>{
-  boot();
+  setupAuthListeners();
   const btn=$("#loginBtn"); if(btn) btn.onclick=doLogin;
   const t=$("#teamId"), m=$("#memberName");
   if(t && m) [t,m].forEach(inp=>inp.addEventListener("keydown",(e)=>{ if(e.key==="Enter") doLogin(); }));
@@ -1881,3 +1958,19 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
     }
   }
 })();
+
+
+function setupAuthListeners() {
+  // ログイン/ログアウトの状態を監視
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      // ログイン済みなら、アプリを表示
+      showApp(user);
+    } else {
+      // 未ログインなら、ログイン画面を表示
+      currentUser = null;
+      $("#app").classList.add("hidden");
+      $("#login").classList.remove("hidden");
+    }
+  });
+
