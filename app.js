@@ -5,10 +5,6 @@ if (!firebase.apps || !firebase.apps.length) {
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// ▼▼▼ 修正点1: 変数宣言を関数の呼び出しより前に移動 ▼▼▼
-let appReadyResolve;
-const appReadyPromise = new Promise(resolve => { appReadyResolve = resolve; });
-
 // ▼▼▼ 修正点2: 欠けていた drawDataURL 関数を追加 ▼▼▼
 function drawDataURL(ctx, url) {
   return new Promise((resolve, reject) => {
@@ -31,43 +27,47 @@ handleStartupVideo(); // 動画は引き続きオフにしておきます
 async function handleStartupVideo() {
   const container = document.getElementById('startup-video-container');
   const video = document.getElementById('startup-video');
-  
+
+  // コンテナやビデオ要素がなければ、ここで処理を終了
   if (!container || !video) {
-    if(appReadyResolve) appReadyResolve();
     return;
   }
 
-  video.playbackRate = 2.0;
+  video.playbackRate = 2.0; // 再生速度を2倍に
 
+  // ビデオを非表示にするための関数
   const hideVideo = () => {
     container.style.opacity = '0';
     setTimeout(() => {
       container.style.display = 'none';
-    }, 500);
+    }, 500); // 0.5秒かけてフェードアウト
   };
 
+  // ビデオの再生が終了したことを知らせるPromise
   const videoEndedPromise = new Promise(resolve => {
-    video.addEventListener('ended', resolve);
+    video.addEventListener('ended', resolve, { once: true }); // イベントリスナーを一度だけ実行
   });
 
+  // 動画の再生を試みる
   video.play().catch(error => {
+    // 自動再生がブロックされた場合は、すぐにビデオを非表示にする
     console.warn("Startup video autoplay was blocked.", error);
     hideVideo();
   });
 
+  // --- ▼ここからが修正箇所▼ ---
   try {
-    await Promise.all([appReadyPromise, videoEndedPromise]);
+    // 動画の再生終了を待つ
+    await videoEndedPromise;
   } catch (e) {
-    console.error("Error during startup sync:", e);
+    console.error("Error waiting for video to end:", e);
   } finally {
+    // 待機後、ビデオがまだ表示されていれば非表示にする
     if (container.style.display !== 'none') {
         hideVideo();
-        selDate = new Date();
-        if (document.querySelector('.tab[data-tab="journal"]')?.classList.contains('active')) {
-          renderJournal();
-        }
     }
   }
+  // --- ▲ここまでが修正箇所▲ ---
 }
 
 // ===== Utilities =====
