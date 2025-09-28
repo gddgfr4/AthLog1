@@ -292,15 +292,35 @@
     <div class="login-card">
       <div class="logo">AthLog</div>
       <div class="desc">中長距離のための日誌</div>
-      <label>Team ID</label>
-      <input id="teamId" />
-      <label>Member</label>
-      <input id="memberName" />
-      <button id="loginBtn" class="primary wide">はじめる</button>
+  
+      <div id="login-form">
+        <label>メールアドレス</label>
+        <input id="login-email" type="email" />
+        <label>パスワード</label>
+        <input id="login-password" type="password" />
+        <div id="login-error" class="muted" style="color:red; margin-bottom:10px; min-height:1.2em;"></div>
+        <button id="loginBtn" class="primary wide">ログイン</button>
+        <button id="show-signup" class="ghost wide" style="margin-top:8px;">新規登録はこちら</button>
+      </div>
+  
+      <div id="signup-form" class="hidden">
+        <label>チームID</label>
+        <input id="signup-team" />
+        <label>あなたのお名前</label>
+        <input id="signup-name" />
+        <label>メールアドレス</label>
+        <input id="signup-email" type="email" />
+        <label>パスワード (6文字以上)</label>
+        <input id="signup-password" type="password" />
+        <div id="signup-error" class="muted" style="color:red; margin-bottom:10px; min-height:1.2em;"></div>
+        <button id="signupBtn" class="primary wide">登録する</button>
+        <button id="show-login" class="ghost wide" style="margin-top:8px;">ログインはこちら</button>
+      </div>
     </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script> <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
   <script>
@@ -375,6 +395,7 @@
 
   </body>
 </html>
+
 
 
 
