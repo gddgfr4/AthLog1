@@ -1944,17 +1944,4 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
 })();
 
 
-function setupAuthListeners() {
-  // ログイン/ログアウトの状態を監視
-  auth.onAuthStateChanged(user => {
-    if (user) {
-      // ログイン済みなら、アプリを表示
-      showApp(user);
-    } else {
-      // 未ログインなら、ログイン画面を表示
-      currentUser = null;
-      $("#app").classList.add("hidden");
-      $("#login").classList.remove("hidden");
-    }
-  });
 
