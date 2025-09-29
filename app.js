@@ -24,37 +24,50 @@ function drawDataURL(ctx, url) {
 
 handleStartupVideo(); // 動画は引き続きオフにしておきます
 
+// app.js の handleStartupVideo 関数をこれで置き換える
+
 async function handleStartupVideo() {
   const container = document.getElementById('startup-video-container');
   const video = document.getElementById('startup-video');
 
-  // コンテナやビデオ要素がなければ、ここで処理を終了
   if (!container || !video) {
+    // 関連要素がなければ、すぐに処理を終了
+    document.getElementById('app').classList.remove('hidden');
     return;
   }
 
-  video.playbackRate = 2.0; // 再生速度を2倍に
+  // 再生速度を3倍に高速化
+  video.playbackRate = 3.0; 
 
-  // ビデオを非表示にするための関数
   const hideVideo = () => {
+    // まだ表示されている場合のみ処理
+    if (container.style.display === 'none') return;
+    
     container.style.opacity = '0';
     setTimeout(() => {
       container.style.display = 'none';
-    }, 500); // 0.5秒かけてフェードアウト
+      // アプリ本体を表示
+      document.getElementById('app').classList.remove('hidden');
+    }, 300); // 0.3秒でフェードアウト
   };
 
-  // ビデオの再生が終了したことを知らせるPromise
+  // ビデオ再生終了 または 1.5秒経過 のどちらか早い方でビデオを非表示にする
+  const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1500));
   const videoEndedPromise = new Promise(resolve => {
-    video.addEventListener('ended', resolve, { once: true }); // イベントリスナーを一度だけ実行
+    video.addEventListener('ended', resolve, { once: true });
   });
 
-  // 動画の再生を試みる
   video.play().catch(error => {
-    // 自動再生がブロックされた場合は、すぐにビデオを非表示にする
     console.warn("Startup video autoplay was blocked.", error);
-    hideVideo();
+    hideVideo(); // 自動再生がブロックされたら即非表示
   });
 
+  // タイムアウトとビデオ終了を競争させる
+  await Promise.race([videoEndedPromise, timeoutPromise]);
+  
+  // 最終的に非表示処理を呼び出す
+  hideVideo();
+}
   // --- ▼ここからが修正箇所▼ ---
   try {
     // 動画の再生終了を待つ
@@ -262,6 +275,11 @@ async function showApp(user) {
   memberId = user.uid;
   viewingMemberId = user.uid;
 
+  // ▼▼▼ 修正点: 起動ビデオの呼び出しをここで行い、アプリ本体を一旦隠す ▼▼▼
+  document.getElementById('app').classList.add('hidden');
+  handleStartupVideo();
+  // ▲▲▲ 修正ここまで ▲▲▲
+
   const userProfileRef = db.collection('users').doc(user.uid);
   const userProfile = await userProfileRef.get();
 
@@ -297,7 +315,7 @@ async function showApp(user) {
   $("#memberLabel").textContent = memberName;
   $("#memberLabel").title = `UID: ${user.uid}`;
   $("#login").classList.add("hidden");
-  $("#app").classList.remove("hidden");
+  // アプリ本体の表示は handleStartupVideo に任せる
 
   const __nowMon=getMonthStr(new Date());
   if($("#monthPick") && !$("#monthPick").value) $("#monthPick").value=__nowMon;
@@ -323,21 +341,24 @@ async function showApp(user) {
 
   initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
 
-  // ▼▼▼ 修正箇所 ▼▼▼
-  // アプリケーションの表示開始時に、日付を「今日」に設定します。
   selDate = new Date(); 
   const dp = $("#datePicker"); 
   if (dp) {
     dp.value = ymd(selDate);
   }
+  
+  refreshBadges();
+  await switchTab("journal");
+  
+  // ▼▼▼ 修正点: 週カレンダーの表示をここでも呼び出し、初期表示を確実にする ▼▼▼
+  await renderWeek();
   // ▲▲▲ 修正ここまで ▲▲▲
 
-  refreshBadges();
-  await switchTab("journal"); // 最初に表示するタブを日誌に設定
   checkNewMemo();
   initTeamSwitcher();
   initGlobalTabSwipe();
 }
+
 async function runMigration(oldNameToMigrate) {
   try {
     // Cloud Functionを呼び出す
