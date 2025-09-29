@@ -1,3 +1,6 @@
+// ===== [設定] 起動時のビデオを再生するかどうか (true: 再生する, false: 再生しない) =====
+const PLAY_STARTUP_VIDEO = false;
+
 // ===== Firebase Initialization =====
 if (!firebase.apps || !firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
@@ -25,56 +28,46 @@ function drawDataURL(ctx, url) {
 handleStartupVideo(); // 動画は引き続きオフにしておきます
 
 // app.js の handleStartupVideo 関数をこれで置き換える
-// app.js の handleStartupVideo 関数をこれで置き換える
 
 async function handleStartupVideo() {
   const container = document.getElementById('startup-video-container');
   const video = document.getElementById('startup-video');
 
-  if (!container || !video || !video.querySelector('source')) {
-    // 関連要素や動画ソースがなければ、すぐにアプリ本体を表示
+  // 設定でビデオがオフ、またはビデオ要素がない場合は即座にアプリを表示
+  if (!PLAY_STARTUP_VIDEO || !container || !video) {
+    if (container) container.style.display = 'none';
     document.getElementById('app').classList.remove('hidden');
-    renderWeek(); // 週カレンダーも描画
+    // 週カレンダーの描画を確実に行う
+    await renderWeek(); 
     return;
   }
 
-  // 再生速度を高速化
-  video.playbackRate = 3.0; 
+  video.playbackRate = 3.0;
 
   const hideVideo = () => {
-    // 既に非表示なら何もしない
     if (container.style.display === 'none') return;
     
     container.style.opacity = '0';
     setTimeout(() => {
       container.style.display = 'none';
-      // アプリ本体を表示
       document.getElementById('app').classList.remove('hidden');
-      // 表示が崩れないよう、ここで週カレンダーを再描画
+      // アプリ表示直後に週カレンダーを再描画
       renderWeek();
-    }, 500); // 0.5秒かけてフェードアウト
+    }, 300);
   };
 
-  // ビデオの再生が終了したことを示すPromise
   const videoEndedPromise = new Promise(resolve => {
     video.addEventListener('ended', resolve, { once: true });
   });
-  
-  // 念のため、最大2秒で強制的に処理を進めるタイムアウト
-  const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000));
+  const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1500));
 
-  try {
-    // 動画の再生を試みる
-    await video.play();
-    // 再生終了とタイムアウトのどちらか早い方を待つ
-    await Promise.race([videoEndedPromise, timeoutPromise]);
-  } catch (error) {
-    // 自動再生がブロックされるなど、エラーが発生した場合
-    console.warn("Startup video playback failed:", error);
-  } finally {
-    // 最終的に必ずビデオを非表示にする
+  video.play().catch(error => {
+    console.warn("Startup video autoplay was blocked.", error);
     hideVideo();
-  }
+  });
+
+  await Promise.race([videoEndedPromise, timeoutPromise]);
+  hideVideo();
 }
 
 // ===== Utilities =====
@@ -269,10 +262,8 @@ async function showApp(user) {
   memberId = user.uid;
   viewingMemberId = user.uid;
 
-  // ▼▼▼ 修正点: 起動ビデオの呼び出しをここで行い、アプリ本体を一旦隠す ▼▼▼
-  document.getElementById('app').classList.add('hidden');
+  // 起動ビデオの処理を開始（アプリ本体はまだ非表示）
   handleStartupVideo();
-  // ▲▲▲ 修正ここまで ▲▲▲
 
   const userProfileRef = db.collection('users').doc(user.uid);
   const userProfile = await userProfileRef.get();
@@ -320,7 +311,7 @@ async function showApp(user) {
     viewingMemberId = $("#memberSelect").value;
     const selectedOption = $("#memberSelect").options[$("#memberSelect").selectedIndex];
     $("#memberLabel").textContent = selectedOption.text;
-    selDate=new Date();
+    selDate = new Date(); // メンバーを切り替えたら日付を今日にリセット
     const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
     refreshBadges();
     switchTab($(".tab.active")?.dataset.tab, true);
@@ -335,6 +326,8 @@ async function showApp(user) {
 
   initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
 
+  // ★★★ ここが重要 ★★★
+  // アプリ起動時に日付を「今日」に設定し、日誌タブを強制的に表示します。
   selDate = new Date(); 
   const dp = $("#datePicker"); 
   if (dp) {
@@ -342,11 +335,8 @@ async function showApp(user) {
   }
   
   refreshBadges();
-  await switchTab("journal");
-  
-  // ▼▼▼ 修正点: 週カレンダーの表示をここでも呼び出し、初期表示を確実にする ▼▼▼
-  await renderWeek();
-  // ▲▲▲ 修正ここまで ▲▲▲
+  // 最初に必ず日誌タブを開く
+  await switchTab("journal", true); 
 
   checkNewMemo();
   initTeamSwitcher();
