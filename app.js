@@ -250,6 +250,11 @@ const getTeamMemoCollectionRef=(team)=> db.collection('teams').doc(team).collect
 const getMonthChatCollectionRef=(team,month)=> db.collection('teams').doc(team).collection('chat').doc(month).collection('messages');
 const getMembersRef=(team)=> db.collection('teams').doc(team).collection('members');
 
+// app.js の既存の showApp 関数と runMigration 関数を、これらで置き換える
+
+// Firebase Functionsを初期化 (db, auth の定義の近くに追加)
+const functions = firebase.functions();
+
 async function showApp(user) {
   currentUser = user;
   memberId = user.uid;
@@ -257,68 +262,59 @@ async function showApp(user) {
 
   const userProfile = await db.collection('users').doc(user.uid).get();
   teamId = userProfile.data()?.teamId || null;
-  if (!teamId) { /* (エラー処理は省略) */ return; }
+  if (!teamId) {
+    alert("チーム情報が見つかりません。");
+    auth.signOut();
+    return;
+  }
 
-  // ▼▼▼ ここからが自動移行ロジック ▼▼▼
+  // --- 自動データ移行ロジック ---
   const newMemberRef = getMembersRef(teamId).doc(user.uid);
   const newMemberDoc = await newMemberRef.get();
   const isMigrated = newMemberDoc.data()?.migrationCompleted || false;
 
-  // まだ移行が完了しておらず、表示名が設定されている場合
   if (!isMigrated && user.displayName) {
     const oldMemberRef = getMembersRef(teamId).doc(user.displayName);
     const oldMemberDoc = await oldMemberRef.get();
 
-    // 古い名前のデータが存在する場合のみ移行を実行
     if (oldMemberDoc.exists) {
-      console.log(`Auto-migrating data from '${user.displayName}' to '${user.uid}'...`);
-      alert("旧バージョンのデータを自動で引き継ぎます。処理が完了するまでお待ちください。");
-      
-      // 既存の移行ロジックをここで実行
-      await runMigration(user.displayName, user.uid);
-      
-      // 移行完了フラグを立てる
-      await newMemberRef.set({ migrationCompleted: true }, { merge: true });
-      
-      alert("データの引き継ぎが完了しました。ページをリロードします。");
-      window.location.reload();
-      return; // リロードするので、以降の処理は不要
+      alert("旧バージョンのデータを自動で引き継ぎます。完了までしばらくお待ちください。");
+      await runMigration(user.displayName); // 新しい移行関数を呼び出す
+      return; // 移行後はリロードされるのでここで処理を終了
     }
   }
-  const memberDoc = await getMembersRef(teamId).doc(user.uid).get();
-  const memberName = memberDoc.data()?.name || user.displayName;
 
-
+  // --- 元の表示処理 ---
+  const memberName = newMemberDoc.data()?.name || user.displayName;
   $("#teamLabel").textContent = teamId;
   $("#memberLabel").textContent = memberName;
   $("#memberLabel").title = `UID: ${user.uid}`;
-  // ★ ログイン/アプリ画面の表示切り替え
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
-  
-  // (以降の showApp の処理は元のまま)
+
   const __nowMon=getMonthStr(new Date());
   if($("#monthPick") && !$("#monthPick").value) $("#monthPick").value=__nowMon;
   if($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value=__nowMon;
 
   await populateMemberSelect();
-  const memberSelect=$("#memberSelect");
-  if(memberSelect) memberSelect.addEventListener('change', ()=>{
-    viewingMemberId = $("#memberSelect").value; // ここは uid のまま
-    // ▼▼▼ 修正点: 選択されたメンバー名を表示 ▼▼▼
-    const selectedOption = memberSelect.options[memberSelect.selectedIndex];
+  $("#memberSelect")?.addEventListener('change', ()=>{
+    viewingMemberId = $("#memberSelect").value;
+    const selectedOption = $("#memberSelect").options[$("#memberSelect").selectedIndex];
     $("#memberLabel").textContent = selectedOption.text;
-    
     selDate=new Date();
     const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
     refreshBadges();
     switchTab($(".tab.active")?.dataset.tab, true);
   });
-  
-  $("#migrateBtn").addEventListener("click", migrateDataFromNameToUid);
+
+  $("#migrateBtn").onclick = async () => {
+      const oldName = prompt("データ移行を行います。\n【重要】以前使用していた「あなたのお名前」を正確に入力してください:", currentUser.displayName);
+      if (oldName) {
+          await runMigration(oldName);
+      }
+  };
 
   initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
-
   selDate=new Date();
   const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
   refreshBadges();
@@ -328,36 +324,23 @@ async function showApp(user) {
   initGlobalTabSwipe();
 }
 
-async function runMigration(oldName, newUid) {
-  // `migrateDataFromNameToUid` の中身をここに移植・整理する
-  // (Journalデータのコピー、Goalsデータのコピーなど)
-  console.log(`Running migration from ${oldName} to ${newUid}`);
-  
-  // Journal データの移行
-  const oldJournalRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('journal');
-  const journalSnapshot = await oldJournalRef.get();
-  if (!journalSnapshot.empty) {
-    const batch = db.batch();
-    journalSnapshot.forEach(doc => {
-      const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('journal').doc(doc.id);
-      batch.set(newDocRef, doc.data());
-    });
-    await batch.commit();
-  }
+async function runMigration(oldNameToMigrate) {
+  try {
+    // Cloud Functionを呼び出す
+    const migrateUserData = functions.httpsCallable('migrateUserData');
+    const result = await migrateUserData({ oldName: oldNameToMigrate });
+    
+    console.log('Migration success:', result.data);
+    alert(result.data.message + "\nページをリロードします。");
+    window.location.reload();
 
-  // Goals データの移行
-  const oldGoalsRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('goals');
-  const goalsSnapshot = await oldGoalsRef.get();
-  if (!goalsSnapshot.empty) {
-    const batch = db.batch();
-    goalsSnapshot.forEach(doc => {
-      const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('goals').doc(doc.id);
-      batch.set(newDocRef, doc.data());
-    });
-    await batch.commit();
+  } catch (error) {
+    console.error("Migration failed:", error);
+    alert("データ移行中にエラーが発生しました: " + error.message);
   }
 }
 
+// 既存の migrateDataFromNameToUid 関数は不要になったので削除してください。
 function initTeamSwitcher(){
   const wrap   = $("#teamSwitchWrap");
   const sel    = $("#teamSwitchSelect");
@@ -2055,72 +2038,6 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
   }
 })();
 
-// app.js (ファイルの末尾に追加)
-async function migrateDataFromNameToUid() {
-  if (!currentUser || !teamId) {
-    alert("ログイン情報が取得できません。");
-    return;
-  }
-
-  const oldName = prompt("データ移行を行います。\n【重要】以前使用していた「あなたのお名前」を正確に入力してください:", currentUser.displayName);
-
-  if (!oldName) {
-    alert("名前が入力されなかったため、処理を中断しました。");
-    return;
-  }
-
-  const confirmMsg = `「${oldName}」名義のデータを、現在の新しいアカウント（${currentUser.displayName}）に移行します。\n\n【注意】\n・この処理は一度しか実行できません。\n・大量のデータがある場合、少し時間がかかります。\n・処理が完了するまでこのページを閉じないでください。\n\n実行しますか？`;
-  if (!confirm(confirmMsg)) {
-    alert("処理を中断しました。");
-    return;
-  }
-
-  const newUid = currentUser.uid;
-  console.log(`Migration started: From '${oldName}' to UID '${newUid}' in team '${teamId}'`);
-  alert("データ移行を開始します。完了後にお知らせします。");
-
-  try {
-    let journalCount = 0;
-    let goalCount = 0;
-
-    // --- Journal データの移行 ---
-    const oldJournalRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('journal');
-    const journalSnapshot = await oldJournalRef.get();
-
-    if (!journalSnapshot.empty) {
-      const batch = db.batch();
-      journalSnapshot.forEach(doc => {
-        const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('journal').doc(doc.id);
-        batch.set(newDocRef, doc.data());
-        journalCount++;
-      });
-      await batch.commit();
-      console.log(`${journalCount} journal entries migrated.`);
-    }
-
-    // --- Goals データの移行 ---
-    const oldGoalsRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('goals');
-    const goalsSnapshot = await oldGoalsRef.get();
-
-    if (!goalsSnapshot.empty) {
-      const batch = db.batch();
-      goalsSnapshot.forEach(doc => {
-        const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('goals').doc(doc.id);
-        batch.set(newDocRef, doc.data());
-        goalCount++;
-      });
-      await batch.commit();
-      console.log(`${goalCount} goal entries migrated.`);
-    }
-
-    alert(`移行が完了しました。\n\n・日誌: ${journalCount}件\n・目標: ${goalCount}件\n\nページをリロードしてデータが反映されているか確認してください。`);
-    window.location.reload();
-
-  } catch (error) {
-    console.error("Data migration failed:", error);
-    alert("データ移行中にエラーが発生しました。コンソールログを確認してください。");
-  }
-}
 
 
 
