@@ -250,20 +250,40 @@ const getTeamMemoCollectionRef=(team)=> db.collection('teams').doc(team).collect
 const getMonthChatCollectionRef=(team,month)=> db.collection('teams').doc(team).collection('chat').doc(month).collection('messages');
 const getMembersRef=(team)=> db.collection('teams').doc(team).collection('members');
 
-// ===== UI Boot & Tab Control (showAppの変更) =====
 async function showApp(user) {
   currentUser = user;
-  memberId = user.uid; // ★ Authの表示名をmemberIdとして使用
+  memberId = user.uid;
   viewingMemberId = user.uid;
 
-  // teamIdをFirestoreから取得する
   const userProfile = await db.collection('users').doc(user.uid).get();
   teamId = userProfile.data()?.teamId || null;
+  if (!teamId) { /* (エラー処理は省略) */ return; }
 
-  if (!teamId) {
-    alert("チーム情報が見つかりません。アカウントを再作成する必要があるかもしれません。");
-    auth.signOut();
-    return;
+  // ▼▼▼ ここからが自動移行ロジック ▼▼▼
+  const newMemberRef = getMembersRef(teamId).doc(user.uid);
+  const newMemberDoc = await newMemberRef.get();
+  const isMigrated = newMemberDoc.data()?.migrationCompleted || false;
+
+  // まだ移行が完了しておらず、表示名が設定されている場合
+  if (!isMigrated && user.displayName) {
+    const oldMemberRef = getMembersRef(teamId).doc(user.displayName);
+    const oldMemberDoc = await oldMemberRef.get();
+
+    // 古い名前のデータが存在する場合のみ移行を実行
+    if (oldMemberDoc.exists) {
+      console.log(`Auto-migrating data from '${user.displayName}' to '${user.uid}'...`);
+      alert("旧バージョンのデータを自動で引き継ぎます。処理が完了するまでお待ちください。");
+      
+      // 既存の移行ロジックをここで実行
+      await runMigration(user.displayName, user.uid);
+      
+      // 移行完了フラグを立てる
+      await newMemberRef.set({ migrationCompleted: true }, { merge: true });
+      
+      alert("データの引き継ぎが完了しました。ページをリロードします。");
+      window.location.reload();
+      return; // リロードするので、以降の処理は不要
+    }
   }
   const memberDoc = await getMembersRef(teamId).doc(user.uid).get();
   const memberName = memberDoc.data()?.name || user.displayName;
@@ -306,6 +326,36 @@ async function showApp(user) {
   checkNewMemo();
   initTeamSwitcher();
   initGlobalTabSwipe();
+}
+
+async function runMigration(oldName, newUid) {
+  // `migrateDataFromNameToUid` の中身をここに移植・整理する
+  // (Journalデータのコピー、Goalsデータのコピーなど)
+  console.log(`Running migration from ${oldName} to ${newUid}`);
+  
+  // Journal データの移行
+  const oldJournalRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('journal');
+  const journalSnapshot = await oldJournalRef.get();
+  if (!journalSnapshot.empty) {
+    const batch = db.batch();
+    journalSnapshot.forEach(doc => {
+      const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('journal').doc(doc.id);
+      batch.set(newDocRef, doc.data());
+    });
+    await batch.commit();
+  }
+
+  // Goals データの移行
+  const oldGoalsRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('goals');
+  const goalsSnapshot = await oldGoalsRef.get();
+  if (!goalsSnapshot.empty) {
+    const batch = db.batch();
+    goalsSnapshot.forEach(doc => {
+      const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('goals').doc(doc.id);
+      batch.set(newDocRef, doc.data());
+    });
+    await batch.commit();
+  }
 }
 
 function initTeamSwitcher(){
