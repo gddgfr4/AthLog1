@@ -72,3 +72,77 @@ exports.createCommentNotification = functions.firestore
     }
     return null;
   });
+
+// functions/index.js の末尾に追加
+
+// 新しい関数をエクスポートするために 'exports' を修正
+// もし 'exports.createCommentNotification = ...' のような行があれば、
+// その前にこの関数を追加してください。
+
+exports.migrateUserData = functions.https.onCall(async (data, context) => {
+  // 1. ユーザーがログインしているか確認
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'この操作には認証が必要です。');
+  }
+
+  const newUid = context.auth.uid;
+  const oldName = data.oldName;
+
+  if (!oldName) {
+    throw new functions.https.HttpsError('invalid-argument', '移行元の名前が必要です。');
+  }
+
+  const db = admin.firestore();
+
+  try {
+    // 2. ユーザー情報からチームIDを取得
+    const userProfileSnap = await db.collection('users').doc(newUid).get();
+    if (!userProfileSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'ユーザープロファイルが見つかりません。');
+    }
+    const teamId = userProfileSnap.data().teamId;
+
+    let journalCount = 0;
+    let goalCount = 0;
+
+    // 3. Journal データを移行 (管理者権限で実行)
+    const oldJournalRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('journal');
+    const journalSnapshot = await oldJournalRef.get();
+    if (!journalSnapshot.empty) {
+      const batch = db.batch();
+      journalSnapshot.forEach(doc => {
+        const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('journal').doc(doc.id);
+        batch.set(newDocRef, doc.data());
+        journalCount++;
+      });
+      await batch.commit();
+    }
+
+    // 4. Goals データを移行 (管理者権限で実行)
+    const oldGoalsRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('goals');
+    const goalsSnapshot = await oldGoalsRef.get();
+    if (!goalsSnapshot.empty) {
+      const batch = db.batch();
+      goalsSnapshot.forEach(doc => {
+        const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('goals').doc(doc.id);
+        batch.set(newDocRef, doc.data());
+        goalCount++;
+      });
+      await batch.commit();
+    }
+    
+    // 5. 移行完了フラグを立てる
+    await db.collection('teams').doc(teamId).collection('members').doc(newUid).set({ migrationCompleted: true }, { merge: true });
+
+    return {
+      status: 'success',
+      message: `移行が完了しました。日誌: ${journalCount}件, 目標: ${goalCount}件`,
+      journalCount,
+      goalCount
+    };
+
+  } catch (error) {
+    console.error("Migration failed:", error);
+    throw new functions.https.HttpsError('internal', 'データ移行中にサーバーエラーが発生しました。');
+  }
+});
