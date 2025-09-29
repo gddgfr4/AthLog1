@@ -255,32 +255,47 @@ const getMembersRef=(team)=> db.collection('teams').doc(team).collection('member
 // Firebase Functionsを初期化 (db, auth の定義の近くに追加)
 const functions = firebase.functions();
 
+// app.js の既存の showApp 関数を、これで置き換える
+
 async function showApp(user) {
   currentUser = user;
   memberId = user.uid;
   viewingMemberId = user.uid;
 
-  const userProfile = await db.collection('users').doc(user.uid).get();
-  teamId = userProfile.data()?.teamId || null;
-  if (!teamId) {
-    alert("チーム情報が見つかりません。");
-    auth.signOut();
+  const userProfileRef = db.collection('users').doc(user.uid);
+  const userProfile = await userProfileRef.get();
+
+  // ユーザープロファイル、またはチームIDが存在しない場合の処理
+  if (!userProfile.exists() || !userProfile.data()?.teamId) {
+    // ログイン画面に戻し、エラーメッセージを表示
+    $("#app").classList.add("hidden");
+    $("#login").classList.remove("hidden");
+    const loginErrorEl = $("#login-error");
+    loginErrorEl.textContent = "アカウント情報が見つかりません。新規登録するか、旧データをお持ちの場合は管理者にお問い合わせください。";
+    
+    // 重要な処理をここで中断
+    auth.signOut(); // ログイン状態をリセット
     return;
   }
+  
+  teamId = userProfile.data().teamId;
 
   // --- 自動データ移行ロジック ---
   const newMemberRef = getMembersRef(teamId).doc(user.uid);
   const newMemberDoc = await newMemberRef.get();
   const isMigrated = newMemberDoc.data()?.migrationCompleted || false;
 
+  // displayNameがあり、まだ移行が完了していない場合
   if (!isMigrated && user.displayName) {
     const oldMemberRef = getMembersRef(teamId).doc(user.displayName);
     const oldMemberDoc = await oldMemberRef.get();
 
     if (oldMemberDoc.exists) {
-      alert("旧バージョンのデータを自動で引き継ぎます。完了までしばらくお待ちください。");
-      await runMigration(user.displayName); // 新しい移行関数を呼び出す
-      return; // 移行後はリロードされるのでここで処理を終了
+      if (confirm("旧バージョンのデータが見つかりました。データを引き継ぎますか？")) {
+        await runMigration(user.displayName);
+        // 移行後はリロードされるのでここで処理を終了
+        return; 
+      }
     }
   }
 
@@ -308,7 +323,7 @@ async function showApp(user) {
   });
 
   $("#migrateBtn").onclick = async () => {
-      const oldName = prompt("データ移行を行います。\n【重要】以前使用していた「あなたのお名前」を正確に入力してください:", currentUser.displayName);
+      const oldName = prompt("【データ移行】\n以前のバージョンで使用していた「あなたのお名前」を正確に入力してください:", currentUser.displayName);
       if (oldName) {
           await runMigration(oldName);
       }
