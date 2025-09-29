@@ -1,4 +1,4 @@
-// functions/index.js
+// functions/index.jse
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
@@ -79,15 +79,15 @@ exports.createCommentNotification = functions.firestore
 // もし 'exports.createCommentNotification = ...' のような行があれば、
 // その前にこの関数を追加してください。
 
+// functions/index.js の migrateUserData 関数をこれで置き換える
+
 exports.migrateUserData = functions.https.onCall(async (data, context) => {
-  // 1. ユーザーがログインしているか確認
   if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'この操作には認証が必要です。');
+    throw new functions.https.HttpsError('unauthenticated', '認証が必要です。');
   }
 
   const newUid = context.auth.uid;
   const oldName = data.oldName;
-
   if (!oldName) {
     throw new functions.https.HttpsError('invalid-argument', '移行元の名前が必要です。');
   }
@@ -95,50 +95,61 @@ exports.migrateUserData = functions.https.onCall(async (data, context) => {
   const db = admin.firestore();
 
   try {
-    // 2. ユーザー情報からチームIDを取得
     const userProfileSnap = await db.collection('users').doc(newUid).get();
     if (!userProfileSnap.exists) {
       throw new functions.https.HttpsError('not-found', 'ユーザープロファイルが見つかりません。');
     }
     const teamId = userProfileSnap.data().teamId;
 
+    // ★★★ ここからが修正箇所 ★★★
+    // サーバー側で「古いデータがあるか」「移行済みでないか」をチェックする
+    const newMemberRef = db.collection('teams').doc(teamId).collection('members').doc(newUid);
+    const newMemberDoc = await newMemberRef.get();
+    if (newMemberDoc.data()?.migrationCompleted) {
+      return { status: 'skipped', message: '既に移行済みです。' };
+    }
+
+    const oldMemberRef = db.collection('teams').doc(teamId).collection('members').doc(oldName);
+    const oldMemberDoc = await oldMemberRef.get();
+    if (!oldMemberDoc.exists) {
+      // 移行対象のデータがない場合は、ここで正常終了
+      await newMemberRef.set({ migrationCompleted: true }, { merge: true });
+      return { status: 'no_data', message: '移行対象の旧データはありませんでした。' };
+    }
+    // ★★★ 修正ここまで ★★★
+
     let journalCount = 0;
     let goalCount = 0;
 
-    // 3. Journal データを移行 (管理者権限で実行)
-    const oldJournalRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('journal');
-    const journalSnapshot = await oldJournalRef.get();
+    // Journal データの移行
+    const journalSnapshot = await oldMemberRef.collection('journal').get();
     if (!journalSnapshot.empty) {
       const batch = db.batch();
       journalSnapshot.forEach(doc => {
-        const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('journal').doc(doc.id);
+        const newDocRef = newMemberRef.collection('journal').doc(doc.id);
         batch.set(newDocRef, doc.data());
         journalCount++;
       });
       await batch.commit();
     }
 
-    // 4. Goals データを移行 (管理者権限で実行)
-    const oldGoalsRef = db.collection('teams').doc(teamId).collection('members').doc(oldName).collection('goals');
-    const goalsSnapshot = await oldGoalsRef.get();
+    // Goals データの移行
+    const goalsSnapshot = await oldMemberRef.collection('goals').get();
     if (!goalsSnapshot.empty) {
       const batch = db.batch();
       goalsSnapshot.forEach(doc => {
-        const newDocRef = db.collection('teams').doc(teamId).collection('members').doc(newUid).collection('goals').doc(doc.id);
+        const newDocRef = newMemberRef.collection('goals').doc(doc.id);
         batch.set(newDocRef, doc.data());
         goalCount++;
       });
       await batch.commit();
     }
-    
-    // 5. 移行完了フラグを立てる
-    await db.collection('teams').doc(teamId).collection('members').doc(newUid).set({ migrationCompleted: true }, { merge: true });
+
+    await newMemberRef.set({ migrationCompleted: true }, { merge: true });
 
     return {
       status: 'success',
       message: `移行が完了しました。日誌: ${journalCount}件, 目標: ${goalCount}件`,
-      journalCount,
-      goalCount
     };
 
   } catch (error) {
