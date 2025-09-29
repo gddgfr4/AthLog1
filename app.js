@@ -164,10 +164,33 @@ async function applyMirrorFlagsForUser(user, mainTeam){
   }
 }
 async function getViewSourceTeamId(currTeam, member){
-  try{
-    const snap=await getMembersRef(currTeam).doc(member).get();
-    return snap.data()?.mirrorFromTeamId || currTeam;
-  }catch{ return currTeam; }
+  // 他のメンバーのデータを閲覧中は、ミラーリングを適用せずそのチームのデータを表示
+  if (member !== memberId) {
+    return currTeam;
+  }
+
+  // ★★★ 修正点 ★★★
+  // 最初にFirestoreのミラー設定を確認し、あればそれを優先して使用
+  try {
+    const snap = await getMembersRef(currTeam).doc(member).get();
+    const mirrorFlag = snap.data()?.mirrorFromTeamId;
+    if (mirrorFlag) {
+      return mirrorFlag;
+    }
+  } catch(e) {
+    console.error("Firestoreのミラー設定読み込みに失敗:", e);
+  }
+
+  // Firestoreに設定がない場合（書き込み失敗時など）のフォールバック
+  // ローカルに保存されているメインチーム設定を確認
+  const mainTeamFromStorage = getMainTeamOf(member);
+  if (mainTeamFromStorage && mainTeamFromStorage !== currTeam) {
+    // メインチームが設定されており、現在のチームと違う場合はメインチームのIDを返す
+    return mainTeamFromStorage;
+  }
+
+  // 上記のいずれにも当てはまらない場合は、現在のチームIDを返す
+  return currTeam;
 }
 function isEditableHere(currTeam, myUser, viewingUser){
   if(viewingUser!==myUser) return false;
@@ -1125,7 +1148,9 @@ function renderDashboard(){ renderAllDistanceCharts(); renderConditionChart(); }
 async function renderConditionChart(){
   const ctx=$('#conditionChart')?.getContext('2d'); if(!ctx) return;
   const labels=[], chartData=[];
-  const journalSnaps=await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  const journalSnaps=await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).collection('journal').get();
+  // ▲▲▲ 元の "const journalSnaps = ..." の行を上記に置き換え ▲▲▲
   const journal={}; journalSnaps.forEach(doc=>journal[doc.id]=doc.data());
   const today=new Date();
   const endDate=addDays(today, conditionChartOffset);
@@ -1153,7 +1178,8 @@ chartMonth = null;
 
 
 async function renderAllDistanceCharts(){
-  const snaps=await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  const snaps = await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).collection('journal').get();
   const journal={}; snaps.forEach(doc=>journal[doc.id]=doc.data());
 
   {
