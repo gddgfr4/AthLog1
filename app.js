@@ -265,29 +265,21 @@ async function showApp(user) {
   const userProfileRef = db.collection('users').doc(user.uid);
   const userProfile = await userProfileRef.get();
 
-  // ユーザープロファイル、またはチームIDが存在しない場合の処理
-  // ▼▼▼ 修正点: userProfile.exists() を userProfile.exists に変更 ▼▼▼
   if (!userProfile.exists || !userProfile.data()?.teamId) {
-    // ▲▲▲ 修正ここまで ▲▲▲
-    // ログイン画面に戻し、エラーメッセージを表示
     $("#app").classList.add("hidden");
     $("#login").classList.remove("hidden");
     const loginErrorEl = $("#login-error");
     loginErrorEl.textContent = "アカウント情報が見つかりません。新規登録するか、旧データをお持ちの場合は管理者にお問い合わせください。";
-    
-    // 重要な処理をここで中断
-    auth.signOut(); // ログイン状態をリセット
+    auth.signOut();
     return;
   }
   
   teamId = userProfile.data().teamId;
 
-  // --- 自動データ移行ロジック ---
   const newMemberRef = getMembersRef(teamId).doc(user.uid);
   const newMemberDoc = await newMemberRef.get();
   const isMigrated = newMemberDoc.data()?.migrationCompleted || false;
 
-  // displayNameがあり、まだ移行が完了していない場合
   if (!isMigrated && user.displayName) {
     const oldMemberRef = getMembersRef(teamId).doc(user.displayName);
     const oldMemberDoc = await oldMemberRef.get();
@@ -295,13 +287,11 @@ async function showApp(user) {
     if (oldMemberDoc.exists) {
       if (confirm("旧バージョンのデータが見つかりました。データを引き継ぎますか？")) {
         await runMigration(user.displayName);
-        // 移行後はリロードされるのでここで処理を終了
         return; 
       }
     }
   }
 
-  // --- 元の表示処理 ---
   const memberName = newMemberDoc.data()?.name || user.displayName;
   $("#teamLabel").textContent = teamId;
   $("#memberLabel").textContent = memberName;
@@ -332,10 +322,18 @@ async function showApp(user) {
   };
 
   initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
-  selDate=new Date();
-  const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
+
+  // ▼▼▼ 修正箇所 ▼▼▼
+  // アプリケーションの表示開始時に、日付を「今日」に設定します。
+  selDate = new Date(); 
+  const dp = $("#datePicker"); 
+  if (dp) {
+    dp.value = ymd(selDate);
+  }
+  // ▲▲▲ 修正ここまで ▲▲▲
+
   refreshBadges();
-  await switchTab("journal");
+  await switchTab("journal"); // 最初に表示するタブを日誌に設定
   checkNewMemo();
   initTeamSwitcher();
   initGlobalTabSwipe();
