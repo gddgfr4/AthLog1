@@ -309,6 +309,17 @@ function initTeamSwitcher(){
   sel.onchange = async (e)=>{
     teamId = e.target.value;
     $("#teamLabel").textContent = teamId;
+    if (mainTeam && teamId !== mainTeam) {
+      // 念のため、このサブチームのデータ共有設定が正しいか確認する
+      const memberDocRef = getMembersRef(teamId).doc(memberId);
+      const memberDoc = await memberDocRef.get();
+      // 設定が保存されていない、または間違っている場合
+      if (!memberDoc.exists() || memberDoc.data()?.mirrorFromTeamId !== mainTeam) {
+        // 正しい設定を強制的に書き込む
+        console.log(`Fixing mirror flag for team ${teamId}...`);
+        await memberDocRef.set({ mirrorFromTeamId: mainTeam }, { merge: true });
+      }
+    }
     await populateMemberSelect();
     refreshBadges();
     switchTab($(".tab.active")?.dataset.tab, true);
