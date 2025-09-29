@@ -73,23 +73,42 @@ exports.createCommentNotification = functions.firestore
     return null;
   });
 
-// functions/index.js の末尾に追加
 
-// 新しい関数をエクスポートするために 'exports' を修正
-// もし 'exports.createCommentNotification = ...' のような行があれば、
-// その前にこの関数を追加してください。
+// functions/index.js の migrateUserData 関数をこれで置き換えます
 
-// functions/index.js の migrateUserData 関数をこれで置き換える
+exports.migrateUserData = functions.https.onRequest(async (req, res) => {
+  // CORSヘッダーを設定
+  setCors(res, req.headers.origin || '');
 
-exports.migrateUserData = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', '認証が必要です。');
+  // preflightリクエスト(OPTIONS)への対応
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
   }
 
-  const newUid = context.auth.uid;
-  const oldName = data.oldName;
+  // 認証トークンの検証
+  if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer ')) {
+    console.error('AuthorizationヘッダーにFirebase IDトークンがありません。');
+    res.status(403).send('Unauthorized');
+    return;
+  }
+
+  const idToken = req.headers.authorization.split('Bearer ')[1];
+  let decodedIdToken;
+  try {
+    decodedIdToken = await admin.auth().verifyIdToken(idToken);
+  } catch (error) {
+    console.error('Firebase IDトークンの検証中にエラー:', error);
+    res.status(403).send('Unauthorized');
+    return;
+  }
+
+  const newUid = decodedIdToken.uid;
+  // callable functionのデータ形式(req.body.data)に合わせる
+  const oldName = req.body.data.oldName; 
   if (!oldName) {
-    throw new functions.https.HttpsError('invalid-argument', '移行元の名前が必要です。');
+    res.status(400).json({ error: { message: '移行元の名前が必要です。' } });
+    return;
   }
 
   const db = admin.firestore();
@@ -97,31 +116,30 @@ exports.migrateUserData = functions.https.onCall(async (data, context) => {
   try {
     const userProfileSnap = await db.collection('users').doc(newUid).get();
     if (!userProfileSnap.exists) {
-      throw new functions.https.HttpsError('not-found', 'ユーザープロファイルが見つかりません。');
+        res.status(404).json({ error: { message: 'ユーザープロファイルが見つかりません。' } });
+        return;
     }
     const teamId = userProfileSnap.data().teamId;
 
-    // ★★★ ここからが修正箇所 ★★★
-    // サーバー側で「古いデータがあるか」「移行済みでないか」をチェックする
     const newMemberRef = db.collection('teams').doc(teamId).collection('members').doc(newUid);
     const newMemberDoc = await newMemberRef.get();
     if (newMemberDoc.data()?.migrationCompleted) {
-      return { status: 'skipped', message: '既に移行済みです。' };
+        // レスポンスをクライアントSDKが期待する形式に合わせる
+        res.json({ data: { status: 'skipped', message: '既に移行済みです。' } });
+        return;
     }
 
     const oldMemberRef = db.collection('teams').doc(teamId).collection('members').doc(oldName);
     const oldMemberDoc = await oldMemberRef.get();
     if (!oldMemberDoc.exists) {
-      // 移行対象のデータがない場合は、ここで正常終了
       await newMemberRef.set({ migrationCompleted: true }, { merge: true });
-      return { status: 'no_data', message: '移行対象の旧データはありませんでした。' };
+      res.json({ data: { status: 'no_data', message: '移行対象の旧データはありませんでした。' } });
+      return;
     }
-    // ★★★ 修正ここまで ★★★
 
     let journalCount = 0;
     let goalCount = 0;
 
-    // Journal データの移行
     const journalSnapshot = await oldMemberRef.collection('journal').get();
     if (!journalSnapshot.empty) {
       const batch = db.batch();
@@ -133,7 +151,6 @@ exports.migrateUserData = functions.https.onCall(async (data, context) => {
       await batch.commit();
     }
 
-    // Goals データの移行
     const goalsSnapshot = await oldMemberRef.collection('goals').get();
     if (!goalsSnapshot.empty) {
       const batch = db.batch();
@@ -147,13 +164,15 @@ exports.migrateUserData = functions.https.onCall(async (data, context) => {
 
     await newMemberRef.set({ migrationCompleted: true }, { merge: true });
 
-    return {
-      status: 'success',
-      message: `移行が完了しました。日誌: ${journalCount}件, 目標: ${goalCount}件`,
-    };
+    res.json({
+        data: {
+            status: 'success',
+            message: `移行が完了しました。日誌: ${journalCount}件, 目標: ${goalCount}件`,
+        }
+    });
 
   } catch (error) {
     console.error("Migration failed:", error);
-    throw new functions.https.HttpsError('internal', 'データ移行中にサーバーエラーが発生しました。');
+    res.status(500).json({ error: { message: 'データ移行中にサーバーエラーが発生しました。' } });
   }
 });
