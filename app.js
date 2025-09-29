@@ -1,5 +1,7 @@
 // ===== [設定] 起動時のビデオを再生するかどうか (true: 再生する, false: 再生しない) =====
 const PLAY_STARTUP_VIDEO = false;
+const $  = (q, el = document) => el.querySelector(q);
+const $$ = (q, el = document) => Array.from(el.querySelectorAll(q));
 
 // ===== Firebase Initialization =====
 if (!firebase.apps || !firebase.apps.length) {
@@ -29,6 +31,8 @@ handleStartupVideo(); // 動画は引き続きオフにしておきます
 
 // app.js の handleStartupVideo 関数をこれで置き換える
 
+// app.js の handleStartupVideo 関数をこれで置き換える
+
 async function handleStartupVideo() {
   const container = document.getElementById('startup-video-container');
   const video = document.getElementById('startup-video');
@@ -36,9 +40,8 @@ async function handleStartupVideo() {
   // 設定でビデオがオフ、またはビデオ要素がない場合は即座にアプリを表示
   if (!PLAY_STARTUP_VIDEO || !container || !video) {
     if (container) container.style.display = 'none';
-    document.getElementById('app').classList.remove('hidden');
-    // 週カレンダーの描画を確実に行う
-    await renderWeek(); 
+    // ★★★ 修正点: ここではカレンダーを描画せず、アプリの div を表示するだけにする
+    $('#app').classList.remove('hidden');
     return;
   }
 
@@ -50,9 +53,8 @@ async function handleStartupVideo() {
     container.style.opacity = '0';
     setTimeout(() => {
       container.style.display = 'none';
-      document.getElementById('app').classList.remove('hidden');
-      // アプリ表示直後に週カレンダーを再描画
-      renderWeek();
+       // ★★★ 修正点: ここでもカレンダーは描画せず、アプリの div を表示するだけ
+      $('#app').classList.remove('hidden');
     }, 300);
   };
 
@@ -69,10 +71,7 @@ async function handleStartupVideo() {
   await Promise.race([videoEndedPromise, timeoutPromise]);
   hideVideo();
 }
-
 // ===== Utilities =====
-const $  = (q, el = document) => el.querySelector(q);
-const $$ = (q, el = document) => Array.from(el.querySelectorAll(q));
 
 function ymd(d){
   const date = new Date(d.getTime() - d.getTimezoneOffset()*60000);
