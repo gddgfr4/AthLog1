@@ -25,22 +25,24 @@ function drawDataURL(ctx, url) {
 handleStartupVideo(); // 動画は引き続きオフにしておきます
 
 // app.js の handleStartupVideo 関数をこれで置き換える
+// app.js の handleStartupVideo 関数をこれで置き換える
 
 async function handleStartupVideo() {
   const container = document.getElementById('startup-video-container');
   const video = document.getElementById('startup-video');
 
-  if (!container || !video) {
-    // 関連要素がなければ、すぐに処理を終了
+  if (!container || !video || !video.querySelector('source')) {
+    // 関連要素や動画ソースがなければ、すぐにアプリ本体を表示
     document.getElementById('app').classList.remove('hidden');
+    renderWeek(); // 週カレンダーも描画
     return;
   }
 
-  // 再生速度を3倍に高速化
+  // 再生速度を高速化
   video.playbackRate = 3.0; 
 
   const hideVideo = () => {
-    // まだ表示されている場合のみ処理
+    // 既に非表示なら何もしない
     if (container.style.display === 'none') return;
     
     container.style.opacity = '0';
@@ -48,39 +50,31 @@ async function handleStartupVideo() {
       container.style.display = 'none';
       // アプリ本体を表示
       document.getElementById('app').classList.remove('hidden');
-    }, 300); // 0.3秒でフェードアウト
+      // 表示が崩れないよう、ここで週カレンダーを再描画
+      renderWeek();
+    }, 500); // 0.5秒かけてフェードアウト
   };
 
-  // ビデオ再生終了 または 1.5秒経過 のどちらか早い方でビデオを非表示にする
-  const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1500));
+  // ビデオの再生が終了したことを示すPromise
   const videoEndedPromise = new Promise(resolve => {
     video.addEventListener('ended', resolve, { once: true });
   });
-
-  video.play().catch(error => {
-    console.warn("Startup video autoplay was blocked.", error);
-    hideVideo(); // 自動再生がブロックされたら即非表示
-  });
-
-  // タイムアウトとビデオ終了を競争させる
-  await Promise.race([videoEndedPromise, timeoutPromise]);
   
-  // 最終的に非表示処理を呼び出す
-  hideVideo();
-}
-  // --- ▼ここからが修正箇所▼ ---
+  // 念のため、最大2秒で強制的に処理を進めるタイムアウト
+  const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000));
+
   try {
-    // 動画の再生終了を待つ
-    await videoEndedPromise;
-  } catch (e) {
-    console.error("Error waiting for video to end:", e);
+    // 動画の再生を試みる
+    await video.play();
+    // 再生終了とタイムアウトのどちらか早い方を待つ
+    await Promise.race([videoEndedPromise, timeoutPromise]);
+  } catch (error) {
+    // 自動再生がブロックされるなど、エラーが発生した場合
+    console.warn("Startup video playback failed:", error);
   } finally {
-    // 待機後、ビデオがまだ表示されていれば非表示にする
-    if (container.style.display !== 'none') {
-        hideVideo();
-    }
+    // 最終的に必ずビデオを非表示にする
+    hideVideo();
   }
-  // --- ▲ここまでが修正箇所▲ ---
 }
 
 // ===== Utilities =====
