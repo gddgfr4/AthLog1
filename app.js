@@ -420,13 +420,7 @@ function initTeamSwitcher(){
     initTeamSwitcher();
   };
 }
-  btnMain.onclick = async ()=>{
-    const newMain = sel.value;
-    await chooseMainTeam(newMain);
-    refreshBadges();
-    initTeamSwitcher();
-  };
-}
+
 
 async function switchTab(id, forceRender=false){
   if (id === 'clock') {
