@@ -355,8 +355,8 @@ async function runMigration(oldNameToMigrate) {
     alert("データ移行中にエラーが発生しました: " + error.message);
   }
 }
+// app.js の既存の initTeamSwitcher 関数を、これで置き換える
 
-// 既存の migrateDataFromNameToUid 関数は不要になったので削除してください。
 function initTeamSwitcher(){
   const wrap   = $("#teamSwitchWrap");
   const sel    = $("#teamSwitchSelect");
@@ -381,14 +381,13 @@ function initTeamSwitcher(){
   sel.onchange = async (e)=>{
     teamId = e.target.value;
     $("#teamLabel").textContent = teamId;
-    const mainTeam = getMainTeamOf(memberId); // mainTeam変数を正しく定義する
+    const mainTeam = getMainTeamOf(memberId);
     if (mainTeam && teamId !== mainTeam) {
-      // 念のため、このサブチームのデータ共有設定が正しいか確認する
       const memberDocRef = getMembersRef(teamId).doc(memberId);
       const memberDoc = await memberDocRef.get();
-      // 設定が保存されていない、または間違っている場合
-      if (!memberDoc.exists() || memberDoc.data()?.mirrorFromTeamId !== mainTeam) {
-        // 正しい設定を強制的に書き込む
+      // ▼▼▼ 修正点: memberDoc.exists() を memberDoc.exists に変更 ▼▼▼
+      if (!memberDoc.exists || memberDoc.data()?.mirrorFromTeamId !== mainTeam) {
+      // ▲▲▲ 修正ここまで ▲▲▲
         console.log(`Fixing mirror flag for team ${teamId}...`);
         await memberDocRef.set({ mirrorFromTeamId: mainTeam }, { merge: true });
       }
@@ -406,7 +405,7 @@ function initTeamSwitcher(){
       teamId = t;
       localStorage.setItem("athlog:last", JSON.stringify({ team:teamId, member:memberId }));
       $("#teamLabel").textContent = teamId;
-      await getMembersRef(teamId).doc(memberId).set({ name: currentUser.displayName }, { merge:true }); // 修正前: { name:memberId }
+      await getMembersRef(teamId).doc(memberId).set({ name: currentUser.displayName }, { merge:true });
       await populateMemberSelect();
       refreshBadges();
       initTeamSwitcher();
@@ -414,6 +413,13 @@ function initTeamSwitcher(){
     };
   }
 
+  btnMain.onclick = async ()=>{
+    const newMain = sel.value;
+    await chooseMainTeam(newMain);
+    refreshBadges();
+    initTeamSwitcher();
+  };
+}
   btnMain.onclick = async ()=>{
     const newMain = sel.value;
     await chooseMainTeam(newMain);
