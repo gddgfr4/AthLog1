@@ -266,7 +266,9 @@ async function showApp(user) {
   const userProfile = await userProfileRef.get();
 
   // ユーザープロファイル、またはチームIDが存在しない場合の処理
-  if (!userProfile.exists() || !userProfile.data()?.teamId) {
+  // ▼▼▼ 修正点: userProfile.exists() を userProfile.exists に変更 ▼▼▼
+  if (!userProfile.exists || !userProfile.data()?.teamId) {
+    // ▲▲▲ 修正ここまで ▲▲▲
     // ログイン画面に戻し、エラーメッセージを表示
     $("#app").classList.add("hidden");
     $("#login").classList.remove("hidden");
@@ -338,7 +340,6 @@ async function showApp(user) {
   initTeamSwitcher();
   initGlobalTabSwipe();
 }
-
 async function runMigration(oldNameToMigrate) {
   try {
     // Cloud Functionを呼び出す
