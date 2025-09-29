@@ -335,7 +335,7 @@ function initTeamSwitcher(){
     const mainTeam = getMainTeamOf(memberId); // mainTeam変数を正しく定義する
     if (mainTeam && teamId !== mainTeam) {
       // 念のため、このサブチームのデータ共有設定が正しいか確認する
-      const memberDocRef = getMembers_Ref(teamId).doc(memberId);
+      const memberDocRef = getMembersRef(teamId).doc(memberId);
       const memberDoc = await memberDocRef.get();
       // 設定が保存されていない、または間違っている場合
       if (!memberDoc.exists() || memberDoc.data()?.mirrorFromTeamId !== mainTeam) {
