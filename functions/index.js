@@ -76,15 +76,14 @@ exports.createCommentNotification = functions.firestore
 // functions/index.js の migrateUserData 関数をこれで置き換える
 
 exports.migrateUserData = functions.https.onCall(async (data, context) => {
-  // 認証済みユーザーでなければエラー
   if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'この操作には認証が必要です。');
+    throw new functions.https.HttpsError('unauthenticated', '認証が必要です。');
   }
 
   const newUid = context.auth.uid;
   const oldName = data.oldName;
   if (!oldName) {
-    throw new functions.https.HttpsError('invalid-argument', '移行元の名前(oldName)が必要です。');
+    throw new functions.https.HttpsError('invalid-argument', '移行元の名前が必要です。');
   }
 
   const db = admin.firestore();
@@ -96,18 +95,22 @@ exports.migrateUserData = functions.https.onCall(async (data, context) => {
     }
     const teamId = userProfileSnap.data().teamId;
 
+    // ★★★ ここからが修正箇所 ★★★
+    // サーバー側で「古いデータがあるか」「移行済みでないか」をチェック
     const newMemberRef = db.collection('teams').doc(teamId).collection('members').doc(newUid);
     const newMemberDoc = await newMemberRef.get();
     if (newMemberDoc.data()?.migrationCompleted) {
-      return { status: 'skipped', message: '既に移行処理は完了しています。' };
+      return { status: 'skipped', message: '既に移行済みです。' };
     }
 
     const oldMemberRef = db.collection('teams').doc(teamId).collection('members').doc(oldName);
     const oldMemberDoc = await oldMemberRef.get();
     if (!oldMemberDoc.exists) {
+      // 移行対象のデータがない場合は、ここで正常終了
       await newMemberRef.set({ migrationCompleted: true }, { merge: true });
-      return { status: 'no_data', message: '移行対象の旧データは見つかりませんでした。' };
+      return { status: 'no_data', message: '移行対象の旧データはありませんでした。' };
     }
+    // ★★★ 修正ここまで ★★★
 
     let journalCount = 0;
     let goalCount = 0;
@@ -135,19 +138,16 @@ exports.migrateUserData = functions.https.onCall(async (data, context) => {
       });
       await batch.commit();
     }
-    
-    // 移行完了フラグを立てる
+
     await newMemberRef.set({ migrationCompleted: true }, { merge: true });
 
     return {
       status: 'success',
-      message: `データ移行が完了しました。日誌: ${journalCount}件, 目標: ${goalCount}件`,
+      message: `移行が完了しました。日誌: ${journalCount}件, 目標: ${goalCount}件`,
     };
 
   } catch (error) {
     console.error("Migration failed:", error);
-    // クライアント側でエラーを適切に処理できるよう、エラーをスローする
-    throw new functions.https.HttpsError('internal', 'データ移行中にサーバーエラーが発生しました。詳細はログを確認してください。');
+    throw new functions.https.HttpsError('internal', 'データ移行中にサーバーエラーが発生しました。');
   }
 });
-
