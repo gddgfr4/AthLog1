@@ -1408,6 +1408,8 @@ async function doLogin() {
   }
 }
 
+// app.js の doSignup 関数を、これで完全に置き換える
+
 async function doSignup() {
   const team = $("#signup-team").value.trim();
   const name = $("#signup-name").value.trim();
@@ -1421,30 +1423,42 @@ async function doSignup() {
     return;
   }
 
+  // ▼▼▼ ここからが修正点 ▼▼▼
+  // 1. 登録の前に、入力されたチームIDが実際に存在するかを確認する
   try {
-    // 1. Firebase Authにユーザーを作成
+    const teamDoc = await db.collection('teams').doc(team).get();
+    if (!teamDoc.exists) {
+      // チームが存在しない場合は、ここで処理を中断しエラーを表示
+      errorEl.textContent = "指定されたチームIDが見つかりません。管理者に確認してください。";
+      return;
+    }
+  } catch (error) {
+    console.error("Team check failed:", error);
+    errorEl.textContent = "チームの確認中にエラーが発生しました。";
+    return;
+  }
+  // ▲▲▲ 修正ここまで ▲▲▲
+
+  try {
+    // 2. Firebase Authにユーザーを作成 (以降の処理は変更なし)
     const userCredential = await auth.createUserWithEmailAndPassword(email, password);
     const user = userCredential.user;
 
-    // 2. Authプロファイルに表示名(name)を設定
     await user.updateProfile({
       displayName: name
     });
 
-    // 3. Firestoreにユーザーの補助情報(チームIDなど)を保存
     await db.collection('users').doc(user.uid).set({
       teamId: team,
       name: name,
       email: email
     });
     
-    // 4. チームのメンバーリストに自分を追加
     await db.collection('teams').doc(team).collection('members').doc(user.uid).set({
       name: name,
-      role: 'member' // デフォルトの役割
+      role: 'member'
     });
 
-    // 成功すると onAuthStateChanged が自動で呼ばれて画面遷移する
   } catch (error) {
     console.error("Signup failed:", error);
     if (error.code === 'auth/email-already-in-use') {
