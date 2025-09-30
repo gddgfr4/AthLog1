@@ -1335,23 +1335,44 @@ function setupAuthListeners() {
     $("#login-form").classList.remove("hidden");
   };
 }
+// app.js の既存の doLogin 関数を、これで置き換える
 async function doLogin() {
   const email = $("#login-email").value;
   const password = $("#login-password").value;
   const errorEl = $("#login-error");
   errorEl.textContent = "";
 
+  if (!email || !password) {
+    errorEl.textContent = "メールアドレスとパスワードを入力してください。";
+    return;
+  }
+
   try {
     await auth.signInWithEmailAndPassword(email, password);
-    // 成功すると onAuthStateChanged が自動で呼ばれて画面遷移する
+    // 成功すると onAuthStateChanged が自動で呼ばれて画面が遷移します
   } catch (error) {
-    console.error("Login failed:", error);
-    errorEl.textContent = "メールアドレスまたはパスワードが違います。";
+    console.error("Login failed:", error.code, error.message);
+    // Firebase から返されるエラーコードに応じてメッセージを分岐
+    switch (error.code) {
+      case 'auth/user-not-found':
+        errorEl.textContent = "このメールアドレスは登録されていません。";
+        break;
+      case 'auth/wrong-password':
+        errorEl.textContent = "パスワードが間違っています。";
+        break;
+      case 'auth/invalid-email':
+        errorEl.textContent = "メールアドレスの形式が正しくありません。";
+        break;
+      case 'auth/network-request-failed':
+        errorEl.textContent = "ネットワークに接続できませんでした。接続を確認してください。";
+        break;
+      default:
+        errorEl.textContent = "ログインに失敗しました。時間をおいて再度お試しください。";
+    }
   }
 }
 
-// app.js の doSignup 関数を、これで完全に置き換える
-
+// app.js の既存の doSignup 関数を、これで置き換える
 async function doSignup() {
   const team = $("#signup-team").value.trim();
   const name = $("#signup-name").value.trim();
@@ -1360,57 +1381,81 @@ async function doSignup() {
   const errorEl = $("#signup-error");
   errorEl.textContent = "";
 
-  if (!team || !name || !email || password.length < 6) {
-    errorEl.textContent = "すべての項目を正しく入力してください。";
+  if (!team || !name || !email) {
+    errorEl.textContent = "チームID、名前、メールアドレスは必須です。";
+    return;
+  }
+  if (password.length < 6) {
+    errorEl.textContent = "パスワードは6文字以上で入力してください。";
     return;
   }
 
-  // ▼▼▼ ここからが修正点 ▼▼▼
-  // 1. 登録の前に、入力されたチームIDが実際に存在するかを確認する
+  // --- ステップ1: チームIDの存在確認 ---
   try {
     const teamDoc = await db.collection('teams').doc(team).get();
     if (!teamDoc.exists) {
-      // チームが存在しない場合は、ここで処理を中断しエラーを表示
       errorEl.textContent = "指定されたチームIDが見つかりません。管理者に確認してください。";
       return;
     }
   } catch (error) {
     console.error("Team check failed:", error);
-    errorEl.textContent = "チームの確認中にエラーが発生しました。";
+    errorEl.textContent = "チームの確認中に通信エラーが発生しました。ネットワーク接続を確認してください。";
     return;
   }
-  // ▲▲▲ 修正ここまで ▲▲▲
 
+  // --- ステップ2: 認証ユーザーの作成 ---
+  let userCredential;
   try {
-    // 2. Firebase Authにユーザーを作成 (以降の処理は変更なし)
-    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+    userCredential = await auth.createUserWithEmailAndPassword(email, password);
+  } catch (error) {
+    console.error("Auth creation failed:", error.code, error.message);
+    switch (error.code) {
+      case 'auth/email-already-in-use':
+        errorEl.textContent = "このメールアドレスは既に使用されています。";
+        break;
+      case 'auth/weak-password':
+        errorEl.textContent = "パスワードが脆弱です。より複雑なパスワードを設定してください。";
+        break;
+      case 'auth/invalid-email':
+        errorEl.textContent = "メールアドレスの形式が正しくありません。";
+        break;
+      case 'auth/network-request-failed':
+        errorEl.textContent = "ネットワークに接続できませんでした。接続を確認してください。";
+        break;
+      default:
+        errorEl.textContent = "アカウント作成に失敗しました。";
+    }
+    return;
+  }
+  
+  // --- ステップ3: データベースへのユーザー情報登録 ---
+  try {
     const user = userCredential.user;
+    await user.updateProfile({ displayName: name });
 
-    await user.updateProfile({
-      displayName: name
-    });
+    const userDocRef = db.collection('users').doc(user.uid);
+    const memberDocRef = db.collection('teams').doc(team).collection('members').doc(user.uid);
 
-    await db.collection('users').doc(user.uid).set({
-      teamId: team,
-      name: name,
-      email: email
-    });
-    
-    await db.collection('teams').doc(team).collection('members').doc(user.uid).set({
-      name: name,
-      role: 'member'
-    });
+    // バッチ書き込みで、usersとteamsの両方に一括で書き込む
+    const batch = db.batch();
+    batch.set(userDocRef, { teamId: team, name: name, email: email });
+    batch.set(memberDocRef, { name: name, role: 'member' });
+    await batch.commit();
 
   } catch (error) {
-    console.error("Signup failed:", error);
-    if (error.code === 'auth/email-already-in-use') {
-      errorEl.textContent = "このメールアドレスは既に使用されています。";
-    } else {
-      errorEl.textContent = "登録に失敗しました。";
+    console.error("Database write failed after auth creation:", error);
+    errorEl.textContent = "ユーザー情報の登録に失敗しました。お手数ですが、もう一度最初から登録をお試しください。";
+    
+    // ★重要：DB登録に失敗した場合、作成済みの認証アカウントを削除して、"ゾンビアカウント"を防ぐ
+    try {
+      await userCredential.user.delete();
+      console.log("Cleaned up orphaned auth user.");
+    } catch (cleanupError) {
+      console.error("Failed to clean up orphaned auth user:", cleanupError);
+      errorEl.textContent += " (クリーンアップ失敗)";
     }
   }
 }
-
 // app.js (1356行目あたり)
 async function populateMemberSelect(){
   const select=$("#memberSelect"); if(!select) return;
