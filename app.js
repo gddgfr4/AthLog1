@@ -26,7 +26,7 @@ function drawDataURL(ctx, url) {
     img.src = url;
   });
 }
-handleStartupVideo(); 
+
 
 // app.js の handleStartupVideo 関数をこれで置き換える
 
