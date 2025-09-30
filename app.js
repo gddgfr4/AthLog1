@@ -27,7 +27,6 @@ function drawDataURL(ctx, url) {
   });
 }
 
-handleStartupVideo(); // 動画は引き続きオフにしておきます
 
 // app.js の handleStartupVideo 関数をこれで置き換える
 
@@ -1357,6 +1356,8 @@ async function checkNewMemo(){
   }
 }
 
+// app.js の既存の setupAuthListeners 関数を、このコードで置き換えてください
+
 function setupAuthListeners() {
   // ログイン/ログアウトの状態を監視
   auth.onAuthStateChanged(user => {
@@ -1368,6 +1369,14 @@ function setupAuthListeners() {
       currentUser = null;
       $("#app").classList.add("hidden");
       $("#login").classList.remove("hidden");
+      
+      // ▼▼▼ ここからが修正点 ▼▼▼
+      // ログイン画面が表示される際に、透明なビデオの「容器」を確実に非表示にする
+      const videoContainer = $("#startup-video-container");
+      if (videoContainer) {
+        videoContainer.style.display = 'none';
+      }
+      // ▲▲▲ 修正ここまで ▲▲▲
     }
   });
 
@@ -1384,7 +1393,6 @@ function setupAuthListeners() {
     $("#login-form").classList.remove("hidden");
   };
 }
-
 async function doLogin() {
   const email = $("#login-email").value;
   const password = $("#login-password").value;
