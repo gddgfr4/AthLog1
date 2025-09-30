@@ -1,5 +1,5 @@
 // ===== [設定] 起動時のビデオを再生するかどうか (true: 再生する, false: 再生しない) =====
-const PLAY_STARTUP_VIDEO = false;
+
 const $  = (q, el = document) => el.querySelector(q);
 const $$ = (q, el = document) => Array.from(el.querySelectorAll(q));
 
@@ -28,48 +28,7 @@ function drawDataURL(ctx, url) {
 }
 
 
-// app.js の handleStartupVideo 関数をこれで置き換える
 
-// app.js の handleStartupVideo 関数をこれで置き換える
-
-async function handleStartupVideo() {
-  const container = document.getElementById('startup-video-container');
-  const video = document.getElementById('startup-video');
-
-  // 設定でビデオがオフ、またはビデオ要素がない場合は即座にアプリを表示
-  if (!PLAY_STARTUP_VIDEO || !container || !video) {
-    if (container) container.style.display = 'none';
-    // ★★★ 修正点: ここではカレンダーを描画せず、アプリの div を表示するだけにする
-    $('#app').classList.remove('hidden');
-    return;
-  }
-
-  video.playbackRate = 3.0;
-
-  const hideVideo = () => {
-    if (container.style.display === 'none') return;
-    
-    container.style.opacity = '0';
-    setTimeout(() => {
-      container.style.display = 'none';
-       // ★★★ 修正点: ここでもカレンダーは描画せず、アプリの div を表示するだけ
-      $('#app').classList.remove('hidden');
-    }, 300);
-  };
-
-  const videoEndedPromise = new Promise(resolve => {
-    video.addEventListener('ended', resolve, { once: true });
-  });
-  const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1500));
-
-  video.play().catch(error => {
-    console.warn("Startup video autoplay was blocked.", error);
-    hideVideo();
-  });
-
-  await Promise.race([videoEndedPromise, timeoutPromise]);
-  hideVideo();
-}
 // ===== Utilities =====
 
 function ymd(d){
@@ -254,14 +213,16 @@ const getMembersRef=(team)=> db.collection('teams').doc(team).collection('member
 const functions = firebase.functions();
 
 // app.js の既存の showApp 関数を、これで置き換える
-
 async function showApp(user) {
   currentUser = user;
   memberId = user.uid;
   viewingMemberId = user.uid;
 
-  // 起動ビデオの処理を開始（アプリ本体はまだ非表示）
-  handleStartupVideo();
+  // ▼▼▼ 修正点 ▼▼▼
+  // ビデオ処理を削除し、直接アプリ本体を表示
+  $("#app").classList.remove('hidden');
+  $("#login").classList.add("hidden");
+  // ▲▲▲ 修正ここまで ▲▲▲
 
   const userProfileRef = db.collection('users').doc(user.uid);
   const userProfile = await userProfileRef.get();
@@ -297,9 +258,7 @@ async function showApp(user) {
   $("#teamLabel").textContent = teamId;
   $("#memberLabel").textContent = memberName;
   $("#memberLabel").title = `UID: ${user.uid}`;
-  $("#login").classList.add("hidden");
-  // アプリ本体の表示は handleStartupVideo に任せる
-
+  
   const __nowMon=getMonthStr(new Date());
   if($("#monthPick") && !$("#monthPick").value) $("#monthPick").value=__nowMon;
   if($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value=__nowMon;
@@ -309,7 +268,7 @@ async function showApp(user) {
     viewingMemberId = $("#memberSelect").value;
     const selectedOption = $("#memberSelect").options[$("#memberSelect").selectedIndex];
     $("#memberLabel").textContent = selectedOption.text;
-    selDate = new Date(); // メンバーを切り替えたら日付を今日にリセット
+    selDate = new Date();
     const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
     refreshBadges();
     switchTab($(".tab.active")?.dataset.tab, true);
@@ -324,8 +283,6 @@ async function showApp(user) {
 
   initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
 
-  // ★★★ ここが重要 ★★★
-  // アプリ起動時に日付を「今日」に設定し、日誌タブを強制的に表示します。
   selDate = new Date(); 
   const dp = $("#datePicker"); 
   if (dp) {
@@ -333,14 +290,12 @@ async function showApp(user) {
   }
   
   refreshBadges();
-  // 最初に必ず日誌タブを開く
   await switchTab("journal", true); 
 
   checkNewMemo();
   initTeamSwitcher();
   initGlobalTabSwipe();
 }
-
 async function runMigration(oldNameToMigrate) {
   try {
     // Cloud Functionを呼び出す
@@ -1356,31 +1311,18 @@ async function checkNewMemo(){
   }
 }
 
-// app.js の既存の setupAuthListeners 関数を、このコードで置き換えてください
-
+// app.js の既存の setupAuthListeners 関数を、これで置き換える
 function setupAuthListeners() {
-  // ログイン/ログアウトの状態を監視
   auth.onAuthStateChanged(user => {
     if (user) {
-      // ログイン済みなら、アプリを表示
       showApp(user);
     } else {
-      // 未ログインなら、ログイン画面を表示
       currentUser = null;
       $("#app").classList.add("hidden");
       $("#login").classList.remove("hidden");
-      
-      // ▼▼▼ ここからが修正点 ▼▼▼
-      // ログイン画面が表示される際に、透明なビデオの「容器」を確実に非表示にする
-      const videoContainer = $("#startup-video-container");
-      if (videoContainer) {
-        videoContainer.style.display = 'none';
-      }
-      // ▲▲▲ 修正ここまで ▲▲▲
     }
   });
 
-  // --- ボタンのイベントリスナー設定 ---
   $("#loginBtn").onclick = doLogin;
   $("#signupBtn").onclick = doSignup;
 
