@@ -45,28 +45,35 @@ function getMonthStr(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).pad
 function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
 function getWeekDates(d){ const s=startOfWeek(d); return [...Array(7).keys()].map(i=>addDays(s,i)); }
 
+// app.js の既存の openLtimer 関数を、これで置き換える
 function openLtimer() {
-  if (teamId && memberId) {
+  // ▼▼▼ ここからが修正点 ▼▼▼
+  if (teamId && currentUser && currentUser.displayName) {
     const encodedTeamId = encodeURIComponent(teamId);
-    const encodedMemberId = encodeURIComponent(memberId);
-    const ltimerUrl = `https://gddgfr4.github.io/Ltimer/?team=${encodedTeamId}&member=${encodedMemberId}`;
+    // memberId (ユーザーID) の代わりに currentUser.displayName (ユーザー名) を使う
+    const encodedMemberName = encodeURIComponent(currentUser.displayName);
+    const ltimerUrl = `https://gddgfr4.github.io/Ltimer/?team=${encodedTeamId}&member=${encodedMemberName}`;
     window.open(ltimerUrl, '_blank');
+  // ▲▲▲ 修正ここまで ▲▲▲
   } else {
     window.open('https://gddgfr4.github.io/Ltimer/', '_blank');
   }
 }
 
+// app.js の既存の openStadiumMap 関数を、これで置き換える
 function openStadiumMap() {
-  if (teamId && memberId) {
+  // ▼▼▼ ここからが修正点 ▼▼▼
+  if (teamId && currentUser && currentUser.displayName) {
     const encodedTeamId = encodeURIComponent(teamId);
-    const encodedMemberId = encodeURIComponent(memberId);
-    const stadiumMapUrl = `https://gddgfr4.github.io/stadiummap/?team=${encodedTeamId}&member=${encodedMemberId}`;
+    // memberId (ユーザーID) の代わりに currentUser.displayName (ユーザー名) を使う
+    const encodedMemberName = encodeURIComponent(currentUser.displayName);
+    const stadiumMapUrl = `https://gddgfr4.github.io/stadiummap/?team=${encodedTeamId}&member=${encodedMemberName}`;
     window.open(stadiumMapUrl, '_blank');
+  // ▲▲▲ 修正ここまで ▲▲▲
   } else {
     window.open('https://gddgfr4.github.io/stadiummap/', '_blank');
   }
 }
-
 
 async function sumWeekKm(d){
   const dates=getWeekDates(d);
