@@ -858,7 +858,7 @@ async function renderPlans(){
       });
 
     unsubs.push(unsub);
-    setClockPresetFromSchedule(formData);
+    
   }
 
   renderChat();
