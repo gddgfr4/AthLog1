@@ -633,7 +633,7 @@ async function renderMonth(){
     row.className = "row";
     row.innerHTML = `
       <div class="dow" style="display:flex; align-items:center; gap:6px;">
-        <span class="typebar" id="tb_${dayKey}" style="width:6px;height:28px;border-radius:2px;background:#e5e7eb;"></span>
+        <span class="typebar" id="tb_${dayKey}" style="height:28px;border-radius:2px;background:#e5e7eb;"></span>
         <span>${dow}${d}</span>
       </div>
       <div class="txt"><div>—</div></div>
