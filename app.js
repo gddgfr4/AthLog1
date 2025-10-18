@@ -2463,3 +2463,26 @@ function applyClockPreset(){
   // 初期状態
   ui();
 })();
+
+
+function openLtimer() {
+  if (teamId && memberId) {
+    const encodedTeamId = encodeURIComponent(teamId);
+    const encodedMemberName = encodeURIComponent(memberId);
+    const ltimerUrl = `https://gddgfr4.github.io/Ltimer/?team=${encodedTeamId}&member=${encodedMemberName}`;
+    window.open(ltimerUrl, '_blank');
+  } else {
+    window.open('https://gddgfr4.github.io/Ltimer/', '_blank');
+  }
+}
+
+function openStadiumMap() {
+  if (teamId && memberId) {
+    const encodedTeamId = encodeURIComponent(teamId);
+    const encodedMemberName = encodeURIComponent(memberId);
+    const stadiumMapUrl = `https://gddgfr4.github.io/stadiummap/?team=${encodedTeamId}&member=${encodedMemberName}`;
+    window.open(stadiumMapUrl, '_blank');
+  } else {
+    window.open('https://gddgfr4.github.io/stadiummap/', '_blank');
+  }
+}
