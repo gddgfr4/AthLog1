@@ -683,13 +683,14 @@ async function renderMonth(){
           ? `<span class="cond-pill cond-${cond}">${cond}</span>`
           : `<span class="cond-pill cond-3" style="opacity:.4">–</span>`;
   
+        // コンディション表示と本文
         const txt = row.querySelector(".txt");
         if (txt) {
           txt.innerHTML = `
             <div class="month-one-line">
-              ${condHtml}
               <span class="month-train-ellipsis">${(j.train || "—")}</span>
               <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span>
+              ${condHtml}
             </div>`;
         }
       } catch (err) {
