@@ -2326,68 +2326,6 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
   }
 }
 
-// ===== 予定→時計プリセット（内容のみ） =====
-function setClockPresetFromSchedule(data){
-  const preset = {
-    type: data.sessionType,                    // 'point' 等
-    subtype: data.pointSubtype || null,        // 'pace' | 'interval'
-    distance: Number(data.pointDistance || 0) || null,
-    note: data.note || '',
-    date: data.date
-  };
-  localStorage.setItem('clockPreset', JSON.stringify(preset));
-}
-
-// ▼ 「ポイント」詳細の表示/非表示（初期化時に1回呼ぶ）
-(function initPointAdvancedToggle(){
-  const typeSel = document.getElementById('sessionType');
-  const adv = document.getElementById('point-advanced');
-  if (!typeSel || !adv) return;
-  const sync = ()=> adv.classList.toggle('hidden', typeSel.value !== 'point');
-  typeSel.addEventListener('change', sync);
-  sync();
-})();
-
-// ===== タブ切替に「時計」対応 =====
-function showTab(tab){
-  // 既存のタブ切替ロジックに以下2行を追加（clock入場/退場）
-  if (tab === 'clock') {
-    document.body.classList.add('mode-clock');
-    applyClockPreset(); // ← 下の関数
-  } else {
-    document.body.classList.remove('mode-clock');
-  }
-
-  // ・・・（既存の各ビューの表示/非表示処理はそのまま）
-}
-
-// ===== 時計プリセット表示 =====
-function loadClockPreset(){
-  const raw = localStorage.getItem('clockPreset');
-  if(!raw) return null;
-  try{ return JSON.parse(raw); }catch{ return null; }
-}
-function applyClockPreset(){
-  const p = loadClockPreset();
-  const meta = document.getElementById('clock-meta');
-  const title = document.getElementById('clock-title');
-  if(!meta || !title) return;
-  if(p && p.type === 'point'){
-    const typeJ = p.subtype==='interval'?'インターバル':'ペース走';
-    const d = p.distance ? `${p.distance}m` : '';
-    meta.textContent = [typeJ, d, p.date||''].filter(Boolean).join(' / ');
-    title.textContent = 'ポイント計測';
-  } else if(p){
-    meta.textContent = p.note || p.date || '';
-    title.textContent = '計測';
-  } else {
-    meta.textContent = 'プリセットなし';
-    title.textContent = '計測';
-  }
-}
-
-
-
 
 function openLtimer() {
   if (teamId && memberId) {
