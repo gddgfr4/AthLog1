@@ -59,6 +59,11 @@ function upsertProfile(team, member){
     localStorage.setItem('athlog:profiles', JSON.stringify(arr));
   }
 }
+
+function getDisplayName(memId){
+  return memberNameMap[memId] || memId;
+}
+
 function getMainTeamOf(user){
   try{
     const map=JSON.parse(localStorage.getItem('athlog:mainTeamByUser')||'{}');
@@ -156,7 +161,7 @@ let unsubscribePlans, unsubscribeMemo, unsubscribeMonthChat, unsubscribeJournal;
 let dirty={ dist:false, train:false, feel:false };
 let lastJournal=null;  // ← 追加：未宣言だったので明示
 let unsubscribeNotify = null;
-
+let memberNameMap = {};
 
 // ===== Data Access Layer =====
 const getJournalRef  = (team,member,day)=> db.collection('teams').doc(team).collection('members').doc(member).collection('journal').doc(ymd(day));
@@ -169,7 +174,7 @@ const getMembersRef=(team)=> db.collection('teams').doc(team).collection('member
 // ===== UI Boot & Tab Control =====
 async function showApp(){
   $("#teamLabel").textContent=teamId;
-  $("#memberLabel").textContent=viewingMemberId;
+  $("#memberLabel").textContent = getDisplayName(viewingMemberId);
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
 
@@ -181,7 +186,7 @@ async function showApp(){
   const memberSelect=$("#memberSelect");
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId=$("#memberSelect").value;
-    $("#memberLabel").textContent=viewingMemberId;
+    $("#memberLabel").textContent = getDisplayName(viewingMemberId); // ID -> 表示名
     selDate=new Date();
     const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
     refreshBadges();
@@ -721,7 +726,7 @@ function renderMemoItem(m){
   const div=document.createElement("div");
   div.className="msg";
   const time=new Date(m.ts).toLocaleString("ja-JP");
-  div.innerHTML=`<span class="name">${m.mem}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
+  div.innerHTML=`<span class="name">${getDisplayName(m.mem)}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
   return div;
 }
 async function renderMemo(){
@@ -882,7 +887,7 @@ function renderChat(){
       const m=doc.data();
       const div=document.createElement("div"); div.className="msg";
       const time=new Date(m.ts).toLocaleString("ja-JP");
-      div.innerHTML=`<span class="name">${m.mem}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
+      div.innerHTML=`<span class="name">${getDisplayName(m.mem)}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
       box.appendChild(div);
     });
     box.scrollTop=box.scrollHeight;
@@ -902,7 +907,7 @@ function openPlanModal(dt){
     <div style="background:var(--bg);padding:10px;border-radius:8px; border:1px solid var(--line);">
       <div style="display:flex;gap:6px;margin-bottom:6px">
         <select id="ptype" class="form-control"><option>ジョグ</option><option>ポイント</option><option>補強</option><option>オフ</option><option>その他</option></select>
-        <select id="pscope" class="form-control"><option value="self">${memberId}</option><option value="team">全員</option></select>
+        <select id="pscope" class="form-control"><option value="self">${getDisplayName(memberId)}</option><option value="team">全員</option></select>
         <input id="ptags" placeholder="タグ(,区切り)" class="form-control" />
       </div>
       <textarea id="pcontent" rows="3" style="width:100%" class="form-control"></textarea>
@@ -968,7 +973,7 @@ function renderPlanListInModal(mon, dayKey, editCallback){
       const x=doc.data();
       const isMyPlan=x.mem===memberId;
       const row=document.createElement("div"); row.className="row";
-      let ownerText=x.scope==='team' ? ' (全員)' : ` (${x.mem})`;
+      let ownerText=x.scope==='team' ? ' (全員)' : ` (${getDisplayName(x.mem)})`;
       if(isMyPlan){
         row.style.cursor="pointer";
         row.addEventListener("click",()=>editCallback(doc.id,row));
@@ -1300,7 +1305,11 @@ window.addEventListener("hashchange",()=>{ closePlanModal(); });
     const last=JSON.parse(localStorage.getItem("athlog:last")||"{}");
     if(last.team && last.member){
       teamId=last.team; memberId=last.member; viewingMemberId=last.member;
-      await getMembersRef(teamId).doc(memberId).set({ name:memberId },{merge:true});
+      const memberRef = getMembersRef(teamId).doc(memberId);
+      const memberSnap = await memberRef.get();
+      if (!memberSnap.exists) {
+        await memberRef.set({ name: memberId }, { merge: true }); // 新規時のみIDをnameに設定
+      }
       await showApp();
       selDate=new Date();
       const dp=document.getElementById("datePicker"); if(dp) dp.value=ymd(selDate);
@@ -1319,7 +1328,11 @@ async function doLogin(){
   localStorage.setItem("athlog:last", JSON.stringify({ team:teamId, member:memberId }));
   upsertProfile(teamId,memberId);
   if(!getMainTeamOf(memberId)) setMainTeamOf(memberId,teamId);
-  await getMembersRef(teamId).doc(memberId).set({ name:memberId },{merge:true});
+  const memberRef = getMembersRef(teamId).doc(memberId);
+  const memberSnap = await memberRef.get();
+  if (!memberSnap.exists) {
+    await memberRef.set({ name: memberId }, { merge: true }); // 新規時のみIDをnameに設定
+  }
   const lg=$("#login"); if(lg){ lg.classList.add("hidden"); lg.style.display="none"; }
   const app=$("#app"); if(app){ app.classList.remove("hidden"); }
   try{
@@ -1335,11 +1348,18 @@ async function doLogin(){
 async function populateMemberSelect(){
   const select=$("#memberSelect"); if(!select) return;
   select.innerHTML='';
+  memberNameMap = {};
   const snapshot=await getMembersRef(teamId).get();
   snapshot.docs.forEach(doc=>{
-    const mem=doc.id;
+    const memId = doc.id;
+    const memData = doc.data() || {};
+    const memName = memData.name || memId; // name フィールドが無ければ ID を使用
+    
+    memberNameMap[memId] = memName; // マップに保存
+
     const option=document.createElement('option');
-    option.value=mem; option.textContent=mem;
+    option.value = memId; // 値は ID のまま
+    option.textContent = memName;
     select.appendChild(option);
   });
   const want=viewingMemberId || memberId;
@@ -1991,13 +2011,13 @@ function tscInitOnce(){
   ta.addEventListener('input', tscScheduleSave);
   // ラベルの対象名表示
   const nm = document.getElementById('tscTargetName');
-  if(nm) nm.textContent = viewingMemberId || '';
+  if(nm) nm.textContent = getDisplayName(viewingMemberId) || '';
 }
 
 // 画面遷移・人/日付変更時に呼ぶ
 async function tscRefresh(){
   const nm = document.getElementById('tscTargetName');
-  if(nm) nm.textContent = viewingMemberId || '';
+  if(nm) nm.textContent = getDisplayName(viewingMemberId) || '';
   tscDirty = false;
   await tscLoad();
 }
@@ -2259,7 +2279,7 @@ async function renderNotify(){
       // 表示本文
       const bodyHtml = (n.type === 'dayComment')
         ? (
-          `<div><b>${n.day}</b> の練習にコメントがつきました（${n.from}）</div>` +
+         `<div><b>${n.day}</b> の練習にコメントがつきました（${getDisplayName(n.from)}）</div>` +
           (n.text ? `<div class="muted" style="white-space:pre-wrap;">${escapeHtml(n.text)}</div>` : ``) +
           `<div class="link" data-day="${n.day}">この日誌を開く</div>`
         )
