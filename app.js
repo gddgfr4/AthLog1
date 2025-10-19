@@ -183,6 +183,7 @@ async function showApp(){
   if($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value=__nowMon;
 
   await populateMemberSelect();
+  $("#memberLabel").textContent = getDisplayName(viewingMemberId); // Map構築後に表示名で上書き
   const memberSelect=$("#memberSelect");
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId=$("#memberSelect").value;
