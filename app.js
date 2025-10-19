@@ -1133,7 +1133,8 @@ async function renderDistanceChart(){
 async function renderConditionChart(){
   const ctx=$('#conditionChart')?.getContext('2d'); if(!ctx) return;
   const labels=[], chartData=[];
-  const journalSnaps=await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  const journalSnaps=await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).collection('journal').get();
   const journal={}; journalSnaps.forEach(doc=>journal[doc.id]=doc.data());
   const today=new Date();
   const endDate=addDays(today, conditionChartOffset);
@@ -1161,7 +1162,8 @@ chartMonth = null;
 
 
 async function renderAllDistanceCharts(){
-  const snaps=await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  const snaps=await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).collection('journal').get();
   const journal={}; snaps.forEach(doc=>journal[doc.id]=doc.data());
 
   // === Day: 14日ウィンドウを day オフセット単位で横移動 ===
