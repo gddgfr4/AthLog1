@@ -794,7 +794,7 @@ function populatePlanScopeSelect(){
   select.innerHTML=`
     <option value="all">全件</option>
     <option value="team">全員</option>
-    <option value="${viewingMemberId}">${viewingMemberId}</option>
+    <option value="${viewingMemberId}">${getDisplayName(viewingMemberId)}</option> 
   `;
   select.value=currentVal || 'all';
 }
