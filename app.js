@@ -507,7 +507,7 @@ async function renderJournal(){
   if (mergeScopeSelect){
     mergeScopeSelect.innerHTML =
       `<option value="auto">予定から追加(自動)</option>
-       <option value="${memberId}">${memberId}の予定</option>
+       <option value="${memberId}">${getDisplayName(memberId)}の予定</option>
        <option value="team">全員の予定</option>`;
   }
 
