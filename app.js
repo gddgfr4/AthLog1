@@ -667,17 +667,18 @@ async function renderMonth(){
           const sumEl = document.getElementById("monthSum");
           if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
         }
-  
+
         // ── 行全体の背景色を練習分類に応じて設定 ──
         /* const typebar = document.getElementById(`tb_${key}`); */ // ← 不要
         const tags = Array.isArray(j.tags) ? j.tags.slice(0, 2) : [];
-        // ▼ 薄色用のカラーマップに変更
+        
+        // ▼ 元の (濃い) カラーマップを使用
         const bgColorMap = {
-          ジョグ:   'var(--q-jog-light)',
-          ポイント: 'var(--q-point-light)',
-          補強:     'var(--q-sup-light)',
-          オフ:     'var(--q-off-light)',
-          その他:   'var(--q-other-light)'
+          ジョグ:   'var(--q-jog)',
+          ポイント: 'var(--q-point)',
+          補強:     'var(--q-sup)',
+          オフ:     'var(--q-off)',
+          その他:   'var(--q-other)'
         };
         
         // ▼ typebar ではなく row (DOM要素) に直接適用
@@ -691,7 +692,6 @@ async function renderMonth(){
           const c2 = bgColorMap[tags[1]] || 'var(--panel)';
           row.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`;
         }
-        /* if (typebar) ... */ // ← 元のブロックは削除
   
         // コンディション表示と本文（タグ文字は出さない）
         const cond = (j.condition != null) ? Number(j.condition) : null;
