@@ -646,8 +646,7 @@ async function renderMonth(){
     const row = document.createElement("div");
     row.className = "row";
     row.innerHTML = `
-      <div class="dow" style="display:flex; align-items:center; gap:6px;">
-        <span>${dow}${d}</span>
+      <div class="dow" id="dow_${dayKey}"> <span>${dow}${d}</span>
       </div>
       <div class="txt"><div>—</div></div>
     `;
@@ -668,29 +667,28 @@ async function renderMonth(){
           if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
         }
 
-        // ── 行全体の背景色を練習分類に応じて設定 ──
-        /* const typebar = document.getElementById(`tb_${key}`); */ // ← 不要
+       // ── 縦色ラベル（typebar）の色反映（文字タグは出さない） ──
+        const dowEl = document.getElementById(`dow_${key}`); // typebar -> dowEl
         const tags = Array.isArray(j.tags) ? j.tags.slice(0, 2) : [];
-        
-        // ▼ 元の (濃い) カラーマップを使用
-        const bgColorMap = {
+        const colorMap = {
           ジョグ:   'var(--q-jog)',
           ポイント: 'var(--q-point)',
           補強:     'var(--q-sup)',
           オフ:     'var(--q-off)',
           その他:   'var(--q-other)'
         };
-        
-        // ▼ typebar ではなく row (DOM要素) に直接適用
-        if (tags.length === 0) {
-          row.style.background = 'var(--panel)'; // デフォルト
-        } else if (tags.length === 1) {
-          row.style.background = bgColorMap[tags[0]] || 'var(--panel)';
-        } else {
-          // 2色の場合は上下グラデーション
-          const c1 = bgColorMap[tags[0]] || 'var(--panel)';
-          const c2 = bgColorMap[tags[1]] || 'var(--panel)';
-          row.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`;
+        if (dowEl) { // typebar -> dowEl
+          if (tags.length === 0) {
+            dowEl.style.background = 'var(--panel)'; // デフォルト色（背景色と同じ）
+          } else if (tags.length === 1) {
+            dowEl.style.background = colorMap[tags[0]] || 'var(--panel)';
+            dowEl.style.color = '#1f2937'; // 色がついたら文字を濃くする
+          } else {
+            const c1 = colorMap[tags[0]] || 'var(--panel)';
+            const c2 = colorMap[tags[1]] || 'var(--panel)';
+            dowEl.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`; // 上下分割
+            dowEl.style.color = '#1f2937'; // 色がついたら文字を濃くする
+          }
         }
   
         // コンディション表示と本文（タグ文字は出さない）
@@ -704,8 +702,7 @@ async function renderMonth(){
         if (txt) {
           txt.innerHTML = `
             <div class="month-one-line">
-              <span class="month-train-ellipsis">${(j.train || "—")}</span>
-              <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span>
+              <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span> <span class="month-train-ellipsis">${(j.train || "—")}</span>
               ${condHtml}
             </div>`;
         }
