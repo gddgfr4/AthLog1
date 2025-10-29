@@ -647,7 +647,6 @@ async function renderMonth(){
     row.className = "row";
     row.innerHTML = `
       <div class="dow" style="display:flex; align-items:center; gap:6px;">
-        <span class="typebar" id="tb_${dayKey}" style="height:28px;border-radius:2px;background:#e5e7eb;"></span>
         <span>${dow}${d}</span>
       </div>
       <div class="txt"><div>—</div></div>
@@ -669,27 +668,30 @@ async function renderMonth(){
           if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
         }
   
-        // ── 縦色ラベル（typebar）の色反映（文字タグは出さない） ──
-        const typebar = document.getElementById(`tb_${key}`);
+        // ── 行全体の背景色を練習分類に応じて設定 ──
+        /* const typebar = document.getElementById(`tb_${key}`); */ // ← 不要
         const tags = Array.isArray(j.tags) ? j.tags.slice(0, 2) : [];
-        const colorMap = {
-          ジョグ:   'var(--q-jog)',
-          ポイント: 'var(--q-point)',
-          補強:     'var(--q-sup)',
-          オフ:     'var(--q-off)',
-          その他:   'var(--q-other)'
+        // ▼ 薄色用のカラーマップに変更
+        const bgColorMap = {
+          ジョグ:   'var(--q-jog-light)',
+          ポイント: 'var(--q-point-light)',
+          補強:     'var(--q-sup-light)',
+          オフ:     'var(--q-off-light)',
+          その他:   'var(--q-other-light)'
         };
-        if (typebar) {
-          if (tags.length === 0) {
-            typebar.style.background = '#e5e7eb';
-          } else if (tags.length === 1) {
-            typebar.style.background = colorMap[tags[0]] || '#e5e7eb';
-          } else {
-            const c1 = colorMap[tags[0]] || '#e5e7eb';
-            const c2 = colorMap[tags[1]] || '#e5e7eb';
-            typebar.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`;
-          }
+        
+        // ▼ typebar ではなく row (DOM要素) に直接適用
+        if (tags.length === 0) {
+          row.style.background = 'var(--panel)'; // デフォルト
+        } else if (tags.length === 1) {
+          row.style.background = bgColorMap[tags[0]] || 'var(--panel)';
+        } else {
+          // 2色の場合は上下グラデーション
+          const c1 = bgColorMap[tags[0]] || 'var(--panel)';
+          const c2 = bgColorMap[tags[1]] || 'var(--panel)';
+          row.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`;
         }
+        /* if (typebar) ... */ // ← 元のブロックは削除
   
         // コンディション表示と本文（タグ文字は出さない）
         const cond = (j.condition != null) ? Number(j.condition) : null;
