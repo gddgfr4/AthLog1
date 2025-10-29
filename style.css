@@ -431,6 +431,7 @@ html,body{
 .month-one-line .km {
   flex: 0 0 auto;
   opacity: .8;
+  margin-left: auto;
 }
 
 /* 縦色バー：濃く */
@@ -473,6 +474,7 @@ html,body{
 #lap-list { margin:0; padding-left: 20px; }
 #lap-list li { padding:6px 0; border-bottom:1px dashed #222; }
 #lap-list li:last-child { border-bottom:none; }
+
 
 
 
