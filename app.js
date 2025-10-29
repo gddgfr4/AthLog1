@@ -792,11 +792,11 @@ function populatePlanScopeSelect(){
   const select=$("#planScope"); if(!select) return;
   const currentVal=select.value;
   select.innerHTML=`
-    <option value="all">全件</option>
-    <option value="team">全員</option>
     <option value="${viewingMemberId}">${getDisplayName(viewingMemberId)}</option> 
+    <option value="team">全員</option>
   `;
-  select.value=currentVal || 'all';
+  // 「all」が保存されていれば viewingMemberId をデフォルトにする
+  select.value= (currentVal && currentVal !== 'all') ? currentVal : viewingMemberId;
 }
 function initPlans(){
   $("#pPrev")?.addEventListener("click",()=>{ const m=$("#planMonthPick").value.split("-"); const d=new Date(Number(m[0]), Number(m[1])-2, 1); $("#planMonthPick").value=getMonthStr(d); renderPlans(); });
@@ -846,7 +846,7 @@ async function renderPlans(){
 
     const unsub = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events').orderBy('mem')
       .onSnapshot(snapshot=>{
-        const scope=$("#planScope")?.value || "all";
+        const scope=$("#planScope")?.value || viewingMemberId; // "all" から変更
         const tagText=$("#tagFilter")?.value.trim() || "";
         const tagSet=new Set(tagText ? tagText.split(",").map(s=>s.trim()).filter(Boolean) : []);
         const arr=[];
