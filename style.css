@@ -2,6 +2,13 @@
   --bg:#f8fafc; --panel:#ffffff; --text:#1e293b; --muted:#64748b;
   --primary:#4f46e5; --chip:#e2e8f0; --chip-on:#dbeafe; --line:#cbd5e1;
   --q-jog:#bfdbfe; --q-point:#fed7aa; --q-sup:#bbf7d0; --q-off:#e5e7eb; --q-other:#f5d0fe;
+  /* ▼ 月一覧用の薄色を追加 */
+  --q-jog-light:#f0f9ff;
+  --q-point-light:#fffbeb;
+  --q-sup-light:#f0fdf4;
+  --q-off-light:#f8fafc;
+  --q-other-light:#fef7ff;
+  /* ▲ ここまで追加 */
   --cond1:#ef4444; --cond2:#f97316; --cond3:#eab308; --cond4:#84cc16; --cond5:#22c55e;
 }
 
@@ -473,6 +480,7 @@ html,body{
 #lap-list { margin:0; padding-left: 20px; }
 #lap-list li { padding:6px 0; border-bottom:1px dashed #222; }
 #lap-list li:last-child { border-bottom:none; }
+
 
 
 
