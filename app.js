@@ -77,12 +77,38 @@ function setMainTeamOf(user, team){
 }
 async function applyMirrorFlagsForUser(user, mainTeam){
   const myTeams=getProfiles().filter(p=>p.member===user).map(p=>p.team);
+  
+  // 1. メインチームの全メンバー情報を取得
+  const mainMembersSnap = await getMembersRef(mainTeam).get();
+  const mainMembersData = {};
+  mainMembersSnap.docs.forEach(doc => {
+    mainMembersData[doc.id] = doc.data();
+  });
+
   for(const t of myTeams){
-    const ref=getMembersRef(t).doc(user);
-    if(t===mainTeam){
-      await ref.set({ mirrorFromTeamId: firebase.firestore.FieldValue.delete() }, { merge:true });
+    const teamMembersRef = getMembersRef(t);
+    
+    if(t === mainTeam){
+      // メインチームの場合：全メンバーの mirrorFromTeamId を削除
+      const batch = db.batch();
+      mainMembersSnap.docs.forEach(doc => {
+        batch.set(doc.ref, { mirrorFromTeamId: firebase.firestore.FieldValue.delete() }, { merge: true });
+      });
+      await batch.commit();
+      
     }else{
-      await ref.set({ mirrorFromTeamId: mainTeam }, { merge:true });
+      // サブチームの場合：メインチームの全メンバー情報をミラー設定付きで書き込む
+      const batch = db.batch();
+      for (const memberId in mainMembersData) {
+        const memberName = mainMembersData[memberId]?.name || memberId;
+        const subMemberRef = teamMembersRef.doc(memberId);
+        // サブチームのメンバーに、ミラー元(mainTeam)と名前を設定する
+        batch.set(subMemberRef, { 
+          mirrorFromTeamId: mainTeam,
+          name: memberName // メインチームの名前を同期
+        }, { merge: true });
+      }
+      await batch.commit();
     }
   }
 }
@@ -238,12 +264,30 @@ function initTeamSwitcher(){
   if(btnAdd){
     btnAdd.onclick = async ()=>{
       const t = prompt("追加する Team ID を入力:");
-      if(!t) return;
+      if(!t || t === teamId) return; // 空や現在のチームは無視
       upsertProfile(t, memberId);
-      teamId = t;
+      teamId = t; // 新しいチームIDに切り替え
       localStorage.setItem("athlog:last", JSON.stringify({ team:teamId, member:memberId }));
       $("#teamLabel").textContent = teamId;
-      await getMembersRef(teamId).doc(memberId).set({ name:memberId }, { merge:true });
+
+      // ▼▼▼ 修正 ▼▼▼
+      const myMainTeam = getMainTeamOf(memberId);
+      if (!myMainTeam) {
+          // 万が一メインチームが未設定なら、この操作はエラー（先にメインチームにログインすべき）
+          alert("メインチームが設定されていません。一度メインチームにログインし直してください。");
+          return;
+      }
+      
+      // 新しく追加したチームに、自分のメンバードキュメントを「サブチーム」として作成
+      await getMembersRef(teamId).doc(memberId).set({ 
+          name: memberId, // nameは当面ID
+          mirrorFromTeamId: myMainTeam 
+      }, { merge: true });
+      
+      // サブチームにメインチームの全メンバーを反映
+      await applyMirrorFlagsForUser(memberId, myMainTeam);
+      // ▲▲▲ 修正 ▲▲▲
+
       await populateMemberSelect();
       refreshBadges();
       initTeamSwitcher(); // セレクトを再生成
@@ -1307,12 +1351,36 @@ window.addEventListener("hashchange",()=>{ closePlanModal(); });
     const last=JSON.parse(localStorage.getItem("athlog:last")||"{}");
     if(last.team && last.member){
       teamId=last.team; memberId=last.member; viewingMemberId=last.member;
+      
+      // ▼▼▼ 修正 ▼▼▼
+      const myMainTeam = getMainTeamOf(memberId);
+      if (!myMainTeam) {
+         // 稀なケース：ローカルストレージが破損しメインチーム情報がない
+         setMainTeamOf(memberId, teamId); // 現在のチームを仮のメインに
+      }
+
       const memberRef = getMembersRef(teamId).doc(memberId);
       const memberSnap = await memberRef.get();
+      const isMain = (getMainTeamOf(memberId) === teamId);
+      const mirrorSource = isMain ? firebase.firestore.FieldValue.delete() : getMainTeamOf(memberId);
+
       if (!memberSnap.exists) {
-        await memberRef.set({ name: memberId }, { merge: true }); // 新規時のみIDをnameに設定
+        await memberRef.set({ 
+            name: memberId,
+            mirrorFromTeamId: mirrorSource
+        }, { merge: true });
+      } else {
+        // ミラーフラグが最新か確認・更新
+        const currentMirror = memberSnap.data()?.mirrorFromTeamId;
+        const expectedMirror = isMain ? undefined : getMainTeamOf(memberId);
+        if (currentMirror !== expectedMirror) {
+            await memberRef.set({ mirrorFromTeamId: mirrorSource }, { merge: true });
+        }
       }
+      // ▲▲▲ 修正 ▲▲▲
+
       await showApp();
+// ... (以下略)
       selDate=new Date();
       const dp=document.getElementById("datePicker"); if(dp) dp.value=ymd(selDate);
       renderJournal();
@@ -1329,13 +1397,41 @@ async function doLogin(){
   if(!teamId || !memberId){ alert("Team / Member を入力"); return; }
   localStorage.setItem("athlog:last", JSON.stringify({ team:teamId, member:memberId }));
   upsertProfile(teamId,memberId);
-  if(!getMainTeamOf(memberId)) setMainTeamOf(memberId,teamId);
+  
+  // ▼▼▼ 修正 ▼▼▼
+  const myMainTeam = getMainTeamOf(memberId);
+  if(!myMainTeam) {
+    // この人がまだメインチームを設定したことがない
+    setMainTeamOf(memberId, teamId); // 最初にログインしたチームをメインに設定
+  }
+  
   const memberRef = getMembersRef(teamId).doc(memberId);
   const memberSnap = await memberRef.get();
+  
+  // ログインしたチームが自分のメインチームか？
+  const isMain = (getMainTeamOf(memberId) === teamId);
+  const mirrorSource = isMain ? firebase.firestore.FieldValue.delete() : getMainTeamOf(memberId);
+
   if (!memberSnap.exists) {
-    await memberRef.set({ name: memberId }, { merge: true }); // 新規時のみIDをnameに設定
+    await memberRef.set({ 
+      name: memberId, 
+      mirrorFromTeamId: mirrorSource 
+    }, { merge: true });
+  } else {
+    // 既存でもミラーフラグを更新
+    await memberRef.set({ 
+      mirrorFromTeamId: mirrorSource 
+    }, { merge: true });
   }
+  
+  // もしメインチーム設定が更新されたら、全チームに反映（重いが確実）
+  if (!myMainTeam) {
+      await applyMirrorFlagsForUser(memberId, teamId);
+  }
+  // ▲▲▲ 修正 ▲▲▲
+
   const lg=$("#login"); if(lg){ lg.classList.add("hidden"); lg.style.display="none"; }
+// ... (以下略)
   const app=$("#app"); if(app){ app.classList.remove("hidden"); }
   try{
     await showApp();
