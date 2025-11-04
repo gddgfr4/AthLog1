@@ -380,11 +380,10 @@ async function saveJournal(){
   };
   await docRef.set(journalData,{merge:true});
   dirty={ dist:false, train:false, feel:false };
-  renderWeek();
 }
 function initJournal(){
   const scheduleAutoSave = makeJournalAutoSaver(700);
-  $("#distInput")?.addEventListener("input", ()=>{ dirty.dist=true; scheduleAutoSave(); });
+  $("#distInput")?.addEventListener("input", ()=>{ dirty.dist=true; scheduleAutoSave(); renderWeek(); });
   $("#trainInput")?.addEventListener("input", ()=>{ dirty.train=true; scheduleAutoSave(); });
   $("#feelInput")?.addEventListener("input", ()=>{ dirty.feel=true; scheduleAutoSave(); });
   const brushBtns=$$('.palette .lvl, .palette #eraser');
@@ -416,6 +415,7 @@ function initJournal(){
       },{merge:true});
     });
     dirty={dist:false,train:false,feel:false};
+    renderWeek();
   }));
 
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
