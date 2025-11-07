@@ -746,7 +746,7 @@ async function renderMonth(){
         if (txt) {
           txt.innerHTML = `
             <div class="month-one-line">
-              <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span> <span class="month-train-ellipsis">${(j.train || "—")}</span>
+              <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span><span class="month-train-ellipsis">${(j.train || "—")}</span>
               ${condHtml}
             </div>`;
         }
