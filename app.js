@@ -2114,14 +2114,13 @@ async function tscSave(){
     tscDirty = false;
     tscSetStatus('保存済み');
 
-    // ▼ 2. ★Functionsの代わりに、通知を一括生成する処理を呼び出す（ここを追加）
-    // createDayCommentNotifications は app.js の末尾に既に定義されている関数
+    // ▼ 2. ★修正: 宛先 (to) を日誌の持ち主 (viewingMemberId) に指定して呼び出す
     await createDayCommentNotifications({
       teamId: teamId,
-      from: memberId,           // コメントした人
-      to: viewingMemberId,      // ★追加: 日誌の持ち主
+      from: memberId,           // コメントした人（自分）
+      to: viewingMemberId,      // ★追加: 日誌の持ち主（相手）
       day: dayKey,              
-      text: text                
+      text: text         
     });
   }catch(e){
     console.error('tscSave', e);
