@@ -2013,7 +2013,28 @@ function initMuscleMap(){
     if(brush.erase){
       floodErase(mm.octx, mm.wctx, p.x, p.y);
     }else{
-      floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, MM.LEVELS[brush.lvl||1]);
+      const targetColor = MM.LEVELS[brush.lvl||1];
+      const pixel = mm.octx.getImageData(p.x, p.y, 1, 1).data;
+      // アルファ値を見て「既に塗られている場所か」を判定
+      const isPainted = pixel[3] > 50; 
+
+      if(isPainted){
+        // 既に塗られている場合、色が同じか判定 (RGB差分の合計で比較)
+        const dist = Math.abs(pixel[0]-targetColor[0]) +
+                     Math.abs(pixel[1]-targetColor[1]) +
+                     Math.abs(pixel[2]-targetColor[2]);
+
+        if(dist < 15) { // 許容誤差
+          // 【同じ色】なら消す (トグル動作)
+          floodErase(mm.octx, mm.wctx, p.x, p.y);
+        } else {
+          // 【違う色】なら上書き (一度消してから新しい色で塗る)
+          floodErase(mm.octx, mm.wctx, p.x, p.y);
+          floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, targetColor);
+        }
+      } else {
+        // 塗られていない場所 → 普通に塗る
+        floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, targetColor);
     }
     saveMuscleLayerToDoc();
   }
