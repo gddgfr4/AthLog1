@@ -693,93 +693,132 @@ html,body{
 /* style.css (末尾の @media (max-width:720px) ブロックをこれに置き換え) */
 
 @media (max-width:720px){
-  /* --- 1. 不要な要素を非表示 --- */
-  #openHelpBtn, 
-  .brand, 
-  #teamSwitchWrap {
-    display: none !important;
-  }
+  /* --- 1. トップバー (前回までの設定を維持) --- */
+  #openHelpBtn, .brand, #teamSwitchWrap { display: none !important; }
 
-  /* --- 2. トップバーを極限まで薄く --- */
   .topbar {
-    padding: 2px 4px !important; /* 上下2px */
+    padding: 2px 4px !important;
     gap: 2px !important;
-    min-height: 28px !important; /* 高さを確保しすぎない */
+    min-height: 28px !important;
     height: auto !important;
-    flex-wrap: nowrap !important; /* 1行に収める */
-    overflow: hidden; /* はみ出し防止 */
+    flex-wrap: nowrap !important;
   }
 
-  /* --- 3. 要素の並び（左詰め・横一列） --- */
   .topbar .teamuser {
     margin-left: 0 !important;
-    gap: 4px !important; /* 間隔を詰める */
+    gap: 4px !important;
     width: 100% !important;
     justify-content: space-between !important;
     align-items: center !important;
     display: flex !important;
   }
 
-  /* --- 4. 「表示中:」のテキストだけを消す --- */
-  /* 親spanのフォントサイズを0にしてテキストを消し、子要素(bタグ等)でサイズを復活させる */
-  .topbar #memberNavWrap > span {
-    font-size: 0 !important; 
-    display: flex !important; /* flexにして高さを揃える */
-    align-items: center !important;
-    gap: 4px;
-  }
-  .topbar #memberNavWrap > span > * {
-    font-size: 12px !important; /* メンバー名やバッジは表示 */
-  }
+  .topbar #memberNavWrap > span { font-size: 0 !important; display: flex !important; align-items: center !important; gap: 4px; }
+  .topbar #memberNavWrap > span > * { font-size: 12px !important; }
 
-  /* --- 5. 各パーツの超小型化 (高さ24px) --- */
-  
-  /* チーム名表示 */
   .topbar .teamuser > span:nth-child(1) {
+    font-size: 11px !important; white-space: nowrap; transform: scale(0.9); transform-origin: left center;
+  }
+  #memberSelect {
+    height: 24px !important; padding: 0 2px !important; font-size: 12px !important; border-radius: 4px !important;
+  }
+  .topbar .teamuser .small-btn {
+    width: 24px !important; height: 24px !important; line-height: 22px !important; font-size: 12px !important; padding: 0 !important; margin: 0 !important;
+  }
+  #logoutBtn {
+    width: 24px !important; height: 24px !important; padding: 0 !important; font-size: 0 !important; line-height: 24px !important; display: inline-flex !important; align-items: center; justify-content: center;
+  }
+  #logoutBtn::before { content: "⎋"; font-size: 14px !important; }
+  .badge { padding: 1px 3px !important; font-size: 9px !important; border-radius: 3px !important; }
+
+
+  /* --- 2. タブメニュー (トップバーと日誌の間の空間) --- */
+  .tabs {
+    padding: 2px 4px !important; /* 上下余白を極小に */
+    gap: 4px !important;
+    border-bottom-width: 1px !important;
+  }
+  .tab {
+    padding: 4px 8px !important; /* タブ自体の高さを減らす */
     font-size: 11px !important;
-    white-space: nowrap;
-    transform: scale(0.9); /* さらに少し小さく */
-    transform-origin: left center;
+    border-radius: 6px !important;
   }
 
-  /* メンバー選択セレクトボックス */
-  #memberSelect {
-    height: 24px !important;
-    padding: 0 2px !important;
-    font-size: 12px !important;
+
+  /* --- 3. 日誌パネルと全体の余白 --- */
+  .tabpanel {
+    padding: 4px !important; /* 画面端との隙間を詰める */
+  }
+  
+  .panel {
+    padding: 8px !important; /* 白い枠内の余白を詰める */
+    margin-bottom: 8px !important;
+  }
+  .panel.right {
+    gap: 6px !important; /* パネル内要素の間隔を詰める */
+  }
+
+
+  /* --- 4. 日誌フォーム内部 (カレンダー・ボタン・入力欄) --- */
+  
+  /* 週カレンダー */
+  .weekbar {
+    margin-bottom: 4px !important;
+    gap: 4px !important;
+  }
+  #weekChips { gap: 3px !important; }
+  #weekChips .chip {
+    padding: 4px 2px !important;
+    border-radius: 6px !important;
+  }
+  
+  /* クイックボタンエリア */
+  .quick {
+    padding: 4px !important;
+    gap: 4px !important;
+    margin-bottom: 4px !important;
+  }
+  .qbtn {
+    padding: 4px 8px !important; /* ボタンを薄く */
+    font-size: 11px !important;
     border-radius: 4px !important;
   }
 
-  /* 矢印ボタン (< >) */
-  .topbar .teamuser .small-btn {
-    width: 24px !important;
-    height: 24px !important;
-    line-height: 22px !important; /* 枠線を考慮 */
-    font-size: 12px !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  /* ログアウトボタン (アイコンのみ) */
-  #logoutBtn {
-    width: 24px !important;
-    height: 24px !important;
-    padding: 0 !important;
-    font-size: 0 !important; /* 文字を消す */
-    line-height: 24px !important;
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-  }
-  #logoutBtn::before { 
-    content: "⎋"; 
-    font-size: 14px !important; 
+  /* 入力フォーム周り */
+  .formcol {
+    gap: 6px !important; /* 上下の入力欄の間隔を詰める */
   }
   
-  /* バッジ（MAINなど）を小さく */
-  .badge {
-    padding: 1px 3px !important;
-    font-size: 9px !important;
-    border-radius: 3px !important;
+  /* ラベルと入力欄 */
+  label {
+    font-size: 10px !important;
+    margin-bottom: 1px !important; /* ラベルと入力欄の隙間をほぼゼロに */
+    line-height: 1 !important;
+  }
+  
+  input[type="number"], input[type="text"], textarea, select, .form-control {
+    padding: 3px 6px !important; /* 入力欄の高さを減らす */
+    font-size: 13px !important;
+    border-radius: 4px !important;
+    min-height: 0 !important;
+  }
+  
+  /* 調子ボタン */
+  .condition-rating button {
+    width: 24px !important; 
+    height: 24px !important;
+    font-size: 11px !important;
+    border-width: 1px !important;
+  }
+  
+  /* ノートエリア */
+  .note {
+    margin-top: 2px !important;
+  }
+  
+  /* 距離・体重・調子の横並びエリアの微調整 */
+  .formcol > div[style*="display:flex"] {
+    gap: 6px !important;
+    align-items: flex-end !important;
   }
 }
