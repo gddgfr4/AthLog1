@@ -689,13 +689,43 @@ html,body{
   border-radius: 50%; /* 丸くする */
   flex-shrink: 0; /* 縮まないように */
 }
-/* モバイルでの調整 */
+/* style.css (末尾に追加、または既存の @media (max-width:720px) をこれに置き換え) */
+
 @media (max-width:720px){
-  .topbar .teamuser .small-btn {
-    width: 30px;
-    height: 30px;
-    line-height: 28px;
-    font-size: 14px;
+  /* 1. ヘルプとブランド名を非表示 */
+  #openHelpBtn, 
+  .brand {
+    display: none !important;
+  }
+
+  /* 2. チーム切り替え・追加・設定エリアを丸ごと非表示 */
+  /* (「Team: チーム名」の表示はこれの外にあるので残ります) */
+  #teamSwitchWrap {
+    display: none !important;
+  }
+
+  /* 3. トップバーのレイアウト調整 */
+  .topbar {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  /* 4. 残った要素（チーム名、メンバー、ログアウト）を左詰めで表示 */
+  .topbar .teamuser {
+    margin-left: 0;       /* 右寄せを解除して左詰め */
+    gap: 12px;            /* 要素間の間隔 */
+    width: 100%;          /* 幅を確保 */
+    justify-content: space-between; /* 均等配置（左・中・右）にしたい場合はここを調整 */
+    
+    /* はみ出した場合に備えて横スクロールを許可 */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  
+  /* (微調整) チーム名表示などのフォントサイズを少し小さくして収まりよくする */
+  .topbar .teamuser span {
+    font-size: 13px;
   }
 }
 
@@ -716,4 +746,5 @@ html,body{
 
 .topbar .teamuser > span:nth-child(1) {
   display: none !important;
+
 
