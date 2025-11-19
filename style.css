@@ -706,15 +706,5 @@ html,body{
   display: none !important; 
 }
 
-/* 3. メンバーナビゲーション全体を左に詰める調整（モバイル時にも有効） */
-/* 非表示にしたことで空いたスペースが詰まり、ボタン類が左に寄ります。 */
-.topbar .teamuser {
-    /* 既存の display:flex; align-items:center; gap:12px; を維持 */
-    /* モバイル時：通常、チーム/メンバー要素は右に寄せていますが、
-       この修正により、全体が左側から詰まって表示されます。 */
-}
-
-/* 4. モバイル表示時、helpボタンとログアウトボタンの余白を調整（必要に応じて） */
-/* 既存の @media (max-width:720px) { .topbar .teamuser{ gap:8px; margin-left:auto; } } 
-   が残っていれば、その設定で右寄せ・間隔詰めは維持されます。
-*/
+.topbar .teamuser > span:nth-child(1) {
+  display: none !important;
