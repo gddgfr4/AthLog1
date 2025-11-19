@@ -82,7 +82,7 @@
             <button class="lvl active" data-lvl="1"><span class="dot dot1"></span>1</button>
             <button class="lvl" data-lvl="2"><span class="dot dot2"></span>2</button>
             <button class="lvl" data-lvl="3"><span class="dot dot3"></span>3</button>
-            <button id="eraser" class="lvl">消しゴム</button>
+            <button id="eraser" class="lvl">🧼</button>
           </div>
 
           <!-- 画像＋キャンバス3枚を完全重ね（ズレ防止のため id=mmWrap 必須） -->
@@ -120,28 +120,29 @@
           </div>
 
           <div class="formcol">
-            <div style="display:flex; gap:12px; align-items:flex-start;">
-              <div style="flex:1;">
-                <label>走行距離(km)</label>
-                <input type="number" id="distInput" step="0.1" min="0" />
+            <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">
+              
+              <div style="width: 70px;">
+                <label style="font-size:11px; white-space:nowrap;">距離(km)</label>
+                <input type="number" id="distInput" step="0.1" min="0" style="padding:6px;" />
               </div>
-              <div style="flex:1;">
-                <label>体重(kg)</label>
-                <input type="number" id="weightInput" step="0.1" min="0" />
-              </div>
-            </div>
-            <div>
-              <label>調子</label>
-              <div id="conditionBtns" class="condition-rating">
-                <button data-val="1">1</button>
-                <button data-val="2">2</button>
-                <button data-val="3">3</button>
-                <button data-val="4">4</button>
-                <button data-val="5">5</button>
-              </div>
-            </div>
-          </div>
 
+              <div style="width: 70px;">
+                <label style="font-size:11px; white-space:nowrap;">体重(kg)</label>
+                <input type="number" id="weightInput" step="0.1" min="0" style="padding:6px;" />
+              </div>
+
+              <div style="flex:1; min-width:150px;">
+                <label style="font-size:11px;">調子</label>
+                <div id="conditionBtns" class="condition-rating" style="margin-top:1px;">
+                  <button data-val="1">1</button>
+                  <button data-val="2">2</button>
+                  <button data-val="3">3</button>
+                  <button data-val="4">4</button>
+                  <button data-val="5">5</button>
+                </div>
+              </div>
+            </div>
             <div class="note">
               <label>練習内容</label>
               <textarea id="trainInput" rows="3"></textarea>
@@ -504,6 +505,7 @@
 
 </body>
 </html>
+
 
 
 
