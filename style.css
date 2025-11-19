@@ -691,38 +691,65 @@ html,body{
 }
 /* style.css (末尾の @media (max-width:720px) ブロックをこれに置き換え) */
 
+/* style.css (末尾の @media (max-width:720px) ブロックをこれに置き換え) */
+
 @media (max-width:720px){
-  /* 1. ヘルプとブランド名を非表示 */
-  #openHelpBtn, 
-  .brand {
-    display: none !important;
-  }
-
-  /* 2. チーム切り替え・追加・設定エリアを丸ごと非表示 */
-  #teamSwitchWrap {
-    display: none !important;
-  }
-
-  /* 3. トップバーのレイアウト調整（余白を限界まで詰める） */
+  /* --- 1. トップバー全体の余白圧縮 --- */
   .topbar {
-    padding: 2px 8px; /* 上下2px, 左右8pxに縮小 */
-    gap: 4px;         /* 隙間も詰める */
-    min-height: 40px; /* 最小高さを低く設定 */
-  }
-
-  /* 4. 残った要素（チーム名、メンバー、ログアウト）を左詰めで表示 */
-  .topbar .teamuser {
-    margin-left: 0;
-    gap: 8px;            /* 要素間の間隔を詰める */
-    width: 100%;
-    justify-content: space-between;
-    align-items: center; /* 垂直方向中央揃え */
+    /* 上下パディングを半分に (8px -> 4px) */
+    padding: 4px 10px !important; 
+    /* 要素間の隙間を半分に (8px -> 4px) */
+    gap: 4px !important;
     
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    white-space: nowrap;
+    /* 折り返しを許可して、幅が足りないときは自然に改行させる */
+    flex-wrap: wrap !important; 
+    /* 行間も詰める */
+    align-content: center;
+    
+    /* 高さ制限は解除（中身に合わせて伸縮） */
+    height: auto !important;
+    min-height: 0 !important;
   }
   
+  /* ブランド名: 表示する */
+  .brand {
+    display: block !important;
+    /* マージンがあれば半分に */
+    margin-right: 6px !important; 
+  }
+
+  /* --- 2. チーム・メンバー情報の余白圧縮 --- */
+  .topbar .teamuser {
+    margin-left: 0 !important;
+    
+    /* 内部要素の隙間を半分に (12px -> 6px) */
+    gap: 6px !important; 
+    
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    
+    /* 余ったスペースを埋める */
+    flex: 1; 
+  }
+  
+  /* チーム切り替えエリア: 表示する */
+  #teamSwitchWrap {
+    display: flex !important;
+    /* 隙間を半分に (8px -> 4px) */
+    gap: 4px !important;
+    align-items: center;
+  }
+  
+  /* メンバーナビゲーション周りの余白 */
+  #memberNavWrap {
+    gap: 2px !important; /* 4px -> 2px */
+  }
+  
+  /* ヘルプボタン等を表示 */
+  #openHelpBtn {
+    display: inline-flex !important;
+  }
   /* 5. モバイル用にボタンサイズをコンパクトにする */
   .topbar .teamuser .small-btn {
     width: 28px;        /* 30px -> 28px */
@@ -772,6 +799,7 @@ html,body{
 
 .topbar .teamuser > span:nth-child(1) {
   display: none !important;
+
 
 
 
