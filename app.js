@@ -2440,10 +2440,18 @@ async function renderNotify(){
      toMark.push(doc.ref);
     });
 
-    // 既読フラグ更新（まとめて）
-    const batch = db.batch();
-    toMark.forEach(ref => batch.update(ref, { read: true }));
-    try{ await batch.commit(); }catch(e){ console.error('notify read commit error', e); }
+    const isNotifyTabActive = document.querySelector('.tab.active')?.dataset.tab === 'notify';
+
+    if (isNotifyTabActive) {
+      const batch = db.batch(); 
+      toMark.forEach(ref => batch.update(ref, { read: true }));
+      try{ 
+          await batch.commit(); 
+      }catch(e){ 
+          console.error('notify read commit error', e); 
+      }
+    }
+    
   }, (err)=>{
     console.error('notify onSnapshot error', err);
     empty.style.display = 'block';
