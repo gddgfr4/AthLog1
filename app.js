@@ -2034,7 +2034,8 @@ function initMuscleMap(){
         }
       } else {
         // 塗られていない場所 → 普通に塗る
-        floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, targetColor);
+        floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, targetColor);   
+      }
     }
     saveMuscleLayerToDoc();
   }
