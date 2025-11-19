@@ -198,13 +198,13 @@ const getTeamMemoCollectionRef=(team)=> db.collection('teams').doc(team).collect
 const getMonthChatCollectionRef=(team,month)=> db.collection('teams').doc(team).collection('chat').doc(month).collection('messages');
 const getMembersRef=(team)=> db.collection('teams').doc(team).collection('members');
 
-// ===== UI Boot & Tab Control =====
+// app.js (showApp() 関数全体を置き換え)
+
 async function showApp(){
-  const teamLabelEl = $("#teamLabel");
-  if ($("#teamLabel")) {
-      $("#teamLabel").textContent=teamId;
-  }
-  //$("#memberLabel").textContent = getDisplayName(viewingMemberId);
+  $("#teamLabel").textContent=teamId;
+  // ★メンバー表示要素の参照を元に戻す★
+  $("#memberLabel").textContent = getDisplayName(viewingMemberId); 
+  
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
 
@@ -214,20 +214,15 @@ async function showApp(){
 
   await populateMemberSelect();
   
-  const memberLabelAfterPopulate = $("#memberLabel");
-  if(memberLabelAfterPopulate) {
-      memberLabelAfterPopulate.textContent = getDisplayName(viewingMemberId);
-  }
+  // ★メンバー表示要素の参照を元に戻す★
+  $("#memberLabel").textContent = getDisplayName(viewingMemberId);
   
   const memberSelect=$("#memberSelect");
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId=$("#memberSelect").value;
     
-    // ★修正: リスナー内の #memberLabel を更新する行を保護
-    const memberLabelInListener = $("#memberLabel");
-    if(memberLabelInListener) {
-        memberLabelInListener.textContent = getDisplayName(viewingMemberId);
-    }
+    // ★メンバー表示要素の参照を元に戻す★
+    $("#memberLabel").textContent = getDisplayName(viewingMemberId);
     
     selDate=new Date();
     const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
@@ -245,6 +240,8 @@ async function showApp(){
   initTeamSwitcher();
   initGlobalTabSwipe();
   initNotifyBadgeCheck();
+  
+  // メンバー移動ボタンの初期化は維持
   initMemberNav();
 }
 function initTeamSwitcher(){
