@@ -2379,7 +2379,7 @@ async function renderNotify(){
   const col = db.collection('teams').doc(teamId).collection('notifications');
   const q = col.where('to','==', viewingMemberId || memberId)
                //.where('read','==', false)
-               .orderBy('ts','desc');
+               //.orderBy('ts','desc');
 
   // スナップショット購読
   unsubscribeNotify = q.onSnapshot(async (snap)=>{
