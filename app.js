@@ -2105,9 +2105,10 @@ async function tscSave(){
     // createDayCommentNotifications は app.js の末尾に既に定義されている関数
     await createDayCommentNotifications({
       teamId: teamId,
-      from: memberId,       // コメントした人（自分）
-      day: dayKey,          // 日付
-      text: text            // コメント本文
+      from: memberId,           // コメントした人
+      to: viewingMemberId,      // ★追加: 日誌の持ち主
+      day: dayKey,              
+      text: text                
     });
   }catch(e){
     console.error('tscSave', e);
@@ -2444,37 +2445,33 @@ function escapeHtml(s){
 
 async function createDayCommentNotifications({ teamId, from, day, text }){
   try{
-    // チームのメンバー一覧
-    const ms = await getMembersRef(teamId).get();
-    // ★★★ デバッグログを追加 (1) ★★★
-    console.log("DEBUG: Found members for notification:", ms.docs.length);
     const col = db.collection('teams').doc(teamId).collection('notifications');
     const batch = db.batch();
     const ts = Date.now();
     let notifyCount = 0;
-
-    ms.docs.forEach(m=>{
-      const to = m.id;
-      if (to === from) return; // 自分には送らない
-      const ref = col.doc();   // ランダムID
+    // ▼ 修正: to が存在し、from (コメント投稿者) と異なるときのみ通知を作成
+    if (to && to !== from) {
+      const ref = col.doc();
       batch.set(ref, {
         type:'dayComment',
         team: teamId,
-        day, text, from, to,
+        day, text, from, to, // to は日誌の持ち主
         ts, read:false
       });
       notifyCount++;
-    });
-// ★★★ デバッグログを追加 (2) ★★★
+    }
+
     console.log("DEBUG: Attempting batch commit for notifications, count:", notifyCount);
-    await batch.commit();
-    // ★★★ デバッグログを追加 (3) ★★★
+
+    await batch.commit(); 
+
     console.log("DEBUG: Notification batch committed successfully.");
+
   }catch(e){
     console.error('createDayCommentNotifications error', e);
   }
 }
-
+    
 
 function openLtimer() {
   if (teamId && memberId) {
