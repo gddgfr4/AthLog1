@@ -568,4 +568,101 @@ html,body{
   white-space: pre-wrap;
 }
 
+/* ========== 通知リストのレイアウト・デザイン修正 (最終版) ========== */
 
+/* 1. 通知タブ (#notify) 自体にFlexboxを適用し、画面の残り高さを確保する */
+/* (topbar + tabs の高さ分を引いた min-height を設定) */
+#notify {
+  /* .tabpanel の padding が 14px あるため、heightの計算が複雑になるのを避けるため、
+     .tabpanelの display:none を解除した後の #notify セクションに Flexbox を適用 */
+  min-height: calc(100vh - 120px); /* 概算で上部要素の高さ約120pxを引く */
+  display: flex !important; /* display:none !important; の後の.tabpanel.activeの display:block; を上書き */
+  flex-direction: column;
+  padding: 14px; /* 既存の.tabpanelのpaddingを維持 */
+}
+
+/* 2. 通知パネル (.panel) が親 (通知タブ) の高さをすべて占めるようにする */
+#notify .panel {
+  flex-grow: 1; 
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Flexアイテムの最小高さのオーバーライド */
+}
+
+/* 3. 通知リスト (#notifyList) が残りの高さを占め、スクロール可能にする */
+#notifyList {
+  flex-grow: 1; 
+  overflow-y: auto; /* 縦スクロールを有効化 */
+  max-height: none !important; /* 既存の chatlog の max-height を解除 */
+  
+  /* カード型レイアウトの調整 */
+  gap: 10px; 
+  padding: 0; 
+  padding-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 4. 通知カードのデザイン（切れ目の分かりやすさ） */
+.notify-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  cursor: default;
+}
+
+.notify-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.notify-header .notify-icon {
+  font-size: 1.2em;
+  line-height: 1;
+}
+
+.notify-header .notify-title {
+  flex: 1;
+  color: var(--primary);
+}
+
+.notify-header .date {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.notify-content {
+  padding-top: 4px;
+}
+
+.notify-day-link {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  padding: 4px 0;
+  display: block;
+}
+
+/* 5. コメント本文の縦伸びと視認性の確保 */
+.notify-comment-text {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--bg); 
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  font-size: 14px;
+  white-space: pre-wrap;
+  min-height: 3em;      /* 少なくとも3行分の高さを確保 */
+  max-height: none;     /* 予期せぬ高さ制限を解除 */
+  overflow: hidden;     /* 意図しないスクロールを防止 */
+}
