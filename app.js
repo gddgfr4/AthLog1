@@ -200,8 +200,10 @@ const getMembersRef=(team)=> db.collection('teams').doc(team).collection('member
 
 // ===== UI Boot & Tab Control =====
 async function showApp(){
-  $("#teamLabel").textContent=teamId;
-  $("#memberLabel").textContent = getDisplayName(viewingMemberId);
+  if ($("#teamLabel")) {
+      $("#teamLabel").textContent=teamId;
+  }
+  //$("#memberLabel").textContent = getDisplayName(viewingMemberId);
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
 
