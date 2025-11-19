@@ -2087,15 +2087,28 @@ async function tscLoad(){
 
 async function tscSave(){
   try{
-    const ta = document.getElementById('teamSharedComment');
+    onst ta = document.getElementById('teamSharedComment');
     if(!ta) return;
     const text = ta.value;
+    // ミラー先の日誌リファレンスを取得（tscRefreshでviewingMemberIdは日誌の持ち主）
     const ref  = getJournalRef(teamId, viewingMemberId, selDate);
     
-    // ▼▼▼ 変更点: lastCommentBy を追加し、古い通知コードを削除 ▼▼▼
+    // 通知生成のため、日付キーを取得
+    const dayKey = ymd(selDate); // ★追加
+
+    // ▼ 1. コメントと投稿者IDを日誌に保存
     await ref.set({ teamComment: text, lastCommentBy: memberId }, { merge:true });
     tscDirty = false;
     tscSetStatus('保存済み');
+
+    // ▼ 2. ★Functionsの代わりに、通知を一括生成する処理を呼び出す（ここを追加）
+    // createDayCommentNotifications は app.js の末尾に既に定義されている関数
+    await createDayCommentNotifications({
+      teamId: teamId,
+      from: memberId,       // コメントした人（自分）
+      day: dayKey,          // 日付
+      text: text            // コメント本文
+    });
   }catch(e){
     console.error('tscSave', e);
     tscSetStatus('保存失敗（自動再試行）');
