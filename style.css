@@ -691,3 +691,30 @@ html,body{
   }
 }
 
+/* style.css (末尾に追加) */
+
+/* ========== トップバー非表示要素の修正と詰め ========== */
+
+/* 1. AthLog ブランド名（.brand）を非表示にする */
+.topbar .brand {
+  display: none !important;
+}
+
+/* 2. 「表示中: メンバー名/バッジ」セクション全体を非表示にする */
+/* 非表示にする要素は #memberNavWrap の中の「名前とバッジ」が入った span */
+.topbar #memberNavWrap > span {
+  display: none !important; 
+}
+
+/* 3. メンバーナビゲーション全体を左に詰める調整（モバイル時にも有効） */
+/* 非表示にしたことで空いたスペースが詰まり、ボタン類が左に寄ります。 */
+.topbar .teamuser {
+    /* 既存の display:flex; align-items:center; gap:12px; を維持 */
+    /* モバイル時：通常、チーム/メンバー要素は右に寄せていますが、
+       この修正により、全体が左側から詰まって表示されます。 */
+}
+
+/* 4. モバイル表示時、helpボタンとログアウトボタンの余白を調整（必要に応じて） */
+/* 既存の @media (max-width:720px) { .topbar .teamuser{ gap:8px; margin-left:auto; } } 
+   が残っていれば、その設定で右寄せ・間隔詰めは維持されます。
+*/
