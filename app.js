@@ -2391,13 +2391,13 @@ async function renderNotify(){
     }
     empty.style.display = 'none';
 
-    const toMark = [];  // 既読化対象
+   // const toMark = [];  // 既読化対象
 
     // app.js (renderNotify 関数内の snap.docs.forEach の部分を置き換え)
 
     snap.docs.forEach(doc=>{
       const n = doc.data();
-      
+      const notifId = doc.id; // ★通知ドキュメントIDを取得
       const div = document.createElement('div');
       // ★修正：新しいクラス名に変更し、カードデザインを適用
       div.className = 'notify-card'; 
@@ -2425,12 +2425,21 @@ async function renderNotify(){
 
         div.innerHTML = bodyHtml;
 
-        // クリックで該当日へ
+        // ★★★ 修正: クリック時に既読化と画面遷移を実行 ★★★
         div.querySelector('.notify-day-link')?.addEventListener('click', (e)=>{
           const day = e.currentTarget.getAttribute('data-day');
-          if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)){
-            selDate = parseDateInput(day);
-            switchTab('journal', true);
+          const clickedId = e.currentTarget.getAttribute('data-notif-id'); 
+
+          if (day && clickedId && /^\d{4}-\d{2}-\d{2}$/.test(day)){
+              // 1. 該当通知を既読にする
+              const notifRef = db.collection('teams').doc(teamId).collection('notifications').doc(clickedId);
+              notifRef.update({ read: true }).catch(err => {
+                  console.error("Failed to mark notification as read:", err);
+              });
+              
+              // 2. 日誌タブに移動
+              selDate = parseDateInput(day);
+              switchTab('journal', true);
           }
         });
 
@@ -2444,19 +2453,6 @@ async function renderNotify(){
       }
     });
 
-// ...
-    const isNotifyTabActive = document.querySelector('.tab.active')?.dataset.tab === 'notify';
-
-    if (isNotifyTabActive) {
-      const batch = db.batch(); 
-      toMark.forEach(ref => batch.update(ref, { read: true }));
-      try{ 
-          await batch.commit(); 
-      }catch(e){ 
-          console.error('notify read commit error', e); 
-      }
-    }
-    
   }, (err)=>{
     console.error('notify onSnapshot error', err);
     empty.style.display = 'block';
