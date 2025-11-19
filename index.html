@@ -125,17 +125,22 @@
                 <label>走行距離(km)</label>
                 <input type="number" id="distInput" step="0.1" min="0" />
               </div>
-              <div>
-                <label>調子</label>
-                <div id="conditionBtns" class="condition-rating">
-                  <button data-val="1">1</button>
-                  <button data-val="2">2</button>
-                  <button data-val="3">3</button>
-                  <button data-val="4">4</button>
-                  <button data-val="5">5</button>
-                </div>
+              <div style="flex:1;">
+                <label>体重(kg)</label>
+                <input type="number" id="weightInput" step="0.1" min="0" />
               </div>
             </div>
+            <div>
+              <label>調子</label>
+              <div id="conditionBtns" class="condition-rating">
+                <button data-val="1">1</button>
+                <button data-val="2">2</button>
+                <button data-val="3">3</button>
+                <button data-val="4">4</button>
+                <button data-val="5">5</button>
+              </div>
+            </div>
+          </div>
 
             <div class="note">
               <label>練習内容</label>
@@ -264,6 +269,21 @@
           <canvas id="conditionChart"></canvas>
         </div>
       </div>
+
+      <div class="panel" style="margin-top:12px;">
+      <div class="dash-header">
+        <h3>体重推移</h3>
+        <div class="dash-controls">
+          <button id="weightModeBtn" class="ghost" style="font-size:12px; min-width:40px;">日</button>
+          <button id="weightPrev" class="ghost">&larr;</button>
+          <span id="weightRangeLabel" class="muted" style="font-size:12px;"></span>
+          <button id="weightNext" class="ghost">&rarr;</button>
+        </div>
+      </div>
+      <div style="height:200px;">
+        <canvas id="weightChart"></canvas>
+      </div>
+    </div>
     </section>
 
 
@@ -484,6 +504,7 @@
 
 </body>
 </html>
+
 
 
 
