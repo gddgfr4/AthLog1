@@ -2087,7 +2087,7 @@ async function tscLoad(){
 
 async function tscSave(){
   try{
-    onst ta = document.getElementById('teamSharedComment');
+    const ta = document.getElementById('teamSharedComment');
     if(!ta) return;
     const text = ta.value;
     // ミラー先の日誌リファレンスを取得（tscRefreshでviewingMemberIdは日誌の持ち主）
