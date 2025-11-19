@@ -2451,6 +2451,7 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
     const col = db.collection('teams').doc(teamId).collection('notifications');
     const batch = db.batch();
     const ts = Date.now();
+    let notifyCount = 0;
 
     ms.docs.forEach(m=>{
       const to = m.id;
@@ -2462,6 +2463,7 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
         day, text, from, to,
         ts, read:false
       });
+      notifyCount++;
     });
 // ★★★ デバッグログを追加 (2) ★★★
     console.log("DEBUG: Attempting batch commit for notifications, count:", notifyCount);
