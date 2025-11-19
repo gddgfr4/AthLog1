@@ -498,6 +498,75 @@ html,body{
 #lap-list li { padding:6px 0; border-bottom:1px dashed #222; }
 #lap-list li:last-child { border-bottom:none; }
 
+/* style.css (末尾に追加) */
+
+/* ========== 通知リストの改善 ========== */
+#notifyList {
+  /* chatlog のスタイルを継承しているため、ここでは通知専用の調整 */
+  display: flex; /* Flexboxで縦に並べる */
+  flex-direction: column;
+  gap: 10px; /* アイテム間の隙間 */
+  padding: 0; /* 親の padding は panel にあるのでここではリセット */
+}
+
+.notify-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* 軽い影で浮き出し */
+  cursor: default; /* デフォルトでカーソルを変更しない */
+}
+
+.notify-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--line); /* ヘッダーとコンテンツの区切り線 */
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.notify-header .notify-icon {
+  font-size: 1.2em;
+  line-height: 1;
+}
+
+.notify-header .notify-title {
+  flex: 1;
+  color: var(--primary);
+}
+
+.notify-header .date {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  white-space: nowrap; /* 日付が改行しないように */
+}
+
+.notify-content {
+  padding-top: 4px;
+}
+
+.notify-day-link {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  padding: 4px 0;
+  display: block;
+}
+
+.notify-comment-text {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--bg); /* コメント本文を背景色で囲む */
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  font-size: 14px;
+  white-space: pre-wrap;
+}
 
 
 
