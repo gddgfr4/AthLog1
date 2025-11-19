@@ -231,6 +231,7 @@ async function showApp(){
   initTeamSwitcher();
   initGlobalTabSwipe();
   initNotifyBadgeCheck();
+  initMemberNav();
 }
 function initTeamSwitcher(){
   const wrap   = $("#teamSwitchWrap");
@@ -2516,6 +2517,47 @@ function openStadiumMap() {
   }
 }
 
+
+// app.js (ファイル末尾に追加)
+
+// メンバーを一人ずつ移動するロジック
+function goMemberDelta(delta){
+  const select = document.getElementById('memberSelect');
+  if (!select || select.options.length <= 1) return;
+
+  // メンバーIDのリストを取得
+  const memberIds = Array.from(select.options).map(o => o.value);
+  
+  // 現在のメンバーIDがリストのどこにあるか
+  const currentIndex = memberIds.indexOf(viewingMemberId);
+  
+  // 次のインデックスを計算（ループ処理）
+  const count = memberIds.length;
+  let newIndex = (currentIndex + delta);
+  newIndex = (newIndex % count + count) % count;
+
+  const newMemberId = memberIds[newIndex];
+
+  // UIと状態を更新
+  viewingMemberId = newMemberId;
+  select.value = newMemberId;
+  
+  // 表示名とバッジを更新
+  $("#memberLabel").textContent = getDisplayName(viewingMemberId);
+  refreshBadges();
+
+  // 現在のタブを再描画してデータを読み込み直す
+  switchTab($(".tab.active")?.dataset.tab, true);
+}
+
+// メンバー移動ボタンの初期化
+function initMemberNav(){
+    $("#memberPrev")?.addEventListener("click", () => goMemberDelta(-1));
+    $("#memberNext")?.addEventListener("click", () => goMemberDelta(1));
+}
+
+// ★ 既存の showApp() 関数に initMemberNav() の呼び出しを追加する必要があります
+// (app.js の showApp() 関数の末尾、initNotifyBadgeCheck() の後など)
 // app.js (末尾に追加)
 
 // 通知バッジ用購読解除
