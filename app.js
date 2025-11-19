@@ -185,10 +185,13 @@ let distanceChart=null, conditionChart=null;
 let dashboardOffset=0, dashboardMode='month';
 let conditionChartOffset=0;
 let unsubscribePlans, unsubscribeMemo, unsubscribeMonthChat, unsubscribeJournal;
-let dirty={ dist:false, train:false, feel:false };
+let dirty={ dist:false, train:false, feel:false, weight:false };
 let lastJournal=null;  // ← 追加：未宣言だったので明示
 let unsubscribeNotify = null;
 let memberNameMap = {};
+let weightChart = null;
+let weightMode = 'day'; // day, week, month
+let weightOffset = 0;
 
 // ===== Data Access Layer =====
 const getJournalRef  = (team,member,day)=> db.collection('teams').doc(team).collection('members').doc(member).collection('journal').doc(ymd(day));
@@ -398,16 +401,18 @@ async function saveJournal(){
   const docRef=getJournalRef(teamId,memberId,selDate);
   const journalData={
     dist: Number($("#distInput").value||0),
+    weight: Number($("#weightInput").value||0),
     train: $("#trainInput").value,
     feel:  $("#feelInput").value,
     condition: activeCond ? Number(activeCond.dataset.val) : null,
   };
   await docRef.set(journalData,{merge:true});
-  dirty={ dist:false, train:false, feel:false };
+  dirty={ dist:false, train:false, feel:false, weight:false };
 }
 function initJournal(){
   const scheduleAutoSave = makeJournalAutoSaver(700);
   $("#distInput")?.addEventListener("input", ()=>{ dirty.dist=true; scheduleAutoSave(); renderWeek(); });
+  $("#weightInput")?.addEventListener("input", ()=>{ dirty.weight=true; scheduleAutoSave(); });
   $("#trainInput")?.addEventListener("input", ()=>{ dirty.train=true; scheduleAutoSave(); });
   $("#feelInput")?.addEventListener("input", ()=>{ dirty.feel=true; scheduleAutoSave(); });
   const brushBtns=$$('.palette .lvl, .palette #eraser');
@@ -603,6 +608,7 @@ async function renderJournal(){
     drawMuscleFromDoc(j);
 
     if (!dirty.dist)  $("#distInput").value  = j.dist ?? "";
+    if (!dirty.weight) $("#weightInput").value = j.weight ?? "";
     if (!dirty.train) $("#trainInput").value = j.train ?? "";
     if (!dirty.feel)  $("#feelInput").value  = j.feel ?? "";
 
@@ -1132,8 +1138,16 @@ function initDashboard(){
 
   document.getElementById('distMonthPrev')?.addEventListener('click', ()=>{ distOffset.month--; renderAllDistanceCharts(); });
   document.getElementById('distMonthNext')?.addEventListener('click', ()=>{ distOffset.month++; renderAllDistanceCharts(); });
+  $("#weightModeBtn")?.addEventListener('click', ()=>{
+    weightMode = (weightMode === 'day') ? 'week' : (weightMode === 'week') ? 'month' : 'day';
+    $("#weightModeBtn").textContent = (weightMode === 'day') ? '日' : (weightMode === 'week') ? '週' : '月';
+    weightOffset = 0;
+    renderWeightChart();
+  });
+  $("#weightPrev")?.addEventListener('click', ()=>{ weightOffset--; renderWeightChart(); });
+  $("#weightNext")?.addEventListener('click', ()=>{ weightOffset++; renderWeightChart(); });
 }
-function renderDashboard(){ renderAllDistanceCharts(); renderConditionChart(); }
+function renderDashboard(){ renderAllDistanceCharts(); renderConditionChart(); renderWeightChart();}
 async function renderDistanceChart(){
   const cvs=document.getElementById('distanceChart'); if(!cvs) return;
   const ctx=cvs.getContext('2d');
@@ -1343,7 +1357,121 @@ async function renderAllDistanceCharts(){
   }
 }
 
+// app.js (末尾の方、renderAllDistanceChartsの後ろあたりに追加)
 
+async function renderWeightChart(){
+  const ctx = document.getElementById('weightChart')?.getContext('2d');
+  if(!ctx) return;
+
+  // データの取得
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  const snaps = await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).collection('journal').get();
+  const journal = {}; 
+  snaps.forEach(doc => journal[doc.id] = doc.data());
+
+  const labels = [];
+  const dataPoints = [];
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // 期間設定
+  let start, end, stepFunc, labelFunc;
+  
+  if(weightMode === 'day'){
+    // 直近14日
+    const len = 14;
+    end = addDays(today, weightOffset * len);
+    start = addDays(end, -len + 1);
+    
+    for(let i=0; i<len; i++){
+      const d = addDays(start, i);
+      labels.push(`${d.getMonth()+1}/${d.getDate()}`);
+      const val = journal[ymd(d)]?.weight;
+      dataPoints.push(val ? Number(val) : null);
+    }
+    $("#weightRangeLabel").textContent = `${ymd(start)}~`;
+
+  } else if(weightMode === 'week'){
+    // 直近12週 (平均)
+    const len = 12;
+    const currWeekStart = startOfWeek(today);
+    const baseWeek = addDays(currWeekStart, weightOffset * len * 7); // オフセットはlen週単位で移動
+    
+    // 表示は左(過去)から右(未来)へ
+    // baseWeekを「右端(最新)」とするため、startはそこから戻る
+    const endWeekStart = baseWeek; 
+    
+    for(let i=len-1; i>=0; i--){
+      const ws = addDays(endWeekStart, -i * 7);
+      labels.push(`${ws.getMonth()+1}/${ws.getDate()}`);
+      
+      // 週平均の計算
+      let sum=0, count=0;
+      for(let j=0; j<7; j++){
+        const d = addDays(ws, j);
+        const val = journal[ymd(d)]?.weight;
+        if(val){ sum += Number(val); count++; }
+      }
+      dataPoints.push(count > 0 ? (sum/count).toFixed(1) : null);
+    }
+    const rangeStart = addDays(endWeekStart, -(len-1)*7);
+    $("#weightRangeLabel").textContent = `${ymd(rangeStart)}~`;
+
+  } else {
+    // 直近12ヶ月 (平均)
+    const len = 12;
+    const baseMonth = new Date(today); baseMonth.setDate(1);
+    baseMonth.setMonth(baseMonth.getMonth() + (weightOffset * len));
+
+    for(let i=len-1; i>=0; i--){
+      const d = new Date(baseMonth);
+      d.setMonth(d.getMonth() - i);
+      const mStr = getMonthStr(d); // YYYY-MM
+      labels.push(`${d.getMonth()+1}月`);
+
+      // 月平均の計算
+      let sum=0, count=0;
+      // その月の日誌データを走査（全データ走査は重いが、クライアント保持データ量なら許容範囲）
+      // 本来はクエリで絞るべきだが、既存構造に合わせてJS側でフィルタ
+      for(const k in journal){
+        if(k.startsWith(mStr) && journal[k].weight){
+          sum += Number(journal[k].weight);
+          count++;
+        }
+      }
+      dataPoints.push(count > 0 ? (sum/count).toFixed(1) : null);
+    }
+    const sDate = new Date(baseMonth); sDate.setMonth(sDate.getMonth()-(len-1));
+    $("#weightRangeLabel").textContent = `${sDate.getFullYear()}/${sDate.getMonth()+1}~`;
+  }
+
+  if(weightChart) weightChart.destroy();
+  weightChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '体重 (kg)',
+        data: dataPoints,
+        borderColor: 'rgba(234, 88, 12, 1)', // オレンジ系
+        backgroundColor: 'rgba(234, 88, 12, 0.1)',
+        borderWidth: 2,
+        tension: 0.1,
+        spanGaps: true // データがない日は線を飛ばしてつなぐ
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { 
+          beginAtZero: false, // 体重なので0からでなくて良い
+          suggestedMin: 40,
+          suggestedMax: 80
+        }
+      }
+    }
+  });
+}
 
 // ===== NEW: Team Memo =====
 function initMemo(){
