@@ -2377,9 +2377,11 @@ async function renderNotify(){
 
   // 自分宛の未読だけを新しい順に
   const col = db.collection('teams').doc(teamId).collection('notifications');
-  const q = col.where('to','==', viewingMemberId || memberId)
+  const q = col
+    //.where('to','==', viewingMemberId || memberId)
                //.where('read','==', false)
                //.orderBy('ts','desc');
+               .limit(50);
 
   // スナップショット購読
   unsubscribeNotify = q.onSnapshot(async (snap)=>{
