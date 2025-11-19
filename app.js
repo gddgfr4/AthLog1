@@ -2378,7 +2378,7 @@ async function renderNotify(){
   // 自分宛の未読だけを新しい順に
   const col = db.collection('teams').doc(teamId).collection('notifications');
   const q = col.where('to','==', viewingMemberId || memberId)
-               .where('read','==', false)
+               //.where('read','==', false)
                .orderBy('ts','desc');
 
   // スナップショット購読
@@ -2390,7 +2390,7 @@ async function renderNotify(){
     }
     empty.style.display = 'none';
 
-    const toMark = [];  // 既読化対象
+    //const toMark = [];  // 既読化対象
 
     snap.docs.forEach(doc=>{
       const n = doc.data();
@@ -2425,13 +2425,13 @@ async function renderNotify(){
       box.appendChild(div);
 
       // 「開けば次回以降なくなる」＝一覧を開いた時点で既読化
-      toMark.push(doc.ref);
+     // toMark.push(doc.ref);
     });
 
     // 既読フラグ更新（まとめて）
-    const batch = db.batch();
-    toMark.forEach(ref => batch.update(ref, { read: true }));
-    try{ await batch.commit(); }catch(e){ console.error('notify read commit error', e); }
+    //const batch = db.batch();
+    //toMark.forEach(ref => batch.update(ref, { read: true }));
+   // try{ await batch.commit(); }catch(e){ console.error('notify read commit error', e); }
   }, (err)=>{
     console.error('notify onSnapshot error', err);
     empty.style.display = 'block';
