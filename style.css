@@ -568,20 +568,21 @@ html,body{
   white-space: pre-wrap;
 }
 
+
 /* ========== 通知リストのレイアウト・デザイン修正 (最終版) ========== */
 
-/* 1. 通知タブ (#notify) 自体にFlexboxを適用し、画面の残り高さを確保する */
-/* (topbar + tabs の高さ分を引いた min-height を設定) */
+/* 1. 通知タブ (#notify) がアクティブな時、縦方向のFlexコンテナとして振る舞う */
+/* 他のタブのレイアウトを崩さないように、このタブ内に閉じたFlexレイアウトを構築する */
 #notify {
-  /* .tabpanel の padding が 14px あるため、heightの計算が複雑になるのを避けるため、
-     .tabpanelの display:none を解除した後の #notify セクションに Flexbox を適用 */
-  min-height: calc(100vh - 120px); /* 概算で上部要素の高さ約120pxを引く */
-  display: flex !important; /* display:none !important; の後の.tabpanel.activeの display:block; を上書き */
+  /* #notify が activeな時に適用されることを前提に、内部レイアウトを制御 */
+  /* 画面全体高 - (トップバー + タブヘッダーの概算)で残りの高さを確保 */
+  min-height: calc(100vh - 120px); 
+  display: flex; 
   flex-direction: column;
   padding: 14px; /* 既存の.tabpanelのpaddingを維持 */
 }
 
-/* 2. 通知パネル (.panel) が親 (通知タブ) の高さをすべて占めるようにする */
+/* 2. 通知パネル内の .panel が親 (通知タブ) の高さをすべて占めるようにする */
 #notify .panel {
   flex-grow: 1; 
   display: flex;
@@ -589,11 +590,11 @@ html,body{
   min-height: 0; /* Flexアイテムの最小高さのオーバーライド */
 }
 
-/* 3. 通知リスト (#notifyList) が残りの高さを占め、スクロール可能にする */
+/* 3. 通知リスト (#notifyList) が残りの高さを占め、スクロール可能領域となる */
 #notifyList {
   flex-grow: 1; 
   overflow-y: auto; /* 縦スクロールを有効化 */
-  max-height: none !important; /* 既存の chatlog の max-height を解除 */
+  max-height: none !important; /* 過去の制限を解除 */
   
   /* カード型レイアウトの調整 */
   gap: 10px; 
