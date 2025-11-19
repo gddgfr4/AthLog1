@@ -2415,7 +2415,7 @@ async function renderNotify(){
               <span class="date">${at}</span>
            </div>
            <div class="notify-content">
-              <div class="notify-day-link" data-day="${n.day}" data-notif-id="${notifId}"> // ★★★ ここを修正 ★★★
+              <div class="notify-day-link" data-day="${n.day}" data-notif-id="${notifId}">
                   <b>${n.day}</b> の日誌を開く &rarr;
               </div>` +
               (n.text ? `<div class="notify-comment-text">${escapeHtml(n.text)}</div>` : ``) +
