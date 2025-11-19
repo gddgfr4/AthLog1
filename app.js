@@ -2446,6 +2446,8 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
   try{
     // チームのメンバー一覧
     const ms = await getMembersRef(teamId).get();
+    // ★★★ デバッグログを追加 (1) ★★★
+    console.log("DEBUG: Found members for notification:", ms.docs.length);
     const col = db.collection('teams').doc(teamId).collection('notifications');
     const batch = db.batch();
     const ts = Date.now();
@@ -2461,8 +2463,11 @@ async function createDayCommentNotifications({ teamId, from, day, text }){
         ts, read:false
       });
     });
-
+// ★★★ デバッグログを追加 (2) ★★★
+    console.log("DEBUG: Attempting batch commit for notifications, count:", notifyCount);
     await batch.commit();
+    // ★★★ デバッグログを追加 (3) ★★★
+    console.log("DEBUG: Notification batch committed successfully.");
   }catch(e){
     console.error('createDayCommentNotifications error', e);
   }
