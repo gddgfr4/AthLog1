@@ -568,18 +568,17 @@ html,body{
   white-space: pre-wrap;
 }
 
-
 /* ========== 通知リストのレイアウト・デザイン修正 (最終版) ========== */
 
-/* 1. 通知タブ (#notify) がアクティブな時、縦方向のFlexコンテナとして振る舞う */
-/* 他のタブのレイアウトを崩さないように、このタブ内に閉じたFlexレイアウトを構築する */
-#notify {
-  /* #notify が activeな時に適用されることを前提に、内部レイアウトを制御 */
-  /* 画面全体高 - (トップバー + タブヘッダーの概算)で残りの高さを確保 */
-  min-height: calc(100vh - 120px); 
+/* 1. 通知タブ (#notify) がアクティブな時のみ、縦方向のFlexコンテナとして振る舞う */
+/* これにより、他のタブパネル (日誌など) は元のブロック表示を維持し、レイアウトが崩れない */
+#notify.tabpanel.active {
+  /* .tabpanel.active の display: block を display: flex に上書き */
   display: flex; 
   flex-direction: column;
-  padding: 14px; /* 既存の.tabpanelのpaddingを維持 */
+  
+  /* 画面全体高から topbar + tabsの高さを引く */
+  min-height: calc(100vh - 120px); 
 }
 
 /* 2. 通知パネル内の .panel が親 (通知タブ) の高さをすべて占めるようにする */
@@ -604,7 +603,7 @@ html,body{
   flex-direction: column;
 }
 
-/* 4. 通知カードのデザイン（切れ目の分かりやすさ） */
+/* 4. 通知カードのデザイン（視認性向上） */
 .notify-card {
   background: var(--panel);
   border: 1px solid var(--line);
