@@ -306,7 +306,15 @@ html,body{
 @media (max-width:720px){
   .topbar{ gap:8px; padding:8px 10px; }
   .brand{ display:none; }
-  .topbar .teamuser{ gap:8px; margin-left:auto; flex-wrap:wrap; }
+  .topbar .teamuser{ 
+    gap:8px; 
+    margin-left:auto; 
+    /* 縦長になる原因のラッピングを解除し、横並びを強制 */
+    flex-wrap: nowrap; 
+    overflow-x: auto; /* 項目が多すぎる場合、横スクロールを許可 */
+    /* min-width: 0; を追加することで、Flexアイテムが幅を占有しすぎるのを防げます */
+    min-width: 0; 
+  }
   /* テキストを少し減らして詰める */
   #memberLabel{ display:none; }
   /* セレクター幅調整 */
@@ -708,3 +716,4 @@ html,body{
 
 .topbar .teamuser > span:nth-child(1) {
   display: none !important;
+
