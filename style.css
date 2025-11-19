@@ -689,116 +689,86 @@ html,body{
   border-radius: 50%; /* 丸くする */
   flex-shrink: 0; /* 縮まないように */
 }
-/* style.css (末尾の @media (max-width:720px) ブロックをこれに置き換え) */
 
 /* style.css (末尾の @media (max-width:720px) ブロックをこれに置き換え) */
 
 @media (max-width:720px){
-  /* --- 1. トップバー全体の余白圧縮 --- */
-  .topbar {
-    /* 上下パディングを半分に (8px -> 4px) */
-    padding: 4px 10px !important; 
-    /* 要素間の隙間を半分に (8px -> 4px) */
-    gap: 4px !important;
-    
-    /* 折り返しを許可して、幅が足りないときは自然に改行させる */
-    flex-wrap: wrap !important; 
-    /* 行間も詰める */
-    align-content: center;
-    
-    /* 高さ制限は解除（中身に合わせて伸縮） */
-    height: auto !important;
-    min-height: 0 !important;
-  }
-  
-  /* ブランド名: 表示する */
-  .brand {
-    display: block !important;
-    /* マージンがあれば半分に */
-    margin-right: 6px !important; 
+  /* --- 1. 不要な要素を非表示 --- */
+  /* ヘルプ、ブランド名、チーム切り替え操作エリア（追加・設定含む）を隠す */
+  #openHelpBtn, 
+  .brand,
+  #teamSwitchWrap {
+    display: none !important;
   }
 
-  /* --- 2. チーム・メンバー情報の余白圧縮 --- */
+  /* --- 2. トップバー全体の余白を半分に圧縮 --- */
+  .topbar {
+    /* 上下パディング: 8px -> 4px */
+    padding: 4px 10px !important;
+    /* 全体の隙間: 8px -> 4px */
+    gap: 4px !important;
+    
+    /* 1行に収める設定 */
+    flex-wrap: nowrap !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  /* --- 3. 表示要素（チーム名・メンバー・ログアウト）のレイアウト --- */
   .topbar .teamuser {
     margin-left: 0 !important;
     
-    /* 内部要素の隙間を半分に (12px -> 6px) */
-    gap: 6px !important; 
+    /* 要素間の隙間: 12px -> 6px */
+    gap: 6px !important;
     
-    align-items: center;
-    display: flex;
-    flex-wrap: wrap;
-    
-    /* 余ったスペースを埋める */
-    flex: 1; 
+    width: 100% !important;
+    justify-content: space-between !important; /* 左・中・右に配置 */
+    align-items: center !important;
   }
-  
-  /* チーム切り替えエリア: 表示する */
-  #teamSwitchWrap {
-    display: flex !important;
-    /* 隙間を半分に (8px -> 4px) */
-    gap: 4px !important;
-    align-items: center;
-  }
-  
-  /* メンバーナビゲーション周りの余白 */
-  #memberNavWrap {
-    gap: 2px !important; /* 4px -> 2px */
-  }
-  
-  /* ヘルプボタン等を表示 */
-  #openHelpBtn {
+
+  /* チーム名 (Team: ...) を確実に表示 */
+  /* (以前非表示にした設定を上書きして復活させる) */
+  .topbar .teamuser > span:nth-child(1) {
     display: inline-flex !important;
+    white-space: nowrap;
+    font-size: 13px; /* 少し小さくして収まりよくする */
   }
-  /* 5. モバイル用にボタンサイズをコンパクトにする */
+
+  /* --- 4. ボタン・入力欄の「縦の空白」を半分にする --- */
+  
+  /* 一般的なボタン (ログアウトなど) */
+  .topbar button.ghost {
+    /* 上下パディング: 6px -> 3px */
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
+    /* 行の高さも詰める */
+    line-height: 1.2 !important;
+    height: auto !important;
+  }
+
+  /* メンバー選択セレクトボックス */
+  .topbar select {
+    /* 上下パディング: 4px -> 2px */
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    height: auto !important;
+  }
+
+  /* メンバー切り替えの矢印ボタン (丸ボタン) */
+  /* サイズは維持しつつ、余計な余白を持たせない */
   .topbar .teamuser .small-btn {
-    width: 28px;        /* 30px -> 28px */
-    height: 28px;
-    line-height: 26px;  /* 枠線分を引いて調整 */
-    font-size: 12px;
+    width: 28px !important;  /* 32px -> 28px に微調整 */
+    height: 28px !important;
+    line-height: 26px !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
-
-  /* メンバー選択セレクトボックスの調整 */
-  #memberSelect {
-    height: 28px;       /* ボタンの高さに合わせる */
-    padding: 0 4px;     /* 内側の余白を詰める */
-    font-size: 13px;    /* 文字サイズを少し小さく */
-  }
-
-  /* ログアウトボタンの調整 */
-  #logoutBtn {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    font-size: 0;
-    line-height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  #logoutBtn::before { 
-    content: "⎋"; 
-    font-size: 16px; 
-  }
-
-  /* 文字サイズの微調整 */
-  .topbar .teamuser span {
-    font-size: 12px;
+  
+  /* メンバーナビゲーション周りの微調整 */
+  #memberNavWrap {
+    gap: 2px !important; /* 矢印とセレクトボックスの間隔 */
   }
 }
-/* 1. AthLog ブランド名（.brand）を非表示にする */
-.topbar .brand {
-  display: none !important;
-}
-
-/* 2. 「表示中: メンバー名/バッジ」セクション全体を非表示にする */
-/* 非表示にする要素は #memberNavWrap の中の「名前とバッジ」が入った span */
-.topbar #memberNavWrap > span {
-  display: none !important; 
-}
-
-.topbar .teamuser > span:nth-child(1) {
-  display: none !important;
 
 
 
