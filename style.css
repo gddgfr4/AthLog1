@@ -689,7 +689,7 @@ html,body{
   border-radius: 50%; /* 丸くする */
   flex-shrink: 0; /* 縮まないように */
 }
-/* style.css (末尾に追加、または既存の @media (max-width:720px) をこれに置き換え) */
+/* style.css (末尾の @media (max-width:720px) ブロックをこれに置き換え) */
 
 @media (max-width:720px){
   /* 1. ヘルプとブランド名を非表示 */
@@ -699,40 +699,66 @@ html,body{
   }
 
   /* 2. チーム切り替え・追加・設定エリアを丸ごと非表示 */
-  /* (「Team: チーム名」の表示はこれの外にあるので残ります) */
   #teamSwitchWrap {
     display: none !important;
   }
 
-  /* 3. トップバーのレイアウト調整 */
+  /* 3. トップバーのレイアウト調整（余白を限界まで詰める） */
   .topbar {
-    padding: 8px 10px;
-    gap: 8px;
+    padding: 2px 8px; /* 上下2px, 左右8pxに縮小 */
+    gap: 4px;         /* 隙間も詰める */
+    min-height: 40px; /* 最小高さを低く設定 */
   }
 
   /* 4. 残った要素（チーム名、メンバー、ログアウト）を左詰めで表示 */
   .topbar .teamuser {
-    margin-left: 0;       /* 右寄せを解除して左詰め */
-    gap: 12px;            /* 要素間の間隔 */
-    width: 100%;          /* 幅を確保 */
-    justify-content: space-between; /* 均等配置（左・中・右）にしたい場合はここを調整 */
+    margin-left: 0;
+    gap: 8px;            /* 要素間の間隔を詰める */
+    width: 100%;
+    justify-content: space-between;
+    align-items: center; /* 垂直方向中央揃え */
     
-    /* はみ出した場合に備えて横スクロールを許可 */
     flex-wrap: nowrap;
     overflow-x: auto;
     white-space: nowrap;
   }
   
-  /* (微調整) チーム名表示などのフォントサイズを少し小さくして収まりよくする */
+  /* 5. モバイル用にボタンサイズをコンパクトにする */
+  .topbar .teamuser .small-btn {
+    width: 28px;        /* 30px -> 28px */
+    height: 28px;
+    line-height: 26px;  /* 枠線分を引いて調整 */
+    font-size: 12px;
+  }
+
+  /* メンバー選択セレクトボックスの調整 */
+  #memberSelect {
+    height: 28px;       /* ボタンの高さに合わせる */
+    padding: 0 4px;     /* 内側の余白を詰める */
+    font-size: 13px;    /* 文字サイズを少し小さく */
+  }
+
+  /* ログアウトボタンの調整 */
+  #logoutBtn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 0;
+    line-height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #logoutBtn::before { 
+    content: "⎋"; 
+    font-size: 16px; 
+  }
+
+  /* 文字サイズの微調整 */
   .topbar .teamuser span {
-    font-size: 13px;
+    font-size: 12px;
   }
 }
-
-/* style.css (末尾に追加) */
-
-/* ========== トップバー非表示要素の修正と詰め ========== */
-
 /* 1. AthLog ブランド名（.brand）を非表示にする */
 .topbar .brand {
   display: none !important;
@@ -746,5 +772,6 @@ html,body{
 
 .topbar .teamuser > span:nth-child(1) {
   display: none !important;
+
 
 
