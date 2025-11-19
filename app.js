@@ -200,6 +200,7 @@ const getMembersRef=(team)=> db.collection('teams').doc(team).collection('member
 
 // ===== UI Boot & Tab Control =====
 async function showApp(){
+  const teamLabelEl = $("#teamLabel");
   if ($("#teamLabel")) {
       $("#teamLabel").textContent=teamId;
   }
@@ -212,11 +213,22 @@ async function showApp(){
   if($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value=__nowMon;
 
   await populateMemberSelect();
-  $("#memberLabel").textContent = getDisplayName(viewingMemberId); // Map構築後に表示名で上書き
+  
+  const memberLabelAfterPopulate = $("#memberLabel");
+  if(memberLabelAfterPopulate) {
+      memberLabelAfterPopulate.textContent = getDisplayName(viewingMemberId);
+  }
+  
   const memberSelect=$("#memberSelect");
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId=$("#memberSelect").value;
-    $("#memberLabel").textContent = getDisplayName(viewingMemberId); // ID -> 表示名
+    
+    // ★修正: リスナー内の #memberLabel を更新する行を保護
+    const memberLabelInListener = $("#memberLabel");
+    if(memberLabelInListener) {
+        memberLabelInListener.textContent = getDisplayName(viewingMemberId);
+    }
+    
     selDate=new Date();
     const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
     refreshBadges();
