@@ -2393,53 +2393,58 @@ async function renderNotify(){
 
     const toMark = [];  // 既読化対象
 
+    // app.js (renderNotify 関数内の snap.docs.forEach の部分を置き換え)
+
     snap.docs.forEach(doc=>{
       const n = doc.data();
+      
       const div = document.createElement('div');
-      div.className = 'msg';
-
-      try { // ★★★ try-catchブロックを追加 ★★★
+      // ★修正：新しいクラス名に変更し、カードデザインを適用
+      div.className = 'notify-card'; 
+      
+      try {
         const at = new Date(n.ts || Date.now()).toLocaleString('ja-JP');
+        const senderName = getDisplayName(n.from || '不明');
         
-        // n.fromやn.dayが存在しない場合に備えて、getDisplayName()呼び出しを慎重にする
-        const senderName = getDisplayName(n.from || n.team || '不明');
-        
-        // データをシンプルに表示する (getDisplayNameのエラーを回避)
+        // 通知本文の新しいHTML構造
         const bodyHtml = (n.type === 'dayComment')
           ? (
-           `<div><b>${n.day}</b> の練習にコメントがつきました（${senderName}）</div>` +
-            (n.text ? `<div class="muted" style="white-space:pre-wrap;">${escapeHtml(n.text)}</div>` : ``) +
-            `<div class="link" data-day="${n.day}">この日誌を開く</div>`
+           `<div class="notify-header">
+              <span class="notify-icon">💬</span>
+              <span class="notify-title">${senderName}が日誌にコメントしました</span>
+              <span class="date">${at}</span>
+           </div>
+           <div class="notify-content">
+              <div class="notify-day-link" data-day="${n.day}">
+                  <b>${n.day}</b> の日誌を開く &rarr;
+              </div>` +
+              (n.text ? `<div class="notify-comment-text">${escapeHtml(n.text)}</div>` : ``) +
+           `</div>`
           )
-          : `<div>通知：${n.type}</div>`;
+          : `<div class="notify-content">システム通知</div>`; // その他のタイプの場合
 
-
-        div.innerHTML = `
-          <span class="date">${at}</span>
-          <div class="body">${bodyHtml}</div>
-        `;
+        div.innerHTML = bodyHtml;
 
         // クリックで該当日へ
-        div.querySelector('.link')?.addEventListener('click', (e)=>{
+        div.querySelector('.notify-day-link')?.addEventListener('click', (e)=>{
           const day = e.currentTarget.getAttribute('data-day');
           if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)){
             selDate = parseDateInput(day);
             switchTab('journal', true);
           }
         });
-      
-      box.appendChild(div);
-    } catch (e) {
-        // レンダリングエラーが発生した場合、コンソールにエラーを出力し、代わりにエラーメッセージを表示する
+
+        box.appendChild(div);
+
+      } catch (e) {
+        // レンダリングエラーのデバッグコードはそのまま維持
         console.error("RENDERING ERROR: 通知表示に失敗しました", e, "データ:", n);
         div.innerHTML = `<div style="color:red;">【レンダリングエラー】コンソールを確認してください。</div>`;
         box.appendChild(div);
       }
-
-      // 「開けば次回以降なくなる」＝一覧を開いた時点で既読化
-     toMark.push(doc.ref);
     });
 
+// ...
     const isNotifyTabActive = document.querySelector('.tab.active')?.dataset.tab === 'notify';
 
     if (isNotifyTabActive) {
