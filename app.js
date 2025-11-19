@@ -230,6 +230,7 @@ async function showApp(){
   checkNewMemo();
   initTeamSwitcher();
   initGlobalTabSwipe();
+  initNotifyBadgeCheck();
 }
 function initTeamSwitcher(){
   const wrap   = $("#teamSwitchWrap");
@@ -2377,11 +2378,9 @@ async function renderNotify(){
 
   // 自分宛の未読だけを新しい順に
   const col = db.collection('teams').doc(teamId).collection('notifications');
-  const q = col
-    //.where('to','==', viewingMemberId || memberId)
-               //.where('read','==', false)
-               //.orderBy('ts','desc');
-               .limit(50);
+  const q = col.where('to','==', viewingMemberId || memberId)
+               .where('read','==', false)
+               .orderBy('ts','desc');
 
   // スナップショット購読
   unsubscribeNotify = q.onSnapshot(async (snap)=>{
@@ -2392,7 +2391,7 @@ async function renderNotify(){
     }
     empty.style.display = 'none';
 
-    //const toMark = [];  // 既読化対象
+    const toMark = [];  // 既読化対象
 
     snap.docs.forEach(doc=>{
       const n = doc.data();
@@ -2438,13 +2437,13 @@ async function renderNotify(){
       }
 
       // 「開けば次回以降なくなる」＝一覧を開いた時点で既読化
-     // toMark.push(doc.ref);
+     toMark.push(doc.ref);
     });
 
     // 既読フラグ更新（まとめて）
-    //const batch = db.batch();
-    //toMark.forEach(ref => batch.update(ref, { read: true }));
-   // try{ await batch.commit(); }catch(e){ console.error('notify read commit error', e); }
+    const batch = db.batch();
+    toMark.forEach(ref => batch.update(ref, { read: true }));
+    try{ await batch.commit(); }catch(e){ console.error('notify read commit error', e); }
   }, (err)=>{
     console.error('notify onSnapshot error', err);
     empty.style.display = 'block';
@@ -2507,3 +2506,36 @@ function openStadiumMap() {
     window.open('https://gddgfr4.github.io/stadiummap/', '_blank');
   }
 }
+
+// app.js (末尾に追加)
+
+// 通知バッジ用購読解除
+let notifyBadgeUnsub = null;
+
+// 通知バッジの常時監視を開始
+function initNotifyBadgeCheck(){
+  if(notifyBadgeUnsub) { try{ notifyBadgeUnsub(); }catch{} notifyBadgeUnsub=null; }
+  
+  const notifyTab = document.querySelector('[data-tab="notify"]');
+  if(!notifyTab || !memberId) return;
+
+  const col = db.collection('teams').doc(teamId).collection('notifications');
+  
+  // 自分宛ての未読アイテムを購読し、1つでもあればバッジを付ける
+  const q = col.where('to','==', memberId)
+               .where('read','==', false)
+               .limit(1); // 1件でもあればOKなので、効率化のため limit(1)
+
+  notifyBadgeUnsub = q.onSnapshot(snap => {
+    if(notifyTab) {
+      // 未読が1つでもあればtrue
+      const hasUnread = !snap.empty; 
+      notifyTab.classList.toggle('new-message', hasUnread);
+    }
+    // 通知タブを開くと renderNotify() が実行され read: true になるため、
+    // ここで自動的にバッジが消える（markMemoRead のような個別処理は不要）
+  }, err => {
+    console.error("Notify badge check failed:", err);
+  });
+}
+
