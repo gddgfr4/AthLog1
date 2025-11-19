@@ -2443,7 +2443,7 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
-async function createDayCommentNotifications({ teamId, from, day, text }){
+async function createDayCommentNotifications({ teamId, from, to, day, text }){
   try{
     const col = db.collection('teams').doc(teamId).collection('notifications');
     const batch = db.batch();
