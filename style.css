@@ -666,3 +666,28 @@ html,body{
   max-height: none;     /* 予期せぬ高さ制限を解除 */
   overflow: hidden;     /* 意図しないスクロールを防止 */
 }
+
+/* style.css (末尾に追加) */
+
+/* 新しいメンバーナビゲーションボタンのスタイル */
+.topbar .small-btn {
+  width: 32px; /* 小さくする */
+  height: 32px;
+  padding: 0;
+  line-height: 30px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 50%; /* 丸くする */
+  flex-shrink: 0; /* 縮まないように */
+}
+/* モバイルでの調整 */
+@media (max-width:720px){
+  .topbar .teamuser .small-btn {
+    width: 30px;
+    height: 30px;
+    line-height: 28px;
+    font-size: 14px;
+  }
+}
+
