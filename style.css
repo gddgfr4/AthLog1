@@ -802,7 +802,8 @@ html,body{
   }
   
   .note { margin-top: 2px !important; }
-  textarea { min-height: 3em !important; }
+  textarea { min-height: 4.5em !important; }
   
   .formcol > div[style*="display:flex"] { gap: 6px !important; align-items: flex-end !important; }
 }
+
