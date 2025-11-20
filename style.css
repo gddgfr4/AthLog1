@@ -924,3 +924,35 @@ body.share-mode #mmWrap {
   max-width: 300px;
   margin: 10px auto 0 auto !important;
 }
+
+/* style.css (@media (max-width:720px) ブロック内の末尾に追加) */
+
+  /* ========== スクショモード時のスマホ用例外設定 ========== */
+  
+  /* 1. 感想欄の高さ制限を解除（JSで伸びるようにする） */
+  body.share-mode textarea {
+    min-height: 0 !important; 
+    height: auto !important; /* 初期状態リセット */
+  }
+  
+  /* 2. カテゴリボタンを横並びに戻す（幅100%を解除） */
+  body.share-mode #shareHeader .qbtn {
+    width: auto !important;       
+    display: inline-block !important;
+    flex: none !important; /* 無理に引き伸ばさない */
+    margin: 0 2px !important; /* ボタン同士の隙間 */
+    padding: 6px 12px !important;
+    font-size: 12px !important; /* 少し文字サイズ調整 */
+  }
+  
+  /* 3. ヘッダーの日付とボタンを横並びにするレイアウト調整 */
+  body.share-mode #shareHeader {
+    flex-direction: row !important; /* 横並び強制 */
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  
+  /* 4. 入力フォームの間隔を少し広げて見やすく */
+  body.share-mode .formcol > div[style*="display:flex"] {
+    gap: 12px !important;
+  }
