@@ -454,20 +454,68 @@ function initJournal(){
     renderWeek();
   }));
 
-  // 2. ★ここへ移動★ スクショモード(shareModeBtn)の処理
+  // app.js (initJournal 関数内の shareModeBtn 処理を書き換え)
+
+  // 2. スクショモード(shareModeBtn)の処理
   $("#shareModeBtn")?.addEventListener("click", (e)=>{
     e.stopPropagation(); 
+    
+    // --- A. 専用ヘッダーの準備 ---
+    // 既存のヘッダーがあれば削除
+    document.getElementById('shareHeader')?.remove();
+    
+    // 日付の取得
+    const d = selDate;
+    const dateStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+    
+    // 選択されているタグボタン(active)の複製を取得
+    const activeTagBtn = document.querySelector('.quick .qbtn.active');
+    let tagHtml = '';
+    if(activeTagBtn){
+      // クローンしてスタイル調整用に使う
+      const clone = activeTagBtn.cloneNode(true);
+      tagHtml = clone.outerHTML;
+    }
+
+    // ヘッダーHTMLを作成して挿入
+    const headerDiv = document.createElement('div');
+    headerDiv.id = 'shareHeader';
+    headerDiv.innerHTML = `<span class="date-text">${dateStr}</span>${tagHtml}`;
+    
+    // 日誌パネルの先頭(formcolの前)に挿入したいが、panel構造に合わせて配置
+    // journal-gridの直前に入れるのが安全
+    const journalGrid = document.querySelector('.journal-grid');
+    if(journalGrid) {
+      journalGrid.insertAdjacentElement('beforebegin', headerDiv);
+    }
+
+    // --- B. テキストエリアの自動伸長 ---
+    const textareas = document.querySelectorAll('#journal textarea');
+    const originalHeights = [];
+    textareas.forEach(ta => {
+      originalHeights.push(ta.style.height); // 元の高さを保存
+      ta.style.height = 'auto'; // 一度autoにして
+      ta.style.height = (ta.scrollHeight + 2) + 'px'; // 内容に合わせて伸ばす
+    });
+
+    // --- C. モードON ---
     document.body.classList.add("share-mode");
+    
+    // --- D. 終了処理 ---
     setTimeout(() => {
       const exitMode = () => {
         document.body.classList.remove("share-mode");
+        // ヘッダー削除
+        document.getElementById('shareHeader')?.remove();
+        // テキストエリアの高さを戻す
+        textareas.forEach((ta, i) => {
+          ta.style.height = originalHeights[i] || '';
+        });
         window.removeEventListener("click", exitMode); 
       };
       window.addEventListener("click", exitMode);
     }, 100);
   });
-
-  // ▲▲▲ 修正ここまで ▲▲▲
 
   // 3. その他のリスナー
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
