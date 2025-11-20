@@ -807,3 +807,90 @@ html,body{
   .formcol > div[style*="display:flex"] { gap: 6px !important; align-items: flex-end !important; }
 }
 
+/* style.css (末尾に追加) */
+
+/* ========== スクショモード (Share Mode) ========== */
+body.share-mode {
+  background-color: #fff !important; /* 背景を白に固定 */
+  overflow-y: auto; /* 縦スクロール許可 */
+}
+
+/* 1. 不要な要素を非表示にする */
+body.share-mode .topbar,          /* 上部バー */
+body.share-mode .tabs,            /* タブ */
+body.share-mode #globalSwipeBar,  /* スワイプバー */
+body.share-mode #weekPrev,        /* 週移動ボタン */
+body.share-mode #weekNext,
+body.share-mode #weekChips,       /* 週カレンダー */
+body.share-mode #gotoToday,       /* 今日へボタン */
+body.share-mode #weekMonthLabel,
+body.share-mode #shareModeBtn,    /* 自分のボタン */
+body.share-mode .palette,         /* 色パレット */
+body.share-mode .panel h3,        /* 「筋疲労」見出し */
+body.share-mode .merge,           /* 予定反映行 */
+body.share-mode #teamSharedCommentBox, /* チームコメント */
+body.share-mode .savebar,         /* 保存バー */
+body.share-mode #eraser           /* 消しゴム */
+{
+  display: none !important;
+}
+
+/* 2. レイアウトを「スマホ縦一画面」風に整える */
+body.share-mode #app {
+  padding: 0;
+  height: auto;
+  display: block;
+}
+
+body.share-mode .tabpanel {
+  padding: 10px !important;
+  display: block !important;
+}
+
+body.share-mode .journal-grid {
+  display: flex !important;
+  flex-direction: column; /* 強制的に縦並び */
+  gap: 10px;
+}
+
+body.share-mode .panel {
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+
+/* 3. 筋疲労マップを少し小さく中央寄せ（一画面に収めるため） */
+body.share-mode #mmWrap {
+  width: 50% !important; /* 画面の半分くらいの幅に */
+  max-width: 250px;
+  margin: 0 auto 10px auto !important;
+}
+
+/* 4. 入力フォームを見やすく（枠線を消してテキストっぽく） */
+body.share-mode input, 
+body.share-mode textarea,
+body.share-mode .form-control {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  resize: none;
+  font-weight: 500;
+}
+
+/* 日付表示を中央に大きく */
+body.share-mode #datePicker {
+  display: block;
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  margin: 0 auto 10px auto;
+  color: var(--primary);
+}
+
+/* 距離・体重などを少し詰める */
+body.share-mode .formcol > div[style*="display:flex"] {
+  justify-content: center;
+  gap: 20px !important;
+}
