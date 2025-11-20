@@ -1,4 +1,3 @@
-
 // ===== Firebase Initialization =====
 // あるなら残してOK（ガード必須）。無ければ何も書かなくて良い。
 if (!firebase.apps || !firebase.apps.length) {
@@ -456,6 +455,8 @@ function initJournal(){
 
   // app.js (initJournal 関数内の shareModeBtn 処理)
 
+  // app.js (initJournal 関数内の shareModeBtn 処理)
+
   // 2. スクショモード(shareModeBtn)の処理
   $("#shareModeBtn")?.addEventListener("click", (e)=>{
     e.stopPropagation(); 
@@ -466,11 +467,10 @@ function initJournal(){
     const d = selDate;
     const dateStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
     
-    // 選択されているタグボタンを全て取得
+    // 選択されているタグボタンを全て取得して複製
     const activeTagBtns = document.querySelectorAll('.quick .qbtn.active');
     let tagsHtml = '';
     activeTagBtns.forEach(btn => {
-      // クローンして並べる
       tagsHtml += btn.cloneNode(true).outerHTML;
     });
 
@@ -483,23 +483,36 @@ function initJournal(){
       journalGrid.insertAdjacentElement('beforebegin', headerDiv);
     }
 
-    // --- B. モードON (先にクラスを当てる) ---
+    // --- B. モードON ---
     document.body.classList.add("share-mode");
     
-    // --- C. テキストエリアの自動伸長 ---
-    // ★ここが重要: CSS適用後に高さを再計算
+    // --- C. テキストエリアの高さ調整 ---
     setTimeout(() => {
       const textareas = document.querySelectorAll('#journal textarea');
-      
+      const feelInput = document.getElementById('feelInput'); // 感想欄を特定
+
+      // 1. まず全エリアを内容に合わせて自動調整
       textareas.forEach(ta => {
-        // 元の高さを保存
         ta.dataset.originalHeight = ta.style.height || '';
-        
-        // 一度高さをリセットして、中身の高さを測る
         ta.style.height = 'auto'; 
         ta.style.height = (ta.scrollHeight + 2) + 'px'; 
       });
-    }, 50); // 少し長めに待つと確実
+
+      // 2. 画面下に余白があるか計算し、感想欄(#feelInput)を伸ばして埋める
+      if (feelInput) {
+        const windowHeight = window.innerHeight;
+        const bodyHeight = document.body.scrollHeight;
+        
+        // 余白がある場合 (ウィンドウの高さ > コンテンツの高さ)
+        if (windowHeight > bodyHeight) {
+          const extraSpace = windowHeight - bodyHeight;
+          const currentHeight = parseFloat(getComputedStyle(feelInput).height);
+          
+          // 余白分を現在の高さに足す（少し余裕を持たせて -20px）
+          feelInput.style.height = (currentHeight + extraSpace - 20) + 'px';
+        }
+      }
+    }, 100);
     
     // --- D. 終了処理 ---
     setTimeout(() => {
