@@ -443,8 +443,6 @@ function initJournal(){
         tags:curr
       },{merge:true});
     });
-    // ★★★ 追加: スクショモードの制御 ★★★
-  });
     dirty={dist:false,train:false,feel:false};
     renderWeek();
   }));
