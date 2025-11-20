@@ -409,12 +409,16 @@ async function saveJournal(){
   await docRef.set(journalData,{merge:true});
   dirty={ dist:false, train:false, feel:false, weight:false };
 }
+
+// app.js (initJournal 関数全体を修正)
+
 function initJournal(){
   const scheduleAutoSave = makeJournalAutoSaver(700);
   $("#distInput")?.addEventListener("input", ()=>{ dirty.dist=true; scheduleAutoSave(); renderWeek(); });
   $("#weightInput")?.addEventListener("input", ()=>{ dirty.weight=true; scheduleAutoSave(); });
   $("#trainInput")?.addEventListener("input", ()=>{ dirty.train=true; scheduleAutoSave(); });
   $("#feelInput")?.addEventListener("input", ()=>{ dirty.feel=true; scheduleAutoSave(); });
+
   const brushBtns=$$('.palette .lvl, .palette #eraser');
   brushBtns.forEach(b=>b.addEventListener('click',()=>{
     brush.lvl=Number(b.dataset.lvl)||1;
@@ -424,6 +428,9 @@ function initJournal(){
   }));
   if(brushBtns.length) $('.palette .lvl[data-lvl="1"]')?.classList.add('active');
 
+  // ▼▼▼ 修正: qbtnのループと、shareModeBtnの処理を明確に分ける ▼▼▼
+
+  // 1. タグボタン(qbtn)の処理
   $$(".qbtn").forEach(b=>b.addEventListener("click", async ()=>{
     const docRef=getJournalRef(teamId,memberId,selDate);
     await db.runTransaction(async (tx)=>{
@@ -447,29 +454,29 @@ function initJournal(){
     renderWeek();
   }));
 
+  // 2. ★ここへ移動★ スクショモード(shareModeBtn)の処理
   $("#shareModeBtn")?.addEventListener("click", (e)=>{
-      e.stopPropagation(); // ボタン自体のクリックイベントがbodyに伝わるのを防ぐ
-      
-      // モードON
-      document.body.classList.add("share-mode");
-      
-      // 画面タップでモードOFFにする処理を登録
-      // (少し遅延させないと、ボタンを押した瞬間のタップで即解除されてしまうため)
-      setTimeout(() => {
-        const exitMode = () => {
-          document.body.classList.remove("share-mode");
-          window.removeEventListener("click", exitMode); // リスナー削除
-        };
-        window.addEventListener("click", exitMode);
-      }, 100);
+    e.stopPropagation(); 
+    document.body.classList.add("share-mode");
+    setTimeout(() => {
+      const exitMode = () => {
+        document.body.classList.remove("share-mode");
+        window.removeEventListener("click", exitMode); 
+      };
+      window.addEventListener("click", exitMode);
+    }, 100);
+  });
 
+  // ▲▲▲ 修正ここまで ▲▲▲
+
+  // 3. その他のリスナー
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
   $("#weekNext")?.addEventListener("click",()=>{ selDate=addDays(selDate, 7); renderJournal(); });
   $("#gotoToday")?.addEventListener("click",()=>{ selDate=new Date(); renderJournal(); });
   $("#datePicker")?.addEventListener("change",(e)=>{ selDate=parseDateInput(e.target.value); renderJournal(); });
 
   $("#mergeBtn")?.addEventListener("click", async ()=>{
-    const scope  = $("#mergeScope").value;                // auto / 自分 / team
+    const scope  = $("#mergeScope").value;                
     const tagCSV = ($("#mergeTagFilter")?.value || "").trim();
   
     const text  = await collectPlansTextForDay(selDate, scope, tagCSV);
@@ -477,7 +484,6 @@ function initJournal(){
       $("#trainInput").value = ($("#trainInput").value ? ($("#trainInput").value+"\n") : "") + text;
     }
   
-    // タグで絞った types を日誌タグへ最大2つ反映（任意）
     const types = await collectPlansTypesForDay(selDate, scope, tagCSV);
     if(types.length){
       const docRef=getJournalRef(teamId,memberId,selDate);
@@ -485,7 +491,6 @@ function initJournal(){
       renderWeek();
     }
   });
-
 
   $$('#conditionBtns button').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -496,12 +501,10 @@ function initJournal(){
     });
   });
 
-  initMuscleMap();       // ← 新筋マップ
-  initRegionMap();       // ← 旧SVG（存在しなければ何もしない）
+  initMuscleMap();       
+  initRegionMap();       
   initJournalSwipeNav();
 }
-
-
 // ===== Journal: 左右スワイプで日付移動 =====
 function initJournalSwipeNav(){
   const root = document.getElementById('journal');
