@@ -454,7 +454,7 @@ function initJournal(){
     renderWeek();
   }));
 
-  // app.js (initJournal 関数内の shareModeBtn 処理を書き換え)
+  // app.js (initJournal 関数内の shareModeBtn 処理)
 
   // 2. スクショモード(shareModeBtn)の処理
   $("#shareModeBtn")?.addEventListener("click", (e)=>{
@@ -466,7 +466,7 @@ function initJournal(){
     const d = selDate;
     const dateStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
     
-    // ★修正: 選択されているタグボタンを全て取得
+    // 選択されているタグボタンを全て取得
     const activeTagBtns = document.querySelectorAll('.quick .qbtn.active');
     let tagsHtml = '';
     activeTagBtns.forEach(btn => {
@@ -486,18 +486,20 @@ function initJournal(){
     // --- B. モードON (先にクラスを当てる) ---
     document.body.classList.add("share-mode");
     
-    // --- C. テキストエリアの自動伸長 (描画変更後に計算) ---
-    // 画面描画が変わるのを待つため setTimeout を使用
+    // --- C. テキストエリアの自動伸長 ---
+    // ★ここが重要: CSS適用後に高さを再計算
     setTimeout(() => {
       const textareas = document.querySelectorAll('#journal textarea');
       
-      // 元の高さをデータ属性に保存しておく
       textareas.forEach(ta => {
+        // 元の高さを保存
         ta.dataset.originalHeight = ta.style.height || '';
-        ta.style.height = 'auto'; // 一度縮めてスクロール高さを正しく取得
-        ta.style.height = (ta.scrollHeight + 2) + 'px'; // 内容に合わせて伸ばす
+        
+        // 一度高さをリセットして、中身の高さを測る
+        ta.style.height = 'auto'; 
+        ta.style.height = (ta.scrollHeight + 2) + 'px'; 
       });
-    }, 0);
+    }, 50); // 少し長めに待つと確実
     
     // --- D. 終了処理 ---
     setTimeout(() => {
@@ -515,7 +517,7 @@ function initJournal(){
         window.removeEventListener("click", exitMode); 
       };
       window.addEventListener("click", exitMode);
-    }, 100);
+    }, 200);
   });
   // 3. その他のリスナー
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
