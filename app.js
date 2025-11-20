@@ -444,25 +444,26 @@ function initJournal(){
       },{merge:true});
     });
     // ★★★ 追加: スクショモードの制御 ★★★
-  $("#shareModeBtn")?.addEventListener("click", (e)=>{
-    e.stopPropagation(); // ボタン自体のクリックイベントがbodyに伝わるのを防ぐ
-    
-    // モードON
-    document.body.classList.add("share-mode");
-    
-    // 画面タップでモードOFFにする処理を登録
-    // (少し遅延させないと、ボタンを押した瞬間のタップで即解除されてしまうため)
-    setTimeout(() => {
-      const exitMode = () => {
-        document.body.classList.remove("share-mode");
-        window.removeEventListener("click", exitMode); // リスナー削除
-      };
-      window.addEventListener("click", exitMode);
-    }, 100);
   });
     dirty={dist:false,train:false,feel:false};
     renderWeek();
   }));
+
+  $("#shareModeBtn")?.addEventListener("click", (e)=>{
+      e.stopPropagation(); // ボタン自体のクリックイベントがbodyに伝わるのを防ぐ
+      
+      // モードON
+      document.body.classList.add("share-mode");
+      
+      // 画面タップでモードOFFにする処理を登録
+      // (少し遅延させないと、ボタンを押した瞬間のタップで即解除されてしまうため)
+      setTimeout(() => {
+        const exitMode = () => {
+          document.body.classList.remove("share-mode");
+          window.removeEventListener("click", exitMode); // リスナー削除
+        };
+        window.addEventListener("click", exitMode);
+      }, 100);
 
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
   $("#weekNext")?.addEventListener("click",()=>{ selDate=addDays(selDate, 7); renderJournal(); });
