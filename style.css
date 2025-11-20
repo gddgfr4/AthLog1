@@ -807,35 +807,34 @@ html,body{
   .formcol > div[style*="display:flex"] { gap: 6px !important; align-items: flex-end !important; }
 }
 
-/* style.css (末尾に追加) */
+/* style.css (末尾のスクショモード設定をすべて上書き) */
 
 /* ========== スクショモード (Share Mode) ========== */
 body.share-mode {
-  background-color: #fff !important; /* 背景を白に固定 */
+  background-color: #fff !important;
   overflow-y: auto; /* 縦スクロール許可 */
 }
 
-/* 1. 不要な要素を非表示にする */
-body.share-mode .topbar,          /* 上部バー */
-body.share-mode .tabs,            /* タブ */
-body.share-mode #globalSwipeBar,  /* スワイプバー */
-body.share-mode #weekPrev,        /* 週移動ボタン */
-body.share-mode #weekNext,
-body.share-mode #weekChips,       /* 週カレンダー */
-body.share-mode #gotoToday,       /* 今日へボタン */
-body.share-mode #weekMonthLabel,
-body.share-mode #shareModeBtn,    /* 自分のボタン */
-body.share-mode .palette,         /* 色パレット */
-body.share-mode .panel h3,        /* 「筋疲労」見出し */
-body.share-mode .merge,           /* 予定反映行 */
-body.share-mode #teamSharedCommentBox, /* チームコメント */
-body.share-mode .savebar,         /* 保存バー */
-body.share-mode #eraser           /* 消しゴム */
+/* --- 1. 不要な要素を徹底的に非表示 --- */
+body.share-mode .topbar,
+body.share-mode .tabs,
+body.share-mode #globalSwipeBar,
+body.share-mode .weekbar,         /* 元の日付・カレンダー帯 */
+body.share-mode .quick,           /* 元のカテゴリボタン群 */
+body.share-mode .palette,
+body.share-mode .panel h3,
+body.share-mode .merge,
+body.share-mode #teamSharedCommentBox,
+body.share-mode .savebar,
+body.share-mode #eraser,
+body.share-mode #shareModeBtn,
+/* ★修正: Journal以外のタブパネルを隠す（月一覧などが映り込むのを防止） */
+body.share-mode section.tabpanel:not(#journal) 
 {
   display: none !important;
 }
 
-/* 2. レイアウトを「スマホ縦一画面」風に整える */
+/* --- 2. レイアウト調整 --- */
 body.share-mode #app {
   padding: 0;
   height: auto;
@@ -843,14 +842,15 @@ body.share-mode #app {
 }
 
 body.share-mode .tabpanel {
-  padding: 10px !important;
+  padding: 16px !important;
   display: block !important;
+  height: auto !important; /* 高さを中身に合わせる */
 }
 
 body.share-mode .journal-grid {
   display: flex !important;
-  flex-direction: column; /* 強制的に縦並び */
-  gap: 10px;
+  flex-direction: column;
+  gap: 12px;
 }
 
 body.share-mode .panel {
@@ -861,37 +861,61 @@ body.share-mode .panel {
   background: transparent !important;
 }
 
-/* 3. 筋疲労マップを少し小さく中央寄せ（一画面に収めるため） */
-body.share-mode #mmWrap {
-  width: 50% !important; /* 画面の半分くらいの幅に */
-  max-width: 250px;
-  margin: 0 auto 10px auto !important;
-}
-
-/* 4. 入力フォームを見やすく（枠線を消してテキストっぽく） */
+/* --- 3. 入力フォームのデザイン（枠線を戻す） --- */
 body.share-mode input, 
 body.share-mode textarea,
 body.share-mode .form-control {
-  border: none !important;
-  background: transparent !important;
-  padding: 0 !important;
-  resize: none;
-  font-weight: 500;
+  /* 枠線と背景を復活させる */
+  border: 1px solid var(--line) !important;
+  background: var(--bg) !important;
+  padding: 8px !important;
+  border-radius: 8px !important;
+  font-weight: normal;
+  color: var(--text);
+  /* スクロールバーを消す */
+  overflow: hidden; 
 }
 
-/* 日付表示を中央に大きく */
-body.share-mode #datePicker {
-  display: block;
-  text-align: center;
-  font-size: 18px;
-  font-weight: bold;
-  margin: 0 auto 10px auto;
-  color: var(--primary);
+/* フォーム周りのレイアウト */
+body.share-mode .formcol {
+  gap: 12px !important;
 }
 
-/* 距離・体重などを少し詰める */
+/* 距離・体重・調子エリア */
 body.share-mode .formcol > div[style*="display:flex"] {
-  justify-content: center;
-  gap: 20px !important;
+  justify-content: flex-start; /* 左寄せ */
+  gap: 12px !important;
 }
 
+/* --- 4. 新設する「日付＋カテゴリ」ヘッダー用スタイル --- */
+#shareHeader {
+  display: none; /* 通常時は非表示 */
+}
+body.share-mode #shareHeader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+body.share-mode #shareHeader .date-text {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--primary);
+  font-family: monospace, serif; /* 数字を見やすく */
+}
+/* 選択されたタグボタンのデザイン維持 */
+body.share-mode #shareHeader .qbtn {
+  pointer-events: none; /* 押せないように */
+  padding: 6px 16px;
+  font-size: 14px;
+  border-radius: 20px;
+  font-weight: 700;
+}
+
+/* --- 5. 筋疲労マップ --- */
+body.share-mode #mmWrap {
+  width: 60% !important;
+  max-width: 300px;
+  margin: 10px auto 0 auto !important;
+}
