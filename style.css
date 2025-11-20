@@ -740,7 +740,7 @@ html,body{
      ========================================= */
   .tabs {
     /* 左右の余白をゼロにして画面幅を最大利用 */
-    padding: 2px 0 !important; 
+    padding: 4px 0 !important; 
     gap: 4px !important;
     border-bottom-width: 1px !important;
     
@@ -894,3 +894,4 @@ body.share-mode .formcol > div[style*="display:flex"] {
   justify-content: center;
   gap: 20px !important;
 }
+
