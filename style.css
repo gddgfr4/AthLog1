@@ -840,6 +840,14 @@ body.share-mode section.tabpanel:not(#journal)
 {
   display: none !important;
 }
+body.share-mode input, 
+body.share-mode textarea, 
+body.share-mode button, 
+body.share-mode select, 
+body.share-mode .qbtn,
+body.share-mode .notify-day-link {
+  pointer-events: none !important;
+}
 
 /* --- 2. レイアウト調整 --- */
 body.share-mode #app {
@@ -963,3 +971,7 @@ body.share-mode #mmWrap {
     gap: 12px !important;
   }
 
+.topbar {
+  position: relative;
+  z-index: 100 !important; /* スワイプバー(z-index:50)より大きく */
+}
