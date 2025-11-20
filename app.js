@@ -461,62 +461,62 @@ function initJournal(){
     e.stopPropagation(); 
     
     // --- A. 専用ヘッダーの準備 ---
-    // 既存のヘッダーがあれば削除
     document.getElementById('shareHeader')?.remove();
     
-    // 日付の取得
     const d = selDate;
     const dateStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
     
-    // 選択されているタグボタン(active)の複製を取得
-    const activeTagBtn = document.querySelector('.quick .qbtn.active');
-    let tagHtml = '';
-    if(activeTagBtn){
-      // クローンしてスタイル調整用に使う
-      const clone = activeTagBtn.cloneNode(true);
-      tagHtml = clone.outerHTML;
-    }
+    // ★修正: 選択されているタグボタンを全て取得
+    const activeTagBtns = document.querySelectorAll('.quick .qbtn.active');
+    let tagsHtml = '';
+    activeTagBtns.forEach(btn => {
+      // クローンして並べる
+      tagsHtml += btn.cloneNode(true).outerHTML;
+    });
 
-    // ヘッダーHTMLを作成して挿入
     const headerDiv = document.createElement('div');
     headerDiv.id = 'shareHeader';
-    headerDiv.innerHTML = `<span class="date-text">${dateStr}</span>${tagHtml}`;
+    headerDiv.innerHTML = `<span class="date-text">${dateStr}</span>${tagsHtml}`;
     
-    // 日誌パネルの先頭(formcolの前)に挿入したいが、panel構造に合わせて配置
-    // journal-gridの直前に入れるのが安全
     const journalGrid = document.querySelector('.journal-grid');
     if(journalGrid) {
       journalGrid.insertAdjacentElement('beforebegin', headerDiv);
     }
 
-    // --- B. テキストエリアの自動伸長 ---
-    const textareas = document.querySelectorAll('#journal textarea');
-    const originalHeights = [];
-    textareas.forEach(ta => {
-      originalHeights.push(ta.style.height); // 元の高さを保存
-      ta.style.height = 'auto'; // 一度autoにして
-      ta.style.height = (ta.scrollHeight + 2) + 'px'; // 内容に合わせて伸ばす
-    });
-
-    // --- C. モードON ---
+    // --- B. モードON (先にクラスを当てる) ---
     document.body.classList.add("share-mode");
+    
+    // --- C. テキストエリアの自動伸長 (描画変更後に計算) ---
+    // 画面描画が変わるのを待つため setTimeout を使用
+    setTimeout(() => {
+      const textareas = document.querySelectorAll('#journal textarea');
+      
+      // 元の高さをデータ属性に保存しておく
+      textareas.forEach(ta => {
+        ta.dataset.originalHeight = ta.style.height || '';
+        ta.style.height = 'auto'; // 一度縮めてスクロール高さを正しく取得
+        ta.style.height = (ta.scrollHeight + 2) + 'px'; // 内容に合わせて伸ばす
+      });
+    }, 0);
     
     // --- D. 終了処理 ---
     setTimeout(() => {
       const exitMode = () => {
         document.body.classList.remove("share-mode");
-        // ヘッダー削除
         document.getElementById('shareHeader')?.remove();
-        // テキストエリアの高さを戻す
-        textareas.forEach((ta, i) => {
-          ta.style.height = originalHeights[i] || '';
+        
+        // テキストエリアの高さを元に戻す
+        const textareas = document.querySelectorAll('#journal textarea');
+        textareas.forEach(ta => {
+          ta.style.height = ta.dataset.originalHeight || '';
+          delete ta.dataset.originalHeight;
         });
+        
         window.removeEventListener("click", exitMode); 
       };
       window.addEventListener("click", exitMode);
     }, 100);
   });
-
   // 3. その他のリスナー
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
   $("#weekNext")?.addEventListener("click",()=>{ selDate=addDays(selDate, 7); renderJournal(); });
