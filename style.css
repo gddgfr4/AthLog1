@@ -809,6 +809,8 @@ html,body{
 
 /* style.css (末尾のスクショモード設定をすべて上書き) */
 
+/* style.css (末尾のスクショモード設定をすべて上書き) */
+
 /* ========== スクショモード (Share Mode) ========== */
 body.share-mode {
   background-color: #fff !important;
@@ -871,6 +873,8 @@ body.share-mode .form-control {
   font-weight: normal;
   color: var(--text);
   overflow: hidden; 
+  /* ★修正: height指定を削除し、JSの自動調整を有効にする */
+  min-height: 0 !important; 
 }
 
 /* フォーム周りのレイアウト */
@@ -891,8 +895,8 @@ body.share-mode #shareHeader {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap; /* タグが多い場合は折り返し */
-  gap: 8px;        /* タグ間の隙間 */
+  flex-wrap: wrap; 
+  gap: 8px;        
   margin-bottom: 16px;
 }
 body.share-mode #shareHeader .date-text {
@@ -903,10 +907,15 @@ body.share-mode #shareHeader .date-text {
   font-family: monospace, serif;
 }
 
-/* カテゴリボタン: サイズ変更せず、操作だけ無効化 */
+/* ★修正: カテゴリボタンを元のサイズ感に戻す */
 body.share-mode #shareHeader .qbtn {
   pointer-events: none;
-  /* marginなどは .quick 内のスタイルを引き継ぐのでここでは調整不要 */
+  width: auto !important;       /* 幅を自動に戻す */
+  padding: 6px 12px !important; /* 適度な余白 */
+  height: auto !important;      /* 高さを自動に */
+  line-height: 1.4 !important;
+  margin: 0 !important;
+  flex: initial !important;     /* 伸び縮みさせない */
 }
 
 /* --- 5. 筋疲労マップ --- */
