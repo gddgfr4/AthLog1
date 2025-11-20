@@ -707,31 +707,63 @@ async function renderJournal(){
   });
 }
 
+// app.js (renderWeek 関数周辺を修正)
+
+// ★★★ 追加: 週カレンダーの描画リクエストID（競合防止用） ★★★
+let renderWeekRequestId = 0;
+
 async function renderWeek(){
   const chips=$("#weekChips"); if(!chips) return;
-  chips.innerHTML="";
-  const days=getWeekDates(selDate);
-  const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
+  
+  // 今回のリクエストIDを発行
+  const myRequestId = ++renderWeekRequestId;
 
-  for(const d of days){
-    const key=ymd(d);
-    const doc=await getJournalRef(srcTeam, viewingMemberId, d).get();
-    const j=doc.data()||{};
-    const btn=document.createElement("button");
-    btn.className="chip"+(ymd(selDate)===key?" active":"");
-    const tags=j.tags||[];
-    btn.innerHTML=`<div>${["日","月","火","水","木","金","土"][d.getDay()]} ${d.getDate()}</div><div class="km">${(j.dist||0)}km</div>`;
-    btn.style.background=''; btn.style.color='';
+  // 1. 日付リストとチームIDを先に確定させる
+  const days = getWeekDates(selDate);
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+
+  // 2. 7日分のデータを「並列で」一気に取得する (Promise.all)
+  //    これまでの「1日ずつ await」だと遅い上に競合の原因になる
+  const promises = days.map(d => getJournalRef(srcTeam, viewingMemberId, d).get());
+  const snapshots = await Promise.all(promises);
+
+  // 3. ★重要★ データ取得中に、別の新しい描画リクエスト(スクロール等)が来ていたら、
+  //    この古い処理はここで打ち切る（何もしない）
+  if (myRequestId !== renderWeekRequestId) return;
+
+  // 4. 描画処理（同期的に一気に行う）
+  chips.innerHTML = "";
+  
+  snapshots.forEach((doc, i) => {
+    const d = days[i];
+    const key = ymd(d);
+    const j = doc.data() || {};
+    
+    const btn = document.createElement("button");
+    btn.className = "chip" + (ymd(selDate) === key ? " active" : "");
+    const tags = j.tags || [];
+    
+    // 中身の生成
+    btn.innerHTML = `<div>${["日","月","火","水","木","金","土"][d.getDay()]} ${d.getDate()}</div><div class="km">${(j.dist||0)}km</div>`;
+    
+    // スタイルの適用
+    btn.style.background = ''; 
+    btn.style.color = '';
     if(tags.length){
       const map={ ジョグ:"var(--q-jog)", ポイント:"var(--q-point)", 補強:"var(--q-sup)", オフ:"var(--q-off)", その他:"var(--q-other)" };
-      btn.style.color='#1f2937';
-      if(tags.length===1) btn.style.backgroundColor=map[tags[0]];
-      else btn.style.background=`linear-gradient(90deg, ${map[tags[0]]} 50%, ${map[tags[1]]} 50%)`;
+      btn.style.color = '#1f2937';
+      if(tags.length === 1) {
+        btn.style.backgroundColor = map[tags[0]];
+      } else {
+        btn.style.background = `linear-gradient(90deg, ${map[tags[0]]} 50%, ${map[tags[1]]} 50%)`;
+      }
     }
-    btn.addEventListener("click",()=>{ selDate=d; renderJournal(); });
+    
+    btn.addEventListener("click", () => { selDate = d; renderJournal(); });
     chips.appendChild(btn);
-  }
+  });
 }
+
 
 async function rolling7Km(d){
   // dの週と同じ終了日基準（現在の選択日の0:00を終端とする）
