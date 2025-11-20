@@ -812,15 +812,15 @@ html,body{
 /* ========== スクショモード (Share Mode) ========== */
 body.share-mode {
   background-color: #fff !important;
-  overflow-y: auto; /* 縦スクロール許可 */
+  overflow-y: auto;
 }
 
-/* --- 1. 不要な要素を徹底的に非表示 --- */
+/* --- 1. 不要な要素を非表示 --- */
 body.share-mode .topbar,
 body.share-mode .tabs,
 body.share-mode #globalSwipeBar,
-body.share-mode .weekbar,         /* 元の日付・カレンダー帯 */
-body.share-mode .quick,           /* 元のカテゴリボタン群 */
+body.share-mode .weekbar,         
+body.share-mode .quick,           
 body.share-mode .palette,
 body.share-mode .panel h3,
 body.share-mode .merge,
@@ -828,7 +828,6 @@ body.share-mode #teamSharedCommentBox,
 body.share-mode .savebar,
 body.share-mode #eraser,
 body.share-mode #shareModeBtn,
-/* ★修正: Journal以外のタブパネルを隠す（月一覧などが映り込むのを防止） */
 body.share-mode section.tabpanel:not(#journal) 
 {
   display: none !important;
@@ -844,7 +843,7 @@ body.share-mode #app {
 body.share-mode .tabpanel {
   padding: 16px !important;
   display: block !important;
-  height: auto !important; /* 高さを中身に合わせる */
+  height: auto !important;
 }
 
 body.share-mode .journal-grid {
@@ -861,18 +860,16 @@ body.share-mode .panel {
   background: transparent !important;
 }
 
-/* --- 3. 入力フォームのデザイン（枠線を戻す） --- */
+/* --- 3. 入力フォームのデザイン --- */
 body.share-mode input, 
 body.share-mode textarea,
 body.share-mode .form-control {
-  /* 枠線と背景を復活させる */
   border: 1px solid var(--line) !important;
   background: var(--bg) !important;
   padding: 8px !important;
   border-radius: 8px !important;
   font-weight: normal;
   color: var(--text);
-  /* スクロールバーを消す */
   overflow: hidden; 
 }
 
@@ -881,36 +878,35 @@ body.share-mode .formcol {
   gap: 12px !important;
 }
 
-/* 距離・体重・調子エリア */
 body.share-mode .formcol > div[style*="display:flex"] {
-  justify-content: flex-start; /* 左寄せ */
+  justify-content: flex-start;
   gap: 12px !important;
 }
 
-/* --- 4. 新設する「日付＋カテゴリ」ヘッダー用スタイル --- */
+/* --- 4. 専用ヘッダー (日付 + カテゴリ) --- */
 #shareHeader {
-  display: none; /* 通常時は非表示 */
+  display: none;
 }
 body.share-mode #shareHeader {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  flex-wrap: wrap; /* タグが多い場合は折り返し */
+  gap: 8px;        /* タグ間の隙間 */
   margin-bottom: 16px;
 }
 body.share-mode #shareHeader .date-text {
   font-size: 20px;
   font-weight: 800;
   color: var(--primary);
-  font-family: monospace, serif; /* 数字を見やすく */
+  margin-right: 4px;
+  font-family: monospace, serif;
 }
-/* 選択されたタグボタンのデザイン維持 */
+
+/* カテゴリボタン: サイズ変更せず、操作だけ無効化 */
 body.share-mode #shareHeader .qbtn {
-  pointer-events: none; /* 押せないように */
-  padding: 6px 16px;
-  font-size: 14px;
-  border-radius: 20px;
-  font-weight: 700;
+  pointer-events: none;
+  /* marginなどは .quick 内のスタイルを引き継ぐのでここでは調整不要 */
 }
 
 /* --- 5. 筋疲労マップ --- */
