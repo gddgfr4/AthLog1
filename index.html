@@ -76,7 +76,8 @@
     <section id="journal" class="tabpanel active">
       <div class="journal-grid">
         <div class="panel">
-          <h3>筋疲労</h3>
+          <div class="muscle-header">
+            <h3>筋疲労</h3>
             <div class="palette">
               <button class="lvl active" data-lvl="1"><span class="dot dot1"></span>1</button>
               <button class="lvl" data-lvl="2"><span class="dot dot2"></span>2</button>
@@ -84,8 +85,6 @@
               <button id="eraser" class="lvl">消しゴム</button>
             </div>
           </div>
-
-          <!-- 画像＋キャンバス3枚を完全重ね（ズレ防止のため id=mmWrap 必須） -->
           <div id="mmWrap">
             <!-- 表示用の下地画像（pointer-events: none で操作は上のCanvasへ） -->
             <img id="mmBg" src="./human.webp" alt="" style="display:block;width:100%;height:auto;pointer-events:none;">
@@ -509,6 +508,7 @@
 
 </body>
 </html>
+
 
 
 
