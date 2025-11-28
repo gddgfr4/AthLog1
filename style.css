@@ -1004,19 +1004,12 @@ body.share-mode #app {
   margin-right: 8px;
 }
 
-/* パレット内の余白調整 */
-.muscle-header .palette {
-  margin-bottom: 0 !important; /* 既存のmarginを打ち消し */
-}
 
 /* スマホでさらに詰める調整 */
 @media (max-width: 720px) {
   .muscle-header h3 {
     font-size: 12px;
   }
-  .muscle-header .palette .lvl {
-    padding: 4px 8px; /* ボタンを少し小さく */
-    font-size: 12px;
-  }
 }
+
 
