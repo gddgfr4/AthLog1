@@ -999,7 +999,7 @@ body.share-mode #app {
 /* 見出しの余白削除 */
 .muscle-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 18px;
   white-space: nowrap;
   margin-right: 8px;
 }
@@ -1008,10 +1008,11 @@ body.share-mode #app {
 /* スマホでさらに詰める調整 */
 @media (max-width: 720px) {
   .muscle-header h3 {
-    font-size: 12px;
+    font-size: 16px;
   }
   #feelInput {
     min-height: 10em !important; /* 通常の3倍程度の高さに設定 */
   }
 }
+
 
