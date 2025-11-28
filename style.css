@@ -1010,8 +1010,7 @@ body.share-mode #app {
   .muscle-header h3 {
     font-size: 12px;
   }
+  #feelInput {
+    min-height: 15em !important; /* 通常の3倍程度の高さに設定 */
+  }
 }
-
-
-
-
