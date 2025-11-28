@@ -975,3 +975,17 @@ body.share-mode #mmWrap {
   position: relative;
   z-index: 100 !important; /* スワイプバー(z-index:50)より大きく */
 }
+
+/* style.css (末尾に追加) */
+
+/* ========== スクショモードの操作修正 ========== */
+
+/* アプリ内の全要素（#app）の操作を無効化し、
+   タップが確実に背景（解除処理）に伝わるようにする */
+body.share-mode #app {
+  pointer-events: none !important;
+}
+
+/* ※これにより、文字の上やボタンの上をタップしても
+   「背景をタップした」とみなされ、一発で元の画面に戻ります。
+   スクロール操作は通常通り行えます。 */
