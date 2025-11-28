@@ -165,9 +165,12 @@
 
       
             <div class="note" id="teamSharedCommentBox">
-              <label>コメント(全員編集可)</label>
+              <label>コメント</label>
               <textarea id="teamSharedComment" rows="3" placeholder="この日の共有コメント…"></textarea>
-              <div id="teamSharedCommentStatus" class="muted" style="font-size:12px;margin-top:4px;"></div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                <div id="teamSharedCommentStatus" class="muted" style="font-size:12px;"></div>
+                <button id="tscSendBtn" class="primary" style="padding:6px 12px; font-size:12px;">送信</button>
+              </div>
             </div>
           </div>
         </div>
@@ -506,6 +509,7 @@
 
 </body>
 </html>
+
 
 
 
