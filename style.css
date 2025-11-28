@@ -986,33 +986,47 @@ body.share-mode #app {
   pointer-events: none !important;
 }
 
-/* style.css (末尾に追加) */
+/* style.css (末尾の筋疲労ヘッダー設定を上書き) */
 
 /* ========== 筋疲労ヘッダーの横並び（縦幅削減） ========== */
 .muscle-header {
   display: flex;
   align-items: center;
-  justify-content: space-between; /* 左右に配置（または flex-start で左詰め） */
-  margin-bottom: 4px; /* 画像との隙間を小さく */
+  justify-content: space-between; /* 左右配置 */
+  margin-bottom: 4px;
 }
 
-/* 見出しの余白削除 */
+/* 見出し: 太字を解除し、サイズ調整 */
 .muscle-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 15px;      /* 少し控えめに */
+  font-weight: normal;  /* ★修正: 太字を解除 */
   white-space: nowrap;
   margin-right: 8px;
+  color: var(--text);
 }
 
+/* パレットの余白リセット */
+.muscle-header .palette {
+  margin-bottom: 0 !important;
+}
 
-/* スマホでさらに詰める調整 */
+/* スマホでの調整 */
 @media (max-width: 720px) {
+  /* 見出しをさらに少し小さく */
   .muscle-header h3 {
-    font-size: 16px;
+    font-size: 13px;
   }
+
+  /* ★修正: ボタンを「若干小さく」する設定 */
+  .muscle-header .palette .lvl {
+    padding: 4px 8px;   /* 余白を減らす */
+    font-size: 11px;    /* 文字サイズ縮小 */
+    border-radius: 6px; /* 角丸も少し小さく */
+  }
+
+  /* 感想欄の高さ確保 */
   #feelInput {
-    min-height: 10em !important; /* 通常の3倍程度の高さに設定 */
+    min-height: 10em !important; 
   }
 }
-
-
