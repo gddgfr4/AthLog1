@@ -2362,29 +2362,34 @@ async function tscLoad(){
   }
 }
 
+// app.js (tscSave 関数を修正)
+
 async function tscSave(){
   try{
     const ta = document.getElementById('teamSharedComment');
     if(!ta) return;
     const text = ta.value;
-    // ミラー先の日誌リファレンスを取得（tscRefreshでviewingMemberIdは日誌の持ち主）
-    const ref  = getJournalRef(teamId, viewingMemberId, selDate);
-    
-    // 通知生成のため、日付キーを取得
-    const dayKey = ymd(selDate); // ★追加
 
-    // ▼ 1. コメントと投稿者IDを日誌に保存
+    // データの実体があるチーム（メインチーム）を取得
+    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+    const ref = getJournalRef(srcTeam, viewingMemberId, selDate);
+    
+    const dayKey = ymd(selDate); 
+
+    // 1. コメント保存（メインチームへ）
     await ref.set({ teamComment: text, lastCommentBy: memberId }, { merge:true });
+    
     tscDirty = false;
     tscSetStatus('保存済み');
 
-    // ▼ 2. ★修正: 宛先 (to) を日誌の持ち主 (viewingMemberId) に指定して呼び出す
+    // 2. 通知作成（★修正: これもメインチームへ送る）
+    // これにより、通知もデータと同じ場所に集約される
     await createDayCommentNotifications({
-      teamId: teamId,
-      from: memberId,           // コメントした人（自分）
-      to: viewingMemberId,      // ★追加: 日誌の持ち主（相手）
+      teamId: srcTeam,          // ★変更: currentのteamIdではなくsrcTeamを使う
+      from: memberId,           // コメントした人
+      to: viewingMemberId,      // 日誌の持ち主
       day: dayKey,              
-      text: text         
+      text: text                
     });
   }catch(e){
     console.error('tscSave', e);
@@ -2393,7 +2398,6 @@ async function tscSave(){
     tscTimer = setTimeout(tscSave, 1500);
   }
 }
-
 function tscScheduleSave(){
   tscDirty = true;
   tscSetStatus('保存待ち…');
