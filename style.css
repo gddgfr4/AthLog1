@@ -1011,6 +1011,7 @@ body.share-mode #app {
     font-size: 12px;
   }
   #feelInput {
-    min-height: 15em !important; /* 通常の3倍程度の高さに設定 */
+    min-height: 10em !important; /* 通常の3倍程度の高さに設定 */
   }
 }
+
