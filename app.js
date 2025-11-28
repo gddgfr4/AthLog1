@@ -2401,18 +2401,42 @@ function tscScheduleSave(){
   tscTimer = setTimeout(tscSave, 700); // デバウンス
 }
 
+// app.js (tscInitOnce 関数を書き換え)
+
 function tscInitOnce(){
   const ta = document.getElementById('teamSharedComment');
+  const btn = document.getElementById('tscSendBtn'); // 送信ボタン
+
   if(!ta) return;
-  // だれでも編集可に固定
+  
   ta.removeAttribute('disabled');
-  // 入力で自動保存
-  ta.addEventListener('input', tscScheduleSave);
-  // ラベルの対象名表示
+
+  // ★修正: 自動保存 (inputイベントでの tscScheduleSave) を廃止
+  // 代わりに、入力中は「未送信」と表示するだけにする
+  ta.addEventListener('input', () => {
+    tscDirty = true;
+    tscSetStatus('未送信...');
+  });
+
+  // ★追加: 送信ボタンクリックで保存＆通知を実行
+  if(btn){
+    btn.onclick = async () => {
+      if(!tscDirty && !ta.value) return; // 空で変更なしなら何もしない
+      
+      btn.disabled = true; // 連打防止
+      btn.textContent = '送信中...';
+      
+      await tscSave(); // 保存と通知作成を実行
+      
+      btn.disabled = false;
+      btn.textContent = '送信';
+      tscSetStatus('送信完了');
+    };
+  }
+  
   const nm = document.getElementById('tscTargetName');
   if(nm) nm.textContent = getDisplayName(viewingMemberId) || '';
 }
-
 // 画面遷移・人/日付変更時に呼ぶ
 async function tscRefresh(){
   const nm = document.getElementById('tscTargetName');
