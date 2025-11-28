@@ -198,7 +198,7 @@ html,body{
 .savebar{ display:flex; justify-content:space-between; align-items:center; }
 .muted{ color:var(--muted); font-size:12px; }
 
-#feelInput{ min-height:15em; } /* 感想は少し高め */
+#feelInput{ min-height:12em; } /* 感想は少し高め */
 
 /* ========== Condition rating ========== */
 .condition-rating{ display:flex; gap:4px; margin-top:4px; }
@@ -1011,6 +1011,7 @@ body.share-mode #app {
     font-size: 12px;
   }
 }
+
 
 
 
