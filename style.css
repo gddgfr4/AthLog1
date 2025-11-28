@@ -1000,7 +1000,7 @@ body.share-mode #app {
 .muscle-header h3 {
   margin: 0;
   font-size: 15px;      /* 少し控えめに */
-  font-weight: 500;  /* ★修正: 太字を解除 */
+  font-weight: 500 !important;  /* ★修正: 太字を解除 */
   white-space: nowrap;
   margin-right: 8px;
   color: var(--text);
@@ -1030,4 +1030,5 @@ body.share-mode #app {
     min-height: 10em !important; 
   }
 }
+
 
