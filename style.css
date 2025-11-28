@@ -986,6 +986,37 @@ body.share-mode #app {
   pointer-events: none !important;
 }
 
-/* ※これにより、文字の上やボタンの上をタップしても
-   「背景をタップした」とみなされ、一発で元の画面に戻ります。
-   スクロール操作は通常通り行えます。 */
+/* style.css (末尾に追加) */
+
+/* ========== 筋疲労ヘッダーの横並び（縦幅削減） ========== */
+.muscle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* 左右に配置（または flex-start で左詰め） */
+  margin-bottom: 4px; /* 画像との隙間を小さく */
+}
+
+/* 見出しの余白削除 */
+.muscle-header h3 {
+  margin: 0;
+  font-size: 14px;
+  white-space: nowrap;
+  margin-right: 8px;
+}
+
+/* パレット内の余白調整 */
+.muscle-header .palette {
+  margin-bottom: 0 !important; /* 既存のmarginを打ち消し */
+}
+
+/* スマホでさらに詰める調整 */
+@media (max-width: 720px) {
+  .muscle-header h3 {
+    font-size: 12px;
+  }
+  .muscle-header .palette .lvl {
+    padding: 4px 8px; /* ボタンを少し小さく */
+    font-size: 12px;
+  }
+}
+
