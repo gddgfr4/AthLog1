@@ -1577,9 +1577,8 @@ async function renderWeightChart(){
       maintainAspectRatio: false,
       scales: {
         y: { 
-          beginAtZero: false, // 体重なので0からでなくて良い
-          suggestedMin: 40,
-          suggestedMax: 80
+          beginAtZero: false, 
+          grace: '10%'
         }
       }
     }
