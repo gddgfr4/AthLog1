@@ -2919,7 +2919,7 @@ function initAiAnalysis(){
   });
 }
 
-// app.js (runGeminiAnalysis 関数)
+// app.js (runGeminiAnalysis 関数をこれに置き換え)
 
 async function runGeminiAnalysis(apiKey){
   const resultBox = document.getElementById('aiResult');
@@ -2927,7 +2927,7 @@ async function runGeminiAnalysis(apiKey){
   
   if(!resultBox || !btn) return;
   
-  // キーの整形（念のためゴミ削除）
+  // キーの掃除
   const cleanKey = apiKey.trim().replace(/:\d+$/, '');
 
   try{
@@ -2936,7 +2936,25 @@ async function runGeminiAnalysis(apiKey){
     resultBox.style.display = 'block';
     resultBox.textContent = 'データを収集中...';
 
-    // 1. データ収集
+    // ★追加: 部位IDを日本語に変換する辞書
+    const partsNameMap = {
+      // 足首・足裏
+      'ankle_l': '左足首', 'ankle_r': '右足首',
+      'foot_l': '左足裏', 'foot_r': '右足裏',
+      // すね・ふくらはぎ
+      'shin_l': '左すね', 'shin_r': '右すね',
+      'calf_l': '左ふくらはぎ', 'calf_r': '右ふくらはぎ',
+      // 膝
+      'knee_l': '左膝', 'knee_r': '右膝',
+      // もも
+      'quad_l': '左前もも', 'quad_r': '右前もも',
+      'hams_l': '左ハム', 'hams_r': '右ハム',
+      'groin_l': '左股関節', 'groin_r': '右股関節',
+      // お尻・腰・その他
+      'glute_l': '左臀部', 'glute_r': '右臀部',
+      'waist': '腰', 'back': '背中', 'neck': '首', 'shoulder': '肩'
+    };
+
     const today = new Date();
     const history = [];
     const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
@@ -2946,8 +2964,22 @@ async function runGeminiAnalysis(apiKey){
       const snap = await getJournalRef(srcTeam, viewingMemberId, d).get();
       const data = snap.data() || {};
       
-      const st = data.mmStats || { lv1:0, lv2:0, lv3:0 };
-      const fatigueStr = (st.lv1+st.lv2+st.lv3 === 0) ? "なし" : `[高:${st.lv3}, 中:${st.lv2}]`;
+      // ★変更: 部位ごとの詳細を取得
+      let fatigueDetails = [];
+      const partsData = data.parts || {}; // 部位データの取得
+      
+      Object.keys(partsData).forEach(key => {
+        const level = partsData[key];
+        // Lv2(違和感)以上のみリストアップ
+        if(level >= 2){
+          const name = partsNameMap[key] || key; // 日本語に変換
+          fatigueDetails.push(`${name}(Lv${level})`);
+        }
+      });
+      
+      // 疲労データ文字列を作成 (例: "右ふくらはぎ(Lv3), 腰(Lv2)")
+      const fatigueStr = fatigueDetails.length > 0 ? fatigueDetails.join(", ") : "特になし";
+
       let menuText = (data.train || "").replace(/\n/g, " ").slice(0, 100); 
       if(!menuText) menuText = "記載なし";
 
@@ -2957,11 +2989,11 @@ async function runGeminiAnalysis(apiKey){
         tags: data.tags || [],
         menu: menuText,
         condition: data.condition || '-',
-        fatigue: fatigueStr
+        fatigue: fatigueStr // ★ここに具体的な部位名が入ります
       });
     }
 
-    resultBox.textContent = '科学的プロコーチが分析中...';
+    resultBox.textContent = '科学的プロコーチが部位疲労も含めて分析中...';
 
     // 2. プロンプト
     const promptText = `
@@ -2969,11 +3001,11 @@ async function runGeminiAnalysis(apiKey){
 大学生ランナーの直近7日間の練習ログを分析し、アドバイスをください。
 
 【データ】
-${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}], 内容:${h.menu}, 筋疲労:${h.fatigue}, 調子:${h.condition}`).join('\n')}
+${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}], 内容:${h.menu}, 筋疲労:[${h.fatigue}], 調子:${h.condition}`).join('\n')}
 
 【指示】
 - 「カテゴリ」だけでなく「内容（具体的なメニュー）」や走行距離も見て、強度の質やバランスを評価してください。
-- 筋疲労の数値や調子の変化も考慮してください。
+- **「筋疲労」の部位（ふくらはぎ、ハムストリングス等）に注目してください。特定の部位に負荷が集中している場合は、フォームの改善点やケア方法（ストレッチ等）も具体的に指摘してください。**
 - 長くなってもよいので日本語で、客観的かつ具体的なアドバイスをお願いします。
 `;
 
@@ -2991,25 +3023,19 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
 
     let json;
     try {
-      // 1回目: Gemini 2.0 Flash (本命)
       json = await callApi('gemini-2.0-flash');
     } catch(e1) {
       console.warn('2.0 Flash busy, waiting...', e1);
-      
-      // 429(レート制限)対策で、しっかり5秒待つ
       resultBox.textContent = '通信混雑中...5秒後に予備モデルへ切り替えます';
       await new Promise(r => setTimeout(r, 5000));
 
       try {
-        // ★修正: リストにあった確実な名前 "gemini-flash-latest" を使用
         json = await callApi('gemini-flash-latest');
       } catch(e2) {
         console.warn('Backup failed, trying Pro...', e2);
-        
         resultBox.textContent = '通信混雑中...最終手段(Pro)を試みます';
         await new Promise(r => setTimeout(r, 5000));
 
-        // ★修正: リストにあった確実な名前 "gemini-pro-latest" を使用
         json = await callApi('gemini-pro-latest');
       }
     }
@@ -3028,7 +3054,6 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
     btn.textContent = '分析開始';
   }
 }
-
 let typePieChart = null;
 
 async function renderTypePieChart(){
