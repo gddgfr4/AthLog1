@@ -2998,8 +2998,9 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
       try {
         json = await callApi('gemini-2.0-flash');
       } catch(e2) {
-        console.warn('2.0 Flash NG, trying 1.5 Pro...', e2);
-        json = await callApi('gemini-1.5-pro');
+        console.warn('2.0 Flash NG, trying 1.5 Flash...', e2);
+        await new Promise(r => setTimeout(r, 1000));
+        json = await callApi('gemini-1.5-flash');
       }
     }
 
