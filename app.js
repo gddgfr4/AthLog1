@@ -2919,7 +2919,7 @@ function initAiAnalysis(){
   });
 }
 
-// app.js (末尾の runGeminiAnalysis 関数をこれに置き換え)
+// app.js (runGeminiAnalysis 関数をこれに置き換え)
 
 async function runGeminiAnalysis(apiKey){
   const resultBox = document.getElementById('aiResult');
@@ -2933,7 +2933,7 @@ async function runGeminiAnalysis(apiKey){
     resultBox.style.display = 'block';
     resultBox.textContent = 'データを収集中...';
 
-    // 1. 直近7日間のデータを取得
+    // 1. データ収集
     const today = new Date();
     const history = [];
     const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
@@ -2943,41 +2943,38 @@ async function runGeminiAnalysis(apiKey){
       const snap = await getJournalRef(srcTeam, viewingMemberId, d).get();
       const data = snap.data() || {};
       
-      // 筋疲労データの整形 (Lv3:赤/高, Lv2:橙/中, Lv1:青/低)
       const st = data.mmStats || { lv1:0, lv2:0, lv3:0 };
-      // 面積が0なら「なし」とする
-      const fatigueStr = (st.lv1+st.lv2+st.lv3 === 0) 
-        ? "なし" 
-        : `[高:${st.lv3}, 中:${st.lv2}, 低:${st.lv1}]`;
+      const fatigueStr = (st.lv1+st.lv2+st.lv3 === 0) ? "なし" : `[高:${st.lv3}, 中:${st.lv2}]`;
+
+      // ★追加: メニュー本文を取得（感想 feel は取得しない）
+      // 改行をスペースに置換して、長すぎたらカットする処理を入れると安全
+      let menuText = (data.train || "").replace(/\n/g, " ").slice(0, 50); 
+      if(!menuText) menuText = "記載なし";
 
       history.push({
         date: ymd(d),
         dist: data.dist || 0,
-        tags: data.tags || [],       // 練習内容
+        tags: data.tags || [],
+        menu: menuText,              // ★具体的なメニュー内容
         condition: data.condition || '-',
-        fatigue: fatigueStr          // ★追加: 筋疲労データ
+        fatigue: fatigueStr
       });
     }
 
-    resultBox.textContent = 'AIコーチ(Gemini 2.5)が思考中...';
+    resultBox.textContent = 'AIコーチ(Gemini 2.5)に相談中...';
 
-    // 2. プロンプト作成 (タイム・感想は含めない)
+    // 2. プロンプト
     const promptText = `
-あなたは陸上中長距離のプロコーチです。
-大学生ランナーの直近7日間の練習ログ（距離・メニュー・筋疲労・調子）を分析し、アドバイスをください。
-
-【データ凡例】
-- 筋疲労: 人体図の塗り面積。[高:XX]などの数値が大きいほど、その強度の疲労・痛みが広い範囲にあることを示します。
-- 調子: 1(悪い)〜5(良い)
+あなたは陸上長距離のプロコーチです。
+市民ランナーの直近7日間の練習ログを分析し、アドバイスをください。
 
 【データ】
-${history.map(h => `- ${h.date}: ${h.dist}km, メニュー:[${h.tags.join(',')}], 筋疲労:${h.fatigue}, 調子:${h.condition}`).join('\n')}
+${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}], 内容:${h.menu}, 筋疲労:${h.fatigue}, 調子:${h.condition}`).join('\n')}
 
 【指示】
-- 「筋疲労」の数値（特に「高」や「中」がある場合）と「練習強度」、走行距離の関係を重視し分析して。
-- 疲労が蓄積している兆候があれば、具体的な休養やケアを提案して。
-- タイムや感想のデータはないので、客観的な数値データのみから判断して。
-- 500文字程度の日本語で、選手に寄り添った簡潔なアドバイスをして。
+- 「カテゴリ」だけでなく「内容（具体的なメニュー）」も見て、強度の質やバランスを評価してください。
+- 筋疲労の数値や調子の変化も考慮してください。
+- 300文字以内の日本語で、簡潔かつ具体的なアドバイスをお願いします。
 `;
 
     // 3. API呼び出しヘルパー
@@ -2988,41 +2985,35 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, メニュー:[${h.tags.join(',')}]
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
       });
-      if(!res.ok) throw { status: res.status, statusText: res.statusText, model: modelName };
+      if(!res.ok) throw { status: res.status, model: modelName };
       return res.json();
     };
 
-    // 4. モデルを順に試す (2.5 Flash -> 2.0 Flash)
+    // 4. モデルのリレー（2.5 -> 2.0 -> 1.5 Pro）
     let json;
     try {
       json = await callApi('gemini-2.5-flash');
     } catch(e1) {
-      console.warn('2.5 Flash failed, trying 2.0 Flash...', e1);
+      console.warn('2.5 Flash NG, trying 2.0...', e1);
       try {
         json = await callApi('gemini-2.0-flash');
       } catch(e2) {
-        console.warn('2.0 Flash failed, trying 1.5 Flash...', e2);
-        json = await callApi('gemini-1.5-flash');
+        console.warn('2.0 Flash NG, trying 1.5 Pro...', e2);
+        json = await callApi('gemini-1.5-pro');
       }
     }
 
-    const aiText = json.candidates?.[0]?.content?.parts?.[0]?.text || '回答を得られませんでした';
+    const aiText = json.candidates?.[0]?.content?.parts?.[0]?.text || '回答なし';
     resultBox.textContent = aiText;
 
   }catch(e){
     console.error(e);
-    let msg = 'エラーが発生しました';
-    if(e.status === 404) msg = 'AIモデルが見つかりませんでした。\nAPIキーを確認してください。';
-    if(e.status === 400 || e.status === 403) msg = 'APIキーが無効です。';
-    
-    resultBox.textContent = `${msg}\n(Status: ${e.status}, Model: ${e.model || 'unknown'})`;
+    resultBox.textContent = `エラー: AIモデルに接続できませんでした。\n(Status: ${e.status})`;
   }finally{
     btn.disabled = false;
     btn.textContent = '分析開始';
   }
 }
-
-// app.js (末尾に追加)
 
 let typePieChart = null;
 
