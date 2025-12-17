@@ -1260,7 +1260,7 @@ function initDashboard(){
   $("#weightPrev")?.addEventListener('click', ()=>{ weightOffset--; renderWeightChart(); });
   $("#weightNext")?.addEventListener('click', ()=>{ weightOffset++; renderWeightChart(); });
 }
-function renderDashboard(){ renderAllDistanceCharts(); renderConditionChart(); renderWeightChart();}
+function renderDashboard(){ renderAllDistanceCharts(); renderConditionChart(); renderWeightChart(); renderTypePieChart();}
 async function renderDistanceChart(){
   const cvs=document.getElementById('distanceChart'); if(!cvs) return;
   const ctx=cvs.getContext('2d');
@@ -3020,4 +3020,109 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, メニュー:[${h.tags.join(',')}]
     btn.disabled = false;
     btn.textContent = '分析開始';
   }
+}
+
+// app.js (末尾に追加)
+
+let typePieChart = null;
+
+async function renderTypePieChart(){
+  const ctx = document.getElementById('typePieChart')?.getContext('2d');
+  if(!ctx) return;
+
+  // 1. 集計対象の月を決める（カレンダーで選択中の月）
+  const targetDate = selDate || new Date();
+  const y = targetDate.getFullYear();
+  const m = targetDate.getMonth() + 1;
+  const monthPrefix = `${y}-${String(m).padStart(2,'0')}`; // 例: "2025-12"
+
+  // タイトル更新
+  const titleEl = document.getElementById('typePieTitle');
+  if(titleEl) titleEl.textContent = `${m}月の練習割合`;
+
+  // 2. データ取得
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  const snaps = await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).collection('journal').get();
+  
+  // 3. 集計
+  const counts = { "ジョグ":0, "ポイント":0, "補強":0, "オフ":0, "その他":0 };
+  
+  snaps.forEach(doc => {
+    // IDが "2025-12" で始まるデータ（その月の日誌）だけを対象
+    if(doc.id.startsWith(monthPrefix)){
+      const data = doc.data();
+      const tags = data.tags || [];
+      
+      // タグがない日は「オフ」扱いにする等のルールはお好みで（今回はタグがあるものだけ集計）
+      tags.forEach(tag => {
+        if(counts.hasOwnProperty(tag)){
+          counts[tag]++;
+        } else {
+          // 未定義のタグがあればその他へ
+          counts["その他"]++;
+        }
+      });
+    }
+  });
+
+  // 4. グラフ用データ準備
+  const labels = Object.keys(counts); // ["ジョグ", "ポイント", ...]
+  const dataValues = Object.values(counts);
+
+  // データが空っぽ（まだ記録がない月）の場合の表示対策
+  const total = dataValues.reduce((a,b)=>a+b, 0);
+  if(total === 0) {
+    // データなし時は空の円を表示するなど
+    if(typePieChart) typePieChart.destroy();
+    typePieChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels: ["データなし"], datasets: [{ data: [1], backgroundColor: ['#eee'] }] },
+      options: { plugins: { legend: { display:false }, tooltip: { enabled:false } } }
+    });
+    return;
+  }
+
+  // 色設定（カレンダーの色と合わせる）
+  const bgColors = [
+    '#93c5fd', // ジョグ (青)
+    '#fdba74', // ポイント (橙)
+    '#86efac', // 補強 (緑)
+    '#e5e7eb', // オフ (灰)
+    '#f0abfc'  // その他 (紫)
+  ];
+
+  // 5. チャート描画
+  if(typePieChart) typePieChart.destroy();
+  
+  typePieChart = new Chart(ctx, {
+    type: 'doughnut', // ドーナツ型（円グラフ）
+    data: {
+      labels: labels,
+      datasets: [{
+        data: dataValues,
+        backgroundColor: bgColors,
+        borderWidth: 2,
+        borderColor: '#ffffff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right', // 凡例を右側に配置
+          labels: { boxWidth: 12, font: { size: 11 } }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const val = context.raw;
+              const percent = Math.round((val / total) * 100);
+              return ` ${context.label}: ${val}回 (${percent}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
 }
