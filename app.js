@@ -2889,38 +2889,7 @@ function initNotifyBadgeCheck(){
   });
 }
 
-// app.js (末尾に追加)
-
-// ========== AI Analysis Logic (Client Side) ==========
-
-function initAiAnalysis(){
-  const keyInput = document.getElementById('geminiApiKey');
-  const runBtn = document.getElementById('runAiBtn');
-  
-  if(!keyInput || !runBtn) return;
-
-  // 1. 保存されたキーがあれば復元
-  const savedKey = localStorage.getItem('athlog_gemini_key');
-  if(savedKey){
-    keyInput.value = savedKey;
-  }
-
-  // 2. ボタンクリック時の動作
-  runBtn.addEventListener('click', async ()=>{
-    const apiKey = keyInput.value.trim();
-    
-    // キーがない場合は何もしない（あるいはアラート）
-    if(!apiKey){
-      alert('AI機能を使うには、Gemini APIキーを入力してください。\n（Google AI Studioで無料で取得できます）');
-      return;
-    }
-
-    // キーを保存しておく
-    localStorage.setItem('athlog_gemini_key', apiKey);
-    
-    await runGeminiAnalysis(apiKey);
-  });
-}
+// app.js (末尾の runGeminiAnalysis 関数をこれに置き換え)
 
 async function runGeminiAnalysis(apiKey){
   const resultBox = document.getElementById('aiResult');
@@ -2937,39 +2906,31 @@ async function runGeminiAnalysis(apiKey){
     // 1. 直近7日間のデータを取得
     const today = new Date();
     const history = [];
-    
-    // 現在表示中のデータソース（チーム・メンバー）から取得
     const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
     
     for(let i=6; i>=0; i--){
       const d = addDays(today, -i);
-      const dateStr = ymd(d);
-      
-      // データ取得
       const snap = await getJournalRef(srcTeam, viewingMemberId, d).get();
       const data = snap.data() || {};
-      
-      // 分析用にデータを整形
       history.push({
-        date: dateStr,
+        date: ymd(d),
         dist: data.dist || 0,
-        tags: data.tags || [], // メニュー
-        condition: data.condition || '-', // 調子
-        weight: data.weight || '-' // 体重
+        tags: data.tags || [],
+        condition: data.condition || '-',
+        weight: data.weight || '-'
       });
     }
 
-    resultBox.textContent = 'AIコーチが思考中...';
+    // ★修正: モデル名を明示
+    resultBox.textContent = 'AIコーチ(Gemini 2.5)が思考中...';
 
-    // 2. プロンプト（命令文）作成
+    // 2. プロンプト作成
     const promptText = `
 あなたは陸上長距離のプロコーチです。
 市民ランナーの直近7日間の練習ログを見て、アドバイスをください。
 
 【データ】
-${history.map(h => 
-  `- ${h.date}: ${h.dist}km, メニュー:[${h.tags.join(',')}], 調子:${h.condition}, 体重:${h.weight}`
-).join('\n')}
+${history.map(h => `- ${h.date}: ${h.dist}km, メニュー:[${h.tags.join(',')}], 調子:${h.condition}`).join('\n')}
 
 【指示】
 - 走行距離の推移、練習強度のバランス、調子の変化を分析してください。
@@ -2977,34 +2938,47 @@ ${history.map(h =>
 - 300文字以内の日本語で、簡潔かつ具体的なアドバイスをお願いします。
 `;
 
-    // 3. Gemini API 呼び出し
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: promptText }] }]
-      })
-    });
+    // 3. API呼び出しヘルパー
+    const callApi = async (modelName) => {
+      // モデル名に 'models/' が含まれていなければ付与する判定も可だが、
+      // ここではシンプルに短縮名(gemini-2.5-flash等)を渡す想定
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+      });
+      if(!res.ok) throw { status: res.status, statusText: res.statusText, model: modelName };
+      return res.json();
+    };
 
-    if(!response.ok) {
-      // エラーハンドリング
-      if(response.status === 400 || response.status === 403) {
-        throw new Error('APIキーが無効です。正しいキーを入力してください。');
+    // 4. モデルを順に試す (2.5 Flash -> 2.0 Flash)
+    let json;
+    try {
+      // 第1候補: Gemini 2.5 Flash (リストにあった最新版)
+      json = await callApi('gemini-2.5-flash');
+    } catch(e1) {
+      console.warn('2.5 Flash failed, trying 2.0 Flash...', e1);
+      try {
+        // 第2候補: Gemini 2.0 Flash
+        json = await callApi('gemini-2.0-flash');
+      } catch(e2) {
+        // 第3候補: Gemini 1.5 Flash (念のため)
+        console.warn('2.0 Flash failed, trying 1.5 Flash...', e2);
+        json = await callApi('gemini-1.5-flash');
       }
-      throw new Error(`API Error: ${response.status}`);
     }
 
-    const json = await response.json();
     const aiText = json.candidates?.[0]?.content?.parts?.[0]?.text || '回答を得られませんでした';
-
-    // 結果表示
     resultBox.textContent = aiText;
 
   }catch(e){
     console.error(e);
-    resultBox.textContent = 'エラー: ' + e.message;
+    let msg = 'エラーが発生しました';
+    if(e.status === 404) msg = 'AIモデルが見つかりませんでした。\nAPIキーが正しいか確認してください。';
+    if(e.status === 400 || e.status === 403) msg = 'APIキーが無効です。';
+    
+    resultBox.textContent = `${msg}\n(Status: ${e.status}, Model: ${e.model || 'unknown'})`;
   }finally{
     btn.disabled = false;
     btn.textContent = '分析開始';
