@@ -3005,7 +3005,17 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
         resultBox.textContent = '通信混雑中...最終接続を試みます';
         await new Promise(r => setTimeout(r, 3000));
 
-        json = await callApi('gemini-1.5-flash-latest');
+        json = await callApi('gemini-1.5-flash');
+      }
+      } catch(e2) {
+        console.warn('1.5 Flash failed, trying Pro...', e2);
+        
+        // さらに4秒待機
+        resultBox.textContent = '通信混雑中...最終手段(Pro)を試みます';
+        await new Promise(r => setTimeout(r, 4000));
+
+        // 3回目：Gemini 1.5 Pro (高性能版)
+        json = await callApi('gemini-1.5-pro');
       }
     }
 
