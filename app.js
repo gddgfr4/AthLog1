@@ -2919,7 +2919,7 @@ function initAiAnalysis(){
   });
 }
 
-// app.js (runGeminiAnalysis 関数をこれに置き換え)
+// app.js (runGeminiAnalysis 関数)
 
 async function runGeminiAnalysis(apiKey){
   const resultBox = document.getElementById('aiResult');
@@ -2927,59 +2927,65 @@ async function runGeminiAnalysis(apiKey){
   
   if(!resultBox || !btn) return;
   
-  // キーの掃除
   const cleanKey = apiKey.trim().replace(/:\d+$/, '');
 
   try{
     btn.disabled = true;
     btn.textContent = '分析中...';
     resultBox.style.display = 'block';
-    resultBox.textContent = 'データを収集中...';
+    resultBox.textContent = '選手プロフィールとデータを収集中...';
 
-    // ★追加: 部位IDを日本語に変換する辞書
+    // 1. データ収集
+    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+    const today = new Date();
+    
+    // ★追加: メンバー情報（プロフィール）を取得
+    let memberProfileText = "";
+    try {
+      const memDoc = await db.collection('teams').doc(srcTeam)
+                             .collection('members').doc(viewingMemberId).get();
+      const memData = memDoc.data() || {};
+      const prof = memData.aiProfile || {};
+      
+      // フォームにも反映しておく（次回の修正用）
+      if(document.getElementById('aiSpecialty')) document.getElementById('aiSpecialty').value = prof.specialty || '';
+      if(document.getElementById('aiSb')) document.getElementById('aiSb').value = prof.sb || '';
+      if(document.getElementById('aiNote')) document.getElementById('aiNote').value = prof.note || '';
+
+      memberProfileText = `
+- 専門種目: ${prof.specialty || '未設定'}
+- 自己ベスト/目標(SB): ${prof.sb || '未設定'}
+- コーチへの共有事項(留意点): ${prof.note || '特になし'}
+`;
+    } catch(err) {
+      console.warn("プロフィール取得失敗", err);
+    }
+
+    // 練習履歴の取得
     const partsNameMap = {
-      // 足首・足裏
-      'ankle_l': '左足首', 'ankle_r': '右足首',
-      'foot_l': '左足裏', 'foot_r': '右足裏',
-      // すね・ふくらはぎ
-      'shin_l': '左すね', 'shin_r': '右すね',
-      'calf_l': '左ふくらはぎ', 'calf_r': '右ふくらはぎ',
-      // 膝
-      'knee_l': '左膝', 'knee_r': '右膝',
-      // もも
-      'quad_l': '左前もも', 'quad_r': '右前もも',
-      'hams_l': '左ハム', 'hams_r': '右ハム',
-      'groin_l': '左股関節', 'groin_r': '右股関節',
-      // お尻・腰・その他
-      'glute_l': '左臀部', 'glute_r': '右臀部',
-      'waist': '腰', 'back': '背中', 'neck': '首', 'shoulder': '肩'
+      'ankle_l': '左足首', 'ankle_r': '右足首', 'foot_l': '左足裏', 'foot_r': '右足裏',
+      'shin_l': '左すね', 'shin_r': '右すね', 'calf_l': '左ふくらはぎ', 'calf_r': '右ふくらはぎ',
+      'knee_l': '左膝', 'knee_r': '右膝', 'quad_l': '左前もも', 'quad_r': '右前もも',
+      'hams_l': '左ハム', 'hams_r': '右ハム', 'groin_l': '左股関節', 'groin_r': '右股関節',
+      'glute_l': '左臀部', 'glute_r': '右臀部', 'waist': '腰', 'back': '背中', 'neck': '首', 'shoulder': '肩'
     };
 
-    const today = new Date();
     const history = [];
-    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-    
     for(let i=6; i>=0; i--){
       const d = addDays(today, -i);
       const snap = await getJournalRef(srcTeam, viewingMemberId, d).get();
       const data = snap.data() || {};
       
-      // ★変更: 部位ごとの詳細を取得
       let fatigueDetails = [];
-      const partsData = data.parts || {}; // 部位データの取得
-      
+      const partsData = data.parts || {};
       Object.keys(partsData).forEach(key => {
         const level = partsData[key];
-        // Lv2(違和感)以上のみリストアップ
         if(level >= 2){
-          const name = partsNameMap[key] || key; // 日本語に変換
+          const name = partsNameMap[key] || key;
           fatigueDetails.push(`${name}(Lv${level})`);
         }
       });
-      
-      // 疲労データ文字列を作成 (例: "右ふくらはぎ(Lv3), 腰(Lv2)")
       const fatigueStr = fatigueDetails.length > 0 ? fatigueDetails.join(", ") : "特になし";
-
       let menuText = (data.train || "").replace(/\n/g, " ").slice(0, 100); 
       if(!menuText) menuText = "記載なし";
 
@@ -2989,24 +2995,27 @@ async function runGeminiAnalysis(apiKey){
         tags: data.tags || [],
         menu: menuText,
         condition: data.condition || '-',
-        fatigue: fatigueStr // ★ここに具体的な部位名が入ります
+        fatigue: fatigueStr
       });
     }
 
-    resultBox.textContent = '科学的プロコーチが部位疲労も含めて分析中...';
+    resultBox.textContent = '科学的プロコーチがプロフィールを考慮して分析中...';
 
-    // 2. プロンプト
+    // 2. プロンプト（プロフィール情報を追加）
     const promptText = `
 あなたは陸上中長距離の科学的な知識を持つプロコーチです。
-大学生ランナーの直近7日間の練習ログを分析し、アドバイスをください。
+担当する大学生ランナーの直近7日間の練習ログを分析し、アドバイスをください。
 
-【データ】
+【選手プロフィール】${memberProfileText}
+
+【直近7日間のデータ】
 ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}], 内容:${h.menu}, 筋疲労:[${h.fatigue}], 調子:${h.condition}`).join('\n')}
 
 【指示】
-- 「カテゴリ」だけでなく「内容（具体的なメニュー）」や走行距離も見て、強度の質やバランスを評価してください。
-- **「筋疲労」の部位（ふくらはぎ、ハムストリングス等）に注目してください。特定の部位に負荷が集中している場合は、フォームの改善点やケア方法（ストレッチ等）も具体的に指摘してください。**
-- 長くなってもよいので日本語で、客観的かつ具体的なアドバイスをお願いします。
+- **選手の「専門種目」や「SB(レベル)」を考慮して**、現在の練習強度や距離が適切か判断してください。
+- **「共有事項（怪我や体調の懸念）」がある場合は、それを最優先に考慮**し、無理をしていないかチェックしてください。
+- 筋疲労の部位（${history.some(h => h.fatigue.includes('Lv')) ? '特に発生している部位' : 'もしあれば'}）と練習内容の関連性を見て、具体的なケアやフォームの改善点を指摘してください。
+- 日本語で、客観的かつ具体的にお願いします。
 `;
 
     // 3. API呼び出し
@@ -3028,14 +3037,12 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
       console.warn('2.0 Flash busy, waiting...', e1);
       resultBox.textContent = '通信混雑中...5秒後に予備モデルへ切り替えます';
       await new Promise(r => setTimeout(r, 5000));
-
       try {
         json = await callApi('gemini-flash-latest');
       } catch(e2) {
         console.warn('Backup failed, trying Pro...', e2);
         resultBox.textContent = '通信混雑中...最終手段(Pro)を試みます';
         await new Promise(r => setTimeout(r, 5000));
-
         json = await callApi('gemini-pro-latest');
       }
     }
@@ -3046,8 +3053,8 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
   }catch(e){
     console.error(e);
     let msg = `エラーが発生しました (Status: ${e.status})`;
-    if(e.status === 429) msg = 'アクセスが集中しています。\n1分ほど時間を空けてから実行してください。';
-    if(e.status === 404) msg = 'モデルが見つかりません。\nプロジェクトの設定を確認してください。';
+    if(e.status === 429) msg = 'アクセスが集中しています。1分ほど待ってから実行してください。';
+    if(e.status === 404) msg = 'モデルが見つかりません。設定を確認してください。';
     resultBox.textContent = msg;
   }finally{
     btn.disabled = false;
@@ -3155,4 +3162,55 @@ async function renderTypePieChart(){
       }
     }
   });
+}
+
+
+// app.js に追加
+
+// ■ AIプロフィールを保存する関数
+async function saveAiProfile() {
+  const btn = document.getElementById('saveAiProfileBtn');
+  btn.textContent = '保存中...';
+  
+  try {
+    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+    // メンバーのドキュメント自体に 'aiProfile' というフィールドを作って保存
+    await db.collection('teams').doc(srcTeam)
+            .collection('members').doc(viewingMemberId)
+            .set({
+              aiProfile: {
+                specialty: document.getElementById('aiSpecialty').value,
+                sb: document.getElementById('aiSb').value,
+                note: document.getElementById('aiNote').value
+              }
+            }, { merge: true }); // 他のデータ(名前など)を消さないようにmergeする
+
+    alert('AI用プロフィールを保存しました！\n次回の分析から反映されます。');
+  } catch(e) {
+    console.error(e);
+    alert('保存に失敗しました');
+  } finally {
+    btn.textContent = '設定を保存';
+  }
+}
+
+// ■ (補助) 画面表示時にプロフィールを読み込んでフォームに入れる関数
+// ※これを showMemberDetail() などの「メンバー詳細表示時」に呼ぶのがベストですが、
+// 面倒なら「分析開始」ボタンを押した瞬間にフォームにセットしてもOKです。
+// 今回は「AI分析実行時」に最新データを取得するので、表示用は必須ではありませんが、
+// 利便性のために、detailsを開いたとき用として作っておきます。
+async function loadAiProfileToForm() {
+  try {
+    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+    const doc = await db.collection('teams').doc(srcTeam)
+                        .collection('members').doc(viewingMemberId).get();
+    const data = doc.data() || {};
+    const prof = data.aiProfile || {};
+    
+    if(document.getElementById('aiSpecialty')) document.getElementById('aiSpecialty').value = prof.specialty || '';
+    if(document.getElementById('aiSb')) document.getElementById('aiSb').value = prof.sb || '';
+    if(document.getElementById('aiNote')) document.getElementById('aiNote').value = prof.note || '';
+  } catch(e) {
+    console.log('プロフィール読み込み失敗(まだ保存されていないかも)', e);
+  }
 }
