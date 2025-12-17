@@ -295,7 +295,21 @@
         <canvas id="typePieChart"></canvas>
       </div>
     </div>
-
+　　<details style="margin-bottom: 15px; border: 1px solid #ccc; padding: 10px; border-radius: 5px;">
+      <summary style="cursor: pointer; font-weight: bold;">⚙️ AIコーチ用の選手プロフィール設定</summary>
+      <div style="margin-top: 10px;">
+        <label>専門種目 (例: 5000m, フルマラソン):</label><br>
+        <input type="text" id="aiSpecialty" style="width: 100%; margin-bottom: 5px;" placeholder="例: 1500m">
+        
+        <label>シーズンベスト (SB) / 目標タイム:</label><br>
+        <input type="text" id="aiSb" style="width: 100%; margin-bottom: 5px;" placeholder="例: 4分10秒">
+        
+        <label>AIへの申し送り事項 (留意点):</label><br>
+        <textarea id="aiNote" style="width: 100%; height: 60px;" placeholder="例: 先週捻挫したので足首に配慮して。貧血気味です。"></textarea>
+        
+        <button id="saveAiProfileBtn" onclick="saveAiProfile()" style="margin-top: 5px; background: #ddd;">設定を保存</button>
+      </div>
+    </details>
     <div class="panel" style="margin-top:12px;">
       <div class="dash-header">
         <h3>AIコーチ分析</h3>
@@ -533,6 +547,7 @@
 
 </body>
 </html>
+
 
 
 
