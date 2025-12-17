@@ -2919,7 +2919,7 @@ function initAiAnalysis(){
   });
 }
 
-// app.js (runGeminiAnalysis 関数をこれに置き換え)
+// app.js (runGeminiAnalysis 関数)
 
 async function runGeminiAnalysis(apiKey){
   const resultBox = document.getElementById('aiResult');
@@ -2927,7 +2927,7 @@ async function runGeminiAnalysis(apiKey){
   
   if(!resultBox || !btn) return;
   
-  // キーの掃除（念のため）
+  // キーの整形（念のためゴミ削除）
   const cleanKey = apiKey.trim().replace(/:\d+$/, '');
 
   try{
@@ -2963,7 +2963,7 @@ async function runGeminiAnalysis(apiKey){
 
     resultBox.textContent = '科学的プロコーチが分析中...';
 
-    // 2. プロンプト (ご指定の科学的コーチ設定)
+    // 2. プロンプト
     const promptText = `
 あなたは陸上中長距離の科学的な知識を持つプロコーチです。
 大学生ランナーの直近7日間の練習ログを分析し、アドバイスをください。
@@ -2977,7 +2977,7 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
 - 長くなってもよいので日本語で、客観的かつ具体的なアドバイスをお願いします。
 `;
 
-    // 3. API呼び出しヘルパー
+    // 3. API呼び出し
     const callApi = async (modelName) => {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${cleanKey}`;
       const res = await fetch(url, {
@@ -2989,31 +2989,28 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
       return res.json();
     };
 
-    // ★修正点：2.0がダメなら、同じモデルで粘らず「1.5」へ逃げる
     let json;
     try {
-      // 1回目：Gemini 2.0 Flash (最新版)
+      // 1回目: Gemini 2.0 Flash (本命)
       json = await callApi('gemini-2.0-flash');
     } catch(e1) {
-      console.warn('2.0 Flash busy (429/503), switching to 1.5...', e1);
+      console.warn('2.0 Flash busy, waiting...', e1);
       
-      // 4秒待機してレート制限を解除
-      resultBox.textContent = '通信混雑中...安定版(1.5)に切り替えます';
-      await new Promise(r => setTimeout(r, 4000));
+      // 429(レート制限)対策で、しっかり5秒待つ
+      resultBox.textContent = '通信混雑中...5秒後に予備モデルへ切り替えます';
+      await new Promise(r => setTimeout(r, 5000));
 
       try {
-        // 2回目：Gemini 1.5 Flash (安定版・名称修正済み)
-        // ※ -latest を取った正式名称を使用
+        // ★修正: リストにあった確実な名前 "gemini-flash-latest" を使用
         json = await callApi('gemini-flash-latest');
       } catch(e2) {
-        console.warn('1.5 Flash failed, trying Pro...', e2);
+        console.warn('Backup failed, trying Pro...', e2);
         
-        // さらに4秒待機
         resultBox.textContent = '通信混雑中...最終手段(Pro)を試みます';
-        await new Promise(r => setTimeout(r, 4000));
+        await new Promise(r => setTimeout(r, 5000));
 
-        // 3回目：Gemini 1.5 Pro (高性能版)
-        json = await callApi('gemini-1.5-pro');
+        // ★修正: リストにあった確実な名前 "gemini-pro-latest" を使用
+        json = await callApi('gemini-pro-latest');
       }
     }
 
@@ -3023,15 +3020,15 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
   }catch(e){
     console.error(e);
     let msg = `エラーが発生しました (Status: ${e.status})`;
-    if(e.status === 429) msg = 'アクセスが集中しています(429)。\n連続実行せず、1分ほど時間を空けてから押してください。';
-    if(e.status === 503) msg = 'AIサーバーが混雑しています(503)。\n少し時間を置いて再試行してください。';
-    if(e.status === 404) msg = 'AIモデルが見つかりません(404)。\nキーが無効か、プロジェクト設定を確認してください。';
+    if(e.status === 429) msg = 'アクセスが集中しています。\n1分ほど時間を空けてから実行してください。';
+    if(e.status === 404) msg = 'モデルが見つかりません。\nプロジェクトの設定を確認してください。';
     resultBox.textContent = msg;
   }finally{
     btn.disabled = false;
     btn.textContent = '分析開始';
   }
 }
+
 let typePieChart = null;
 
 async function renderTypePieChart(){
