@@ -3004,7 +3004,7 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
       try {
         // 2回目：Gemini 1.5 Flash (安定版・名称修正済み)
         // ※ -latest を取った正式名称を使用
-        json = await callApi('gemini-1.5-flash-latest');
+        json = await callApi('gemini-flash-latest');
       } catch(e2) {
         console.warn('1.5 Flash failed, trying Pro...', e2);
         
