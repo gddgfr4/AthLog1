@@ -1031,4 +1031,16 @@ body.share-mode #app {
   }
 }
 
+/* style.css (末尾に追加) */
+
+#aiResult {
+  background-color: #f0fdf4; /* 薄い緑の背景 */
+  border: 1px solid #86efac;
+  color: #14532d;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-top: 10px;
+}
+
 
