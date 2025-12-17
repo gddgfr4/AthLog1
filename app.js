@@ -242,9 +242,8 @@ async function showApp(){
   initTeamSwitcher();
   initGlobalTabSwipe();
   initNotifyBadgeCheck();
-  
-  // メンバー移動ボタンの初期化は維持
   initMemberNav();
+  initAiAnalysis();
 }
 function initTeamSwitcher(){
   const wrap   = $("#teamSwitchWrap");
@@ -2858,9 +2857,7 @@ function initMemberNav(){
     $("#memberNext")?.addEventListener("click", () => goMemberDelta(1));
 }
 
-// ★ 既存の showApp() 関数に initMemberNav() の呼び出しを追加する必要があります
-// (app.js の showApp() 関数の末尾、initNotifyBadgeCheck() の後など)
-// app.js (末尾に追加)
+
 
 // 通知バッジ用購読解除
 let notifyBadgeUnsub = null;
@@ -2892,3 +2889,124 @@ function initNotifyBadgeCheck(){
   });
 }
 
+// app.js (末尾に追加)
+
+// ========== AI Analysis Logic (Client Side) ==========
+
+function initAiAnalysis(){
+  const keyInput = document.getElementById('geminiApiKey');
+  const runBtn = document.getElementById('runAiBtn');
+  
+  if(!keyInput || !runBtn) return;
+
+  // 1. 保存されたキーがあれば復元
+  const savedKey = localStorage.getItem('athlog_gemini_key');
+  if(savedKey){
+    keyInput.value = savedKey;
+  }
+
+  // 2. ボタンクリック時の動作
+  runBtn.addEventListener('click', async ()=>{
+    const apiKey = keyInput.value.trim();
+    
+    // キーがない場合は何もしない（あるいはアラート）
+    if(!apiKey){
+      alert('AI機能を使うには、Gemini APIキーを入力してください。\n（Google AI Studioで無料で取得できます）');
+      return;
+    }
+
+    // キーを保存しておく
+    localStorage.setItem('athlog_gemini_key', apiKey);
+    
+    await runGeminiAnalysis(apiKey);
+  });
+}
+
+async function runGeminiAnalysis(apiKey){
+  const resultBox = document.getElementById('aiResult');
+  const btn = document.getElementById('runAiBtn');
+  
+  if(!resultBox || !btn) return;
+  
+  try{
+    btn.disabled = true;
+    btn.textContent = '分析中...';
+    resultBox.style.display = 'block';
+    resultBox.textContent = 'データを収集中...';
+
+    // 1. 直近7日間のデータを取得
+    const today = new Date();
+    const history = [];
+    
+    // 現在表示中のデータソース（チーム・メンバー）から取得
+    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+    
+    for(let i=6; i>=0; i--){
+      const d = addDays(today, -i);
+      const dateStr = ymd(d);
+      
+      // データ取得
+      const snap = await getJournalRef(srcTeam, viewingMemberId, d).get();
+      const data = snap.data() || {};
+      
+      // 分析用にデータを整形
+      history.push({
+        date: dateStr,
+        dist: data.dist || 0,
+        tags: data.tags || [], // メニュー
+        condition: data.condition || '-', // 調子
+        weight: data.weight || '-' // 体重
+      });
+    }
+
+    resultBox.textContent = 'AIコーチが思考中...';
+
+    // 2. プロンプト（命令文）作成
+    const promptText = `
+あなたは陸上長距離のプロコーチです。
+市民ランナーの直近7日間の練習ログを見て、アドバイスをください。
+
+【データ】
+${history.map(h => 
+  `- ${h.date}: ${h.dist}km, メニュー:[${h.tags.join(',')}], 調子:${h.condition}, 体重:${h.weight}`
+).join('\n')}
+
+【指示】
+- 走行距離の推移、練習強度のバランス、調子の変化を分析してください。
+- 疲労が溜まっていそうなら休養を提案し、順調なら激励してください。
+- 300文字以内の日本語で、簡潔かつ具体的なアドバイスをお願いします。
+`;
+
+    // 3. Gemini API 呼び出し
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: promptText }] }]
+      })
+    });
+
+    if(!response.ok) {
+      // エラーハンドリング
+      if(response.status === 400 || response.status === 403) {
+        throw new Error('APIキーが無効です。正しいキーを入力してください。');
+      }
+      throw new Error(`API Error: ${response.status}`);
+    }
+
+    const json = await response.json();
+    const aiText = json.candidates?.[0]?.content?.parts?.[0]?.text || '回答を得られませんでした';
+
+    // 結果表示
+    resultBox.textContent = aiText;
+
+  }catch(e){
+    console.error(e);
+    resultBox.textContent = 'エラー: ' + e.message;
+  }finally{
+    btn.disabled = false;
+    btn.textContent = '分析開始';
+  }
+}
