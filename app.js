@@ -2927,6 +2927,9 @@ async function runGeminiAnalysis(apiKey){
   
   if(!resultBox || !btn) return;
   
+  // キーの掃除
+  const cleanKey = apiKey.trim().replace(/:\d+$/, '');
+
   try{
     btn.disabled = true;
     btn.textContent = '分析中...';
@@ -2945,25 +2948,22 @@ async function runGeminiAnalysis(apiKey){
       
       const st = data.mmStats || { lv1:0, lv2:0, lv3:0 };
       const fatigueStr = (st.lv1+st.lv2+st.lv3 === 0) ? "なし" : `[高:${st.lv3}, 中:${st.lv2}]`;
-
-      // ★追加: メニュー本文を取得（感想 feel は取得しない）
-      // 改行をスペースに置換して、長すぎたらカットする処理を入れると安全
-      let menuText = (data.train || "").replace(/\n/g, " ").slice(0, 50); 
+      let menuText = (data.train || "").replace(/\n/g, " ").slice(0, 100); 
       if(!menuText) menuText = "記載なし";
 
       history.push({
         date: ymd(d),
         dist: data.dist || 0,
         tags: data.tags || [],
-        menu: menuText,              // ★具体的なメニュー内容
+        menu: menuText,
         condition: data.condition || '-',
         fatigue: fatigueStr
       });
     }
 
-    resultBox.textContent = 'AIコーチ(Gemini 2.5)に相談中...';
+    resultBox.textContent = '科学的プロコーチ(Gemini 2.0)が分析中...';
 
-    // 2. プロンプト
+    // 2. プロンプト (ご指定の内容に変更)
     const promptText = `
 あなたは陸上中長距離の科学的な知識を持つプロコーチです。
 大学生ランナーの直近7日間の練習ログを分析し、アドバイスをください。
@@ -2977,9 +2977,9 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
 - 長くなってもよいので日本語で、客観的かつ具体的なアドバイスをお願いします。
 `;
 
-    // 3. API呼び出しヘルパー
+    // 3. API呼び出し
     const callApi = async (modelName) => {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${cleanKey}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2989,33 +2989,40 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}]
       return res.json();
     };
 
-    // 4. モデルのリレー（2.5 -> 2.0 -> 1.5 Pro）
+    // 4. モデルのリレー（安定重視: 2.0 -> 3秒待機 -> 2.0 -> 3秒待機 -> 1.5）
     let json;
     try {
-      json = await callApi('gemini-2.5-flash');
+      json = await callApi('gemini-2.0-flash');
     } catch(e1) {
-      console.warn('2.5 Flash NG, trying 2.0...', e1);
+      console.warn('First attempt failed, waiting...', e1);
+      resultBox.textContent = '通信混雑中...3秒後に再接続します';
+      await new Promise(r => setTimeout(r, 3000));
+
       try {
         json = await callApi('gemini-2.0-flash');
       } catch(e2) {
-        console.warn('2.0 Flash NG, trying 1.5 Flash...', e2);
-        await new Promise(r => setTimeout(r, 1000));
-        json = await callApi('gemini-1.5-flash');
+        console.warn('Second attempt failed, waiting...', e2);
+        resultBox.textContent = '通信混雑中...最終接続を試みます';
+        await new Promise(r => setTimeout(r, 3000));
+
+        json = await callApi('gemini-1.5-flash-latest');
       }
     }
 
-    const aiText = json.candidates?.[0]?.content?.parts?.[0]?.text || '回答なし';
+    const aiText = json.candidates?.[0]?.content?.parts?.[0]?.text || '回答を得られませんでした';
     resultBox.textContent = aiText;
 
   }catch(e){
     console.error(e);
-    resultBox.textContent = `エラー: AIモデルに接続できませんでした。\n(Status: ${e.status})`;
+    let msg = `エラーが発生しました (Status: ${e.status})`;
+    if(e.status === 429) msg = 'アクセス集中(429)。\n1分ほど時間を空けてから再度お試しください。';
+    if(e.status === 503) msg = 'AIサーバー混雑(503)。\n少し時間を置いて再試行してください。';
+    resultBox.textContent = msg;
   }finally{
     btn.disabled = false;
     btn.textContent = '分析開始';
   }
 }
-
 let typePieChart = null;
 
 async function renderTypePieChart(){
