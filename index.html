@@ -288,6 +288,24 @@
         <canvas id="weightChart"></canvas>
       </div>
     </div>
+
+    <div class="panel" style="margin-top:12px;">
+      <div class="dash-header">
+        <h3>AIコーチ分析</h3>
+      </div>
+      
+      <div id="aiConfig" style="margin-bottom:10px;">
+        <label style="font-size:10px; color:#666;">Gemini API Key (未入力なら機能オフ)</label>
+        <input type="password" id="geminiApiKey" placeholder="APIキーを入力して保存" class="form-control" style="font-size:12px; margin-top:4px;" />
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <div class="muted" style="font-size:11px;">直近7日間のデータを分析</div>
+        <button id="runAiBtn" class="primary" style="padding:6px 12px; font-size:12px;">分析開始</button>
+      </div>
+
+      <div id="aiResult" class="note" style="margin-top:10px; min-height:60px; font-size:13px; line-height:1.5; white-space:pre-wrap; display:none;"></div>
+    </div>
     </section>
 
 
@@ -508,6 +526,7 @@
 
 </body>
 </html>
+
 
 
 
