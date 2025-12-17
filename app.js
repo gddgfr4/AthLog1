@@ -2891,6 +2891,34 @@ function initNotifyBadgeCheck(){
 
 // app.js (末尾の runGeminiAnalysis 関数をこれに置き換え)
 
+function initAiAnalysis(){
+  const keyInput = document.getElementById('geminiApiKey');
+  const runBtn = document.getElementById('runAiBtn');
+  
+  if(!keyInput || !runBtn) return;
+
+  // 1. 保存されたキーがあれば復元
+  const savedKey = localStorage.getItem('athlog_gemini_key');
+  if(savedKey){
+    keyInput.value = savedKey;
+  }
+
+  // 2. ボタンクリック時の動作
+  runBtn.addEventListener('click', async ()=>{
+    const apiKey = keyInput.value.trim();
+    
+    // キーがない場合は何もしない（あるいはアラート）
+    if(!apiKey){
+      alert('AI機能を使うには、Gemini APIキーを入力してください。\n（Google AI Studioで無料で取得できます）');
+      return;
+    }
+
+    // キーを保存しておく
+    localStorage.setItem('athlog_gemini_key', apiKey);
+    
+    await runGeminiAnalysis(apiKey);
+  });
+}
 async function runGeminiAnalysis(apiKey){
   const resultBox = document.getElementById('aiResult');
   const btn = document.getElementById('runAiBtn');
