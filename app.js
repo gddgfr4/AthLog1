@@ -2919,6 +2919,9 @@ function initAiAnalysis(){
     await runGeminiAnalysis(apiKey);
   });
 }
+
+// app.js (末尾の runGeminiAnalysis 関数をこれに置き換え)
+
 async function runGeminiAnalysis(apiKey){
   const resultBox = document.getElementById('aiResult');
   const btn = document.getElementById('runAiBtn');
@@ -2940,36 +2943,46 @@ async function runGeminiAnalysis(apiKey){
       const d = addDays(today, -i);
       const snap = await getJournalRef(srcTeam, viewingMemberId, d).get();
       const data = snap.data() || {};
+      
+      // 筋疲労データの整形 (Lv3:赤/高, Lv2:橙/中, Lv1:青/低)
+      const st = data.mmStats || { lv1:0, lv2:0, lv3:0 };
+      // 面積が0なら「なし」とする
+      const fatigueStr = (st.lv1+st.lv2+st.lv3 === 0) 
+        ? "なし" 
+        : `[高:${st.lv3}, 中:${st.lv2}, 低:${st.lv1}]`;
+
       history.push({
         date: ymd(d),
         dist: data.dist || 0,
-        tags: data.tags || [],
+        tags: data.tags || [],       // 練習内容
         condition: data.condition || '-',
-        weight: data.weight || '-'
+        fatigue: fatigueStr          // ★追加: 筋疲労データ
       });
     }
 
-    // ★修正: モデル名を明示
     resultBox.textContent = 'AIコーチ(Gemini 2.5)が思考中...';
 
-    // 2. プロンプト作成
+    // 2. プロンプト作成 (タイム・感想は含めない)
     const promptText = `
-あなたは陸上長距離のプロコーチです。
-市民ランナーの直近7日間の練習ログを見て、アドバイスをください。
+あなたは陸上中長距離のプロコーチです。
+大学生ランナーの直近7日間の練習ログ（距離・メニュー・筋疲労・調子）を分析し、アドバイスをください。
+
+【データ凡例】
+- 筋疲労: 人体図の塗り面積。[高:XX]などの数値が大きいほど、その強度の疲労・痛みが広い範囲にあることを示します。
+- 調子: 1(悪い)〜5(良い)
 
 【データ】
-${history.map(h => `- ${h.date}: ${h.dist}km, メニュー:[${h.tags.join(',')}], 調子:${h.condition}`).join('\n')}
+${history.map(h => `- ${h.date}: ${h.dist}km, メニュー:[${h.tags.join(',')}], 筋疲労:${h.fatigue}, 調子:${h.condition}`).join('\n')}
 
 【指示】
-- 走行距離の推移、練習強度のバランス、調子の変化を分析してください。
-- 疲労が溜まっていそうなら休養を提案し、順調なら激励してください。
-- 300文字以内の日本語で、簡潔かつ具体的なアドバイスをお願いします。
+- 「筋疲労」の数値（特に「高」や「中」がある場合）と「練習強度」の関係を重視して分析してください。
+- 疲労が蓄積している兆候があれば、具体的な休養やケアを提案してください。
+- タイムや感想のデータはありません。客観的な数値データのみから判断してください。
+- 300文字程度の日本語で、選手に寄り添った簡潔なアドバイスをお願いします。
 `;
 
     // 3. API呼び出しヘルパー
     const callApi = async (modelName) => {
-      // モデル名に 'models/' が含まれていなければ付与する判定も可だが、
-      // ここではシンプルに短縮名(gemini-2.5-flash等)を渡す想定
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
       const res = await fetch(url, {
         method: 'POST',
@@ -2983,15 +2996,12 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, メニュー:[${h.tags.join(',')}]
     // 4. モデルを順に試す (2.5 Flash -> 2.0 Flash)
     let json;
     try {
-      // 第1候補: Gemini 2.5 Flash (リストにあった最新版)
       json = await callApi('gemini-2.5-flash');
     } catch(e1) {
       console.warn('2.5 Flash failed, trying 2.0 Flash...', e1);
       try {
-        // 第2候補: Gemini 2.0 Flash
         json = await callApi('gemini-2.0-flash');
       } catch(e2) {
-        // 第3候補: Gemini 1.5 Flash (念のため)
         console.warn('2.0 Flash failed, trying 1.5 Flash...', e2);
         json = await callApi('gemini-1.5-flash');
       }
@@ -3003,7 +3013,7 @@ ${history.map(h => `- ${h.date}: ${h.dist}km, メニュー:[${h.tags.join(',')}]
   }catch(e){
     console.error(e);
     let msg = 'エラーが発生しました';
-    if(e.status === 404) msg = 'AIモデルが見つかりませんでした。\nAPIキーが正しいか確認してください。';
+    if(e.status === 404) msg = 'AIモデルが見つかりませんでした。\nAPIキーを確認してください。';
     if(e.status === 400 || e.status === 403) msg = 'APIキーが無効です。';
     
     resultBox.textContent = `${msg}\n(Status: ${e.status}, Model: ${e.model || 'unknown'})`;
