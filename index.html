@@ -1,83 +1,60 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-
-  <meta name="description" content="陸上の練習を記録・可視化するAthLog">
-  <meta property="og:title" content="AthLog">
-  <meta property="og:description" content="陸上の練習を記録・可視化">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://gddgfr4.github.io/AthLog1/">
-  <meta property="og:image" content="./athlog-icon-512.png">
-  <meta name="twitter:card" content="summary_large_image">
-
-  
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#ffffff" />
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <title>AthLog</title>
-
-  <!-- PWA/アイコン（無ければ削っても動作OK） -->
   <link rel="manifest" href="./manifest.webmanifest?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png">
   <link rel="apple-touch-icon" href="./apple-touch-icon-180.png">
-
-  <!-- ベースCSS -->
   <link rel="stylesheet" href="style.css" />
-
-  <!-- 筋マップ画像を先読み（同階層に human.webp を置く） -->
   <link rel="preload" href="human.webp" as="image" imagesrcset="human.webp" />
-
-  <!-- ライブラリ -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div id="app" class="app hidden">
     <header class="topbar">
       <button class="ghost" id="openHelpBtn">ヘルプ</button>
-      <div class="brand">AthLog</div> <div class="teamuser" style="display:flex; align-items:center; gap:12px;">
+      <div class="brand">AthLog</div>
+      <div class="teamuser" style="display:flex; align-items:center; gap:12px;">
         <span>Team: <b id="teamLabel"></b></span>
         <span id="memberNavWrap" style="display:flex; align-items:center; gap:4px;">
-          <button id="memberPrev" class="ghost small-btn" title="前のメンバーへ">&lt;</button>
+          <button id="memberPrev" class="ghost small-btn">&lt;</button>
           <span style="display:flex; align-items:center; gap:8px;">
-            表示中: <b id="memberLabel"></b>
-            <span id="mainTeamBadge" class="badge primary hidden" title="このチームはあなたのメインです">MAIN</span>
-            <span id="readonlyBadge" class="badge warn hidden" title="このチームでは編集できません">閲覧のみ</span>
+            <b id="memberLabel"></b>
+            <span id="mainTeamBadge" class="badge primary hidden">MAIN</span>
+            <span id="readonlyBadge" class="badge warn hidden">閲覧のみ</span>
           </span>
           <select id="memberSelect" class="ghost" style="padding: 4px 6px;"></select>
-          <button id="memberNext" class="ghost small-btn" title="次のメンバーへ">&gt;</button>
+          <button id="memberNext" class="ghost small-btn">&gt;</button>
         </span>
         <div id="teamSwitchWrap" class="team-switch" style="display:flex; align-items:center; gap:8px;">
-          <span class="muted">チーム:</span>
           <select id="teamSwitchSelect" class="ghost" style="padding:4px 6px; min-width:140px;"></select>
-          <button id="addTeamBtn" class="ghost">＋追加</button>
-          <button id="setAsMainBtn" class="ghost" title="このチームをメインにする">メインに設定</button>
+          <button id="addTeamBtn" class="ghost">＋</button>
+          <button id="setAsMainBtn" class="ghost">★</button>
         </div>
         <button id="logoutBtn" class="ghost">ログアウト</button>
       </div>
     </header>
+
     <nav class="tabs">
       <button data-tab="journal" class="tab active">日誌</button>
       <button data-tab="month" class="tab">月一覧</button>
       <button data-tab="plans" class="tab">予定</button>
       <button data-tab="dashboard" class="tab">グラフ</button>
-      <button data-tab="memo" class="tab">メモ</button>
+      <button data-tab="ai_coach" class="tab">AIコーチ</button><button data-tab="memo" class="tab">メモ</button>
       <button data-tab="notify" class="tab">通知</button>
       <button class="tab" data-tab="clock">時計</button>
       <button class="tab" data-tab="stadium">競技場</button>
     </nav>
-    <!-- 画面上部 共通スワイプバー（透明） -->
     <div id="globalSwipeBar" aria-hidden="true"></div>
 
-
-    <!-- ===== JOURNAL ===== -->
     <section id="journal" class="tabpanel active">
       <div class="journal-grid">
         <div class="panel">
           <div class="muscle-header">
-            <h3>筋疲労</h3>
+            <h3>筋疲労 (お絵かきメモ)</h3>
             <div class="palette">
               <button class="lvl active" data-lvl="1"><span class="dot dot1"></span>1</button>
               <button class="lvl" data-lvl="2"><span class="dot dot2"></span>2</button>
@@ -86,17 +63,16 @@
             </div>
           </div>
           <div id="mmWrap">
-            <!-- 表示用の下地画像（pointer-events: none で操作は上のCanvasへ） -->
             <img id="mmBg" src="./human.webp" alt="" style="display:block;width:100%;height:auto;pointer-events:none;">
-
-            <!-- 解析用ベース（非表示でOK / JSが描画に使用） -->
             <canvas id="mmBase"></canvas>
-
-            <!-- 見えない“壁” -->
             <canvas id="mmBarrier"></canvas>
-
-            <!-- ユーザが塗るオーバーレイ -->
             <canvas id="mmOverlay"></canvas>
+          </div>
+
+          <div style="margin-top:12px; border-top:1px dashed var(--line); padding-top:8px;">
+            <div style="font-size:12px; font-weight:bold; margin-bottom:6px;">⚡️ AI分析用データ (タップで強度変更)</div>
+            <div id="partsTagArea" class="parts-tag-area">
+              </div>
           </div>
         </div>
 
@@ -105,10 +81,9 @@
             <button id="weekPrev" class="ghost">&larr;</button>
             <div id="weekChips" class="chips"></div>
             <button id="weekNext" class="ghost">&rarr;</button>
-            <span id="weekMonthLabel" class="muted"></span>
             <input type="date" id="datePicker" />
-            <button id="gotoToday" class="ghost">今日へ</button>
-            <button id="shareModeBtn" class="ghost" title="スクショ用モード" style="margin-left:4px; padding:4px 8px;">📷</button>
+            <button id="gotoToday" class="ghost">今日</button>
+            <button id="shareModeBtn" class="ghost">📷</button>
           </div>
 
           <div class="quick" style="justify-content:center;">
@@ -121,20 +96,17 @@
 
           <div class="formcol">
             <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">
-              
               <div style="width: 70px;">
-                <label style="font-size:11px; white-space:nowrap;">距離(km)</label>
-                <input type="number" id="distInput" step="0.1" min="0" style="padding:6px;" />
+                <label>距離(km)</label>
+                <input type="number" id="distInput" step="0.1" min="0" />
               </div>
-
               <div style="width: 70px;">
-                <label style="font-size:11px; white-space:nowrap;">体重(kg)</label>
-                <input type="number" id="weightInput" step="0.1" min="0" style="padding:6px;" />
+                <label>体重(kg)</label>
+                <input type="number" id="weightInput" step="0.1" min="0" />
               </div>
-
               <div style="flex:1; min-width:150px;">
-                <label style="font-size:11px;">調子</label>
-                <div id="conditionBtns" class="condition-rating" style="margin-top:1px;">
+                <label>調子</label>
+                <div id="conditionBtns" class="condition-rating">
                   <button data-val="1">1</button>
                   <button data-val="2">2</button>
                   <button data-val="3">3</button>
@@ -148,27 +120,23 @@
               <textarea id="trainInput" rows="3"></textarea>
               <div class="merge">
                 <select id="mergeScope" class="ghost"></select>
-                <input id="mergeTagFilter" class="ghost" placeholder="タグ(,区切り)" />
+                <input id="mergeTagFilter" class="ghost" placeholder="タグ" />
                 <button id="mergeBtn" class="ghost">反映</button>
               </div>
             </div>
-
             <div class="note">
               <label>タイム・感想</label>
               <textarea id="feelInput" rows="6"></textarea>
             </div>
-
             <div class="savebar">
-             <div id="distanceSummary" class="muted">読み込み中…</div>
+             <div id="distanceSummary" class="muted">...</div>
             </div>
-
-      
             <div class="note" id="teamSharedCommentBox">
               <label>コメント</label>
-              <textarea id="teamSharedComment" rows="3" placeholder="この日の共有コメント…"></textarea>
+              <textarea id="teamSharedComment" rows="2" placeholder="共有コメント..."></textarea>
               <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                <div id="teamSharedCommentStatus" class="muted" style="font-size:12px;"></div>
-                <button id="tscSendBtn" class="primary" style="padding:6px 12px; font-size:12px;">送信</button>
+                <div id="teamSharedCommentStatus" class="muted"></div>
+                <button id="tscSendBtn" class="primary">送信</button>
               </div>
             </div>
           </div>
@@ -176,7 +144,6 @@
       </div>
     </section>
 
-    <!-- ===== MONTH LIST ===== -->
     <section id="month" class="tabpanel">
       <div class="monthbar">
         <button id="mPrev" class="ghost">&larr;</button>
@@ -184,16 +151,13 @@
         <button id="mNext" class="ghost">&rarr;</button>
         <div id="monthSum" class="muted"></div>
       </div>
-
       <div class="panel" style="margin-bottom:12px;">
         <label for="monthGoalInput"><strong>月間目標</strong></label>
-        <textarea id="monthGoalInput" class="form-control" rows="2" style="width:100%; margin-top:4px;"></textarea>
+        <textarea id="monthGoalInput" class="form-control" rows="2"></textarea>
       </div>
-
       <div id="monthList" class="list"></div>
     </section>
 
-    <!-- ===== PLANS ===== -->
     <section id="plans" class="tabpanel">
       <div class="monthbar">
         <button id="pPrev" class="ghost">&larr;</button>
@@ -201,144 +165,122 @@
         <button id="pNext" class="ghost">&rarr;</button>
         <div class="filters" style="margin-left:auto;">
           <select id="planScope" class="ghost"></select>
-          <input id="tagFilter" placeholder="タグ(,区切り)" />
         </div>
       </div>
-
-      <!-- ▼ 追加: 予定入力のポイント詳細（ポイント時のみ使用） -->
       <div class="panel" id="planAdvanced" style="display:none; gap:8px; align-items:center;">
-        <label>ポイント種別</label>
-        <select id="pointSubtype">
-          <option value="pace">ペース走</option>
-          <option value="interval">インターバル</option>
-        </select>
-        <label>距離(m)</label>
-        <input id="pointDistance" type="number" min="50" step="50" placeholder="1000" />
+        <label>種別</label>
+        <select id="pointSubtype"><option value="pace">ペース走</option><option value="interval">インターバル</option></select>
+        <label>距離</label>
+        <input id="pointDistance" type="number" step="50" placeholder="1000" />
       </div>
-
-      <div class="chatwrap" style="margin-bottom:12px;">
-        <button id="toggleChat" class="ghost">月コメント</button>
-        <div id="chatBox" class="chat hidden">
-          <div id="chatLog" class="chatlog"></div>
-          <input id="chatInput" placeholder="コメント..." />
-        </div>
-      </div>
-
-      <div id="planList" class="list"></div>
+      <div id="planList" class="list" style="margin-top:10px;"></div>
     </section>
-    <!-- ===== DASHBOARD ===== -->
+
     <section id="dashboard" class="tabpanel">
       <div class="panel" style="margin-bottom:12px;">
-        <!-- 旧: 切り替えボタンや1枚キャンバスは削除 -->
-        <!-- 新: 3枚の距離グラフを縦並び -->
-    
         <div class="card">
           <h3>
-            <button id="distDayPrev" class="ghost" style="margin-right:6px;">&larr;</button>
-            <span id="distChartTitleDay">日別走行距離（直近14日）</span>
-            <button id="distDayNext" class="ghost" style="margin-left:6px;">&rarr;</button>
+            <button id="distDayPrev" class="ghost">&larr;</button>
+            <span id="distChartTitleDay">日別</span>
+            <button id="distDayNext" class="ghost">&rarr;</button>
           </h3>
           <canvas id="distanceChartDay" height="180"></canvas>
         </div>
-    
-        <div class="card">
+        <div class="card" style="margin-top:10px;">
           <h3>
-            <button id="distWeekPrev" class="ghost" style="margin-right:6px;">&larr;</button>
-            <span id="distChartTitleWeek">週間走行距離（直近6週）</span>
-            <button id="distWeekNext" class="ghost" style="margin-left:6px;">&rarr;</button>
+            <button id="distWeekPrev" class="ghost">&larr;</button>
+            <span id="distChartTitleWeek">週間</span>
+            <button id="distWeekNext" class="ghost">&rarr;</button>
           </h3>
           <canvas id="distanceChartWeek" height="180"></canvas>
         </div>
-    
-        <div class="card">
+        <div class="card" style="margin-top:10px;">
           <h3>
-            <button id="distMonthPrev" class="ghost" style="margin-right:6px;">&larr;</button>
-            <span id="distChartTitleMonth">月間走行距離（直近6か月）</span>
-            <button id="distMonthNext" class="ghost" style="margin-left:6px;">&rarr;</button>
+            <button id="distMonthPrev" class="ghost">&larr;</button>
+            <span id="distChartTitleMonth">月間</span>
+            <button id="distMonthNext" class="ghost">&rarr;</button>
           </h3>
           <canvas id="distanceChartMonth" height="180"></canvas>
         </div>
       </div>
-    
       <div class="panel">
         <div class="dash-header">
-          <h3>コンディション推移</h3>
+          <h3>コンディション</h3>
           <div class="dash-controls">
             <button id="condChartPrev" class="ghost">&larr;</button>
             <span id="condChartRange" class="muted"></span>
             <button id="condChartNext" class="ghost">&rarr;</button>
           </div>
         </div>
-        <div style="height:250px;">
-          <canvas id="conditionChart"></canvas>
-        </div>
+        <div style="height:250px;"><canvas id="conditionChart"></canvas></div>
       </div>
-
       <div class="panel" style="margin-top:12px;">
-      <div class="dash-header">
-        <h3>体重推移</h3>
-        <div class="dash-controls">
-          <button id="weightModeBtn" class="ghost" style="font-size:12px; min-width:40px;">日</button>
-          <button id="weightPrev" class="ghost">&larr;</button>
-          <span id="weightRangeLabel" class="muted" style="font-size:12px;"></span>
-          <button id="weightNext" class="ghost">&rarr;</button>
+        <div class="dash-header">
+          <h3>体重</h3>
+          <div class="dash-controls">
+            <button id="weightModeBtn" class="ghost">日</button>
+            <button id="weightPrev" class="ghost">&larr;</button>
+            <span id="weightRangeLabel" class="muted"></span>
+            <button id="weightNext" class="ghost">&rarr;</button>
+          </div>
         </div>
+        <div style="height:200px;"><canvas id="weightChart"></canvas></div>
       </div>
-      <div style="height:200px;">
-        <canvas id="weightChart"></canvas>
+      <div class="panel" style="margin-top:12px;">
+        <h3 id="typePieTitle">練習割合</h3>
+        <div style="height:220px; position:relative;"><canvas id="typePieChart"></canvas></div>
       </div>
-    </div>
-
-    <div class="panel" style="margin-top:12px;">
-      <h3 id="typePieTitle">練習割合</h3>
-      <div style="height:220px; position:relative;">
-        <canvas id="typePieChart"></canvas>
-      </div>
-    </div>
-　　<details style="margin-bottom: 15px; border: 1px solid #ccc; padding: 10px; border-radius: 5px;">
-      <summary style="cursor: pointer; font-weight: bold;">⚙️ AIコーチ用の選手プロフィール設定</summary>
-      <div style="margin-top: 10px;">
-        <label>専門種目 (例: 5000m, フルマラソン):</label><br>
-        <input type="text" id="aiSpecialty" style="width: 100%; margin-bottom: 5px;" placeholder="例: 1500m">
-        
-        <label>シーズンベスト (SB) / 目標タイム:</label><br>
-        <input type="text" id="aiSb" style="width: 100%; margin-bottom: 5px;" placeholder="例: 4分10秒">
-        
-        <label>AIへの申し送り事項 (留意点):</label><br>
-        <textarea id="aiNote" style="width: 100%; height: 60px;" placeholder="例: 先週捻挫したので足首に配慮して。貧血気味です。"></textarea>
-        
-        <button id="saveAiProfileBtn" onclick="saveAiProfile()" style="margin-top: 5px; background: #ddd;">設定を保存</button>
-      </div>
-    </details>
-    <div class="panel" style="margin-top:12px;">
-      <div class="dash-header">
-        <h3>AIコーチ分析</h3>
-      </div>
-      
-      <div id="aiConfig" style="margin-bottom:10px;">
-        <label style="font-size:10px; color:#666;">Gemini API Key (未入力なら機能オフ)</label>
-        <input type="password" id="geminiApiKey" placeholder="APIキーを入力して保存" class="form-control" style="font-size:12px; margin-top:4px;" />
-      </div>
-
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-        <div class="muted" style="font-size:11px;">直近7日間のデータを分析</div>
-        <button id="runAiBtn" class="primary" style="padding:6px 12px; font-size:12px;">分析開始</button>
-      </div>
-
-      <div id="aiResult" class="note" style="margin-top:10px; min-height:60px; font-size:13px; line-height:1.5; white-space:pre-wrap; display:none;"></div>
-    </div>
     </section>
 
+    <section id="ai_coach" class="tabpanel">
+      <div class="panel">
+        <h3>AI専属コーチ</h3>
+        <details style="margin-bottom: 15px; border: 1px solid var(--line); padding: 10px; border-radius: 8px; background:var(--bg);">
+          <summary style="cursor: pointer; font-weight: bold;">⚙️ プロフィール設定</summary>
+          <div style="margin-top: 10px; display:flex; flex-direction:column; gap:8px;">
+            <div>
+              <label>専門種目</label>
+              <input type="text" id="aiSpecialty" placeholder="例: 5000m">
+            </div>
+            <div>
+              <label>目標タイム (SB)</label>
+              <input type="text" id="aiSb" placeholder="例: 15分30秒">
+            </div>
+            <div>
+              <label>申し送り事項 (怪我・体調など)</label>
+              <textarea id="aiNote" style="height: 60px;" placeholder="例: 右膝に違和感あり"></textarea>
+            </div>
+            <button id="saveAiProfileBtn" onclick="saveAiProfile()" class="ghost" style="align-self:flex-start;">設定を保存</button>
+          </div>
+        </details>
 
+        <div id="aiConfig" style="margin-bottom:10px;">
+          <label style="font-size:10px; color:var(--muted);">Gemini API Key</label>
+          <input type="password" id="geminiApiKey" placeholder="APIキーを入力" class="form-control" style="font-size:12px; margin-top:4px;" />
+        </div>
 
-    <!-- ===== TEAM MEMO ===== -->
+        <div class="chat-container">
+          <div id="aiChatLog" class="chatlog" style="min-height:300px; max-height:500px; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px;">
+            <div class="msg system">
+              <span class="txt">こんにちは！AIコーチです。<br>「分析開始」を押すと、直近7日間のデータを読み込んでアドバイスします。</span>
+            </div>
+          </div>
+          <div class="chat-input-area" style="margin-top:10px;">
+            <button id="runAiBtn" class="primary" style="white-space:nowrap;">📊 分析開始</button>
+            <input id="aiChatInput" class="form-control" placeholder="質問を入力..." />
+            <button id="aiSendBtn" class="ghost">送信</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="memo" class="tabpanel">
       <div class="panel">
         <h3>チームメモ</h3>
         <div id="memoChatBox" class="chat">
           <div id="memoChatLog" class="chatlog" style="max-height:400px;"></div>
           <div class="chat-input-area">
-            <input id="memoChatInput" class="form-control" placeholder="チーム全体へのメッセージ..." />
+            <input id="memoChatInput" class="form-control" placeholder="メッセージ..." />
             <button id="memoSendBtn" class="primary">送信</button>
           </div>
         </div>
@@ -349,31 +291,25 @@
       <div class="panel">
         <h3>通知</h3>
         <div id="notifyList" class="chatlog"></div>
-        <div class="muted" id="notifyEmpty" style="display:none; padding:12px 0;">
-          新しい通知はありません
-        </div>
+        <div class="muted" id="notifyEmpty" style="display:none; padding:12px 0;">なし</div>
       </div>
     </section>
   </div>
 
-  <!-- LOGIN -->
   <div id="login" class="login">
     <div class="login-card">
       <div class="logo">AthLog</div>
-      <div class="desc">中長距離のための日誌</div>
+      <div class="desc">Login</div>
       <label>Team ID</label>
       <input id="teamId" />
       <label>Member</label>
       <input id="memberName" />
-      <button id="loginBtn" class="primary wide">はじめる</button>
+      <button id="loginBtn" class="primary wide">Enter</button>
     </div>
   </div>
 
-  <!-- Firebase SDK（※二重読込はしない） -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-
-  <!-- ← この“直後”に初期化を置く（app.jsより前） -->
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyA8oCOusnqZCSax9ZY3-n4KNt2AxEmvT-E",
@@ -383,190 +319,13 @@
       messagingSenderId: "784178114661",
       appId: "1:784178114661:web:d41103b0dad1187b85168c"
     };
-    if (!firebase.apps || !firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps || !firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+  </script>
+  <script src="app.js?v=20251220_final" defer></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(console.error); });
     }
   </script>
-  <!-- アプリ本体 -->
-  <script src="app.js?v=20251217" defer></script>
-
-  <!-- ヘルプオーバーレイ -->
-  <div id="helpOverlay" class="login hidden">
-    <div class="login-card" style="max-width:860px; width:min(96vw,860px); max-height:85vh; overflow:auto;">
-      <div class="logo">AthLog クイックガイド</div>
-      <div class="desc">最短で使い始めるための要点まとめ</div>
-      <div id="helpBody" class="doc"></div>
-      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
-        <button class="ghost" id="helpClose">閉じる</button>
-      </div>
-    </div>
-  </div>
-
-  <noscript>
-    <div style="padding:16px; font-family: system-ui, -apple-system, Segoe UI, Roboto;">
-      このアプリを利用するには JavaScript を有効にしてください。
-    </div>
-  </noscript>
- 
-
-<script>
-/* ===== ログイン画面の注意書きを追加（IDは実体に合わせて loginBtn） ===== */
-(function(){
-  function addLoginNote(){
-    const startBtn = document.getElementById('loginBtn');
-    if(!startBtn) return;
-    if (document.querySelector('.login-note')) return; // 重複防止
-    const note = document.createElement('p');
-    note.className = 'login-note';
-    note.innerHTML =
-      '※ 次回以降は自動ログインとなります。<br>' +
-      '※ チーム名と名前は<strong>完全一致</strong>が必要です（スペースや全角・半角にご注意ください）。';
-    startBtn.insertAdjacentElement('afterend', note);
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', addLoginNote);
-  } else {
-    addLoginNote();
-  }
-})();
-</script>
-
-<script>
-/* ===== 予定: ポイント詳細（ポイント選択時だけ表示するためのフック。既存UI側から使う） ===== */
-(function(){
-  // もし既存の予定入力UIが select#planType を使っている場合の例。無ければスキップ。
-  const typeSel = document.getElementById('planType') || document.getElementById('sessionType');
-  const adv = document.getElementById('planAdvanced');
-  if (!adv) return;
-  function sync(){ adv.style.display = (typeSel && typeSel.value === 'point') ? 'flex' : 'none'; }
-  if (typeSel) { typeSel.addEventListener('change', sync); sync(); }
-})();
-</script>
-
-
-
-<script>
-(function(){
-  try {
-    if (!window.firebase || !firebase.firestore) return; // Firestore未読込なら何もしない
-  } catch(e) { return; }
-
-  const db = firebase.firestore();
-
-  function getDateKey(){
-    const inp = document.getElementById('datePicker');
-    const val = inp && inp.value;
-    if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const day = String(d.getDate()).padStart(2,'0');
-    return `${y}-${m}-${day}`;
-  }
-
-  const $text = document.getElementById('daynote-text');
-  const $status = document.getElementById('daynote-status');
-  if (!$text || !$status) return; // DOMが無い画面では実行しない
-
-  let currentDateKey = null;
-  let saveTimer = null, dirty = false;
-
-  async function loadNote(dateKey){
-    try{
-      const snap = await db.collection('dayNotes').doc(dateKey).get();
-      $text.value = snap.exists ? (snap.data().text || '') : '';
-      $status.textContent = `日付: ${dateKey} ／ 状態: 参照OK`;
-    }catch(e){
-      console.error(e);
-      $status.textContent = `日付: ${dateKey} ／ 読み込み失敗`;
-    }
-  }
-
-  async function saveNote(dateKey, text){
-    try{
-      await db.collection('dayNotes').doc(dateKey).set(
-        { text, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
-        { merge: true }
-      );
-      dirty = false;
-      $status.textContent = `日付: ${dateKey} ／ 保存済み`;
-    }catch(e){
-      console.error(e);
-      $status.textContent = `日付: ${dateKey} ／ 保存失敗（自動再試行）`;
-      setTimeout(()=>scheduleSave(), 1500);
-    }
-  }
-
-  function scheduleSave(){
-    dirty = true;
-    const dateKey = currentDateKey || getDateKey();
-    $status.textContent = `日付: ${dateKey} ／ 保存待ち…`;
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(()=>{
-      saveNote(dateKey, $text.value);
-    }, 800);
-  }
-
-  function init(){
-    currentDateKey = getDateKey();
-    loadNote(currentDateKey);
-  }
-
-  $text.addEventListener('input', scheduleSave);
-
-  const datePicker = document.getElementById('datePicker');
-  if (datePicker) {
-    datePicker.addEventListener('change', ()=>{
-      currentDateKey = getDateKey();
-      loadNote(currentDateKey);
-    });
-  }
-
-  window.addEventListener('beforeunload', ()=>{
-    if (dirty) {
-      try { saveNote(currentDateKey || getDateKey(), $text.value); } catch(e){}
-    }
-  });
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
-})();
-</script>
-<!-- ▲▲ 最終版ここまで ▲▲ -->
-<!-- index.html: body閉じタグ直前に追加 -->
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(console.error);
-    });
-  }
-</script>
-
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
