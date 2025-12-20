@@ -2920,119 +2920,99 @@ function addAiChatMessage(role, text){
   aiChatHistory.push({ role: role === 'user' ? 'user' : 'model', parts: [{ text: text }] });
 }
 
-async function runGeminiAnalysis(apiKey, isInitial, userMessage = ""){
+// 部位名への変換用辞書
+const BODY_PART_NAMES = {
+  'neck': '首', 'shoulder': '肩', 'back': '背中', 'waist': '腰',
+  'glute_l': '左臀部', 'glute_r': '右臀部', 'groin_l': '左股関節', 'groin_r': '右股関節',
+  'quad_l': '左前もも', 'quad_r': '右前もも', 'hams_l': '左ハム', 'hams_r': '右ハム',
+  'knee_l': '左膝', 'knee_r': '右膝', 'calf_l': '左ふくらはぎ', 'calf_r': '右ふくらはぎ',
+  'shin_l': '左すね', 'shin_r': '右すね', 'ankle_l': '左足首', 'ankle_r': '右足首',
+  'foot_l': '左足裏', 'foot_r': '右足裏'
+};
+
+async function runGeminiAnalysis(apiKey, isInitial, userMessage = "") {
   const runBtn = document.getElementById('runAiBtn');
   const sendBtn = document.getElementById('aiSendBtn');
   const cleanKey = apiKey.trim().replace(/:\d+$/, '');
 
-  // UIロック
   if(isInitial) runBtn.disabled = true;
   sendBtn.disabled = true;
 
   try {
-    let promptToSend = "";
-
     if (isInitial) {
-      // --- 初回: データ収集とプロンプト構築 ---
       const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
       const today = new Date();
 
       // プロフィール取得
-      let profileText = "未設定";
-      try {
-        const memDoc = await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).get();
-        const p = memDoc.data()?.aiProfile || {};
-        profileText = `専門:${p.specialty||'-'}, SB:${p.sb||'-'}, 留意点:${p.note||'-'}`;
-        // フォームにも反映
-        if($('#aiSpecialty')) $('#aiSpecialty').value = p.specialty||'';
-        if($('#aiSb')) $('#aiSb').value = p.sb||'';
-        if($('#aiNote')) $('#aiNote').value = p.note||'';
-      } catch(e){}
+      let profileText = "";
+      const memDoc = await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).get();
+      const p = memDoc.data()?.aiProfile || {};
+      profileText = `専門:${p.specialty||'未設定'}, SB:${p.sb||'未設定'}, 留意点:${p.note||'なし'}`;
 
-      // データ収集
+      // 過去7日間のデータ収集
       const history = [];
-      const partsLabelMap = {}; 
-      BODY_PARTS_LIST.forEach(p => partsLabelMap[p.id] = p.label);
-
       for(let i=6; i>=0; i--){
         const d = addDays(today, -i);
         const snap = await getJournalRef(srcTeam, viewingMemberId, d).get();
         const data = snap.data() || {};
         
-        // ★修正: 部位タグ(parts)から疲労情報を生成
-        let fatigueStr = "なし";
-        const pData = data.parts || {};
-        const pKeys = Object.keys(pData);
-        if(pKeys.length > 0){
-          fatigueStr = pKeys.map(k => `${partsLabelMap[k]||k}(Lv${pData[k]})`).join(", ");
-        }
+        // ★筋肉マップの「塗り」から疲労部位を特定
+        let fatigueParts = [];
+        const stats = data.mmStats || {}; 
+        // mmStats内の各部位の数値をチェック
+        Object.keys(stats).forEach(partId => {
+          const val = stats[partId]; // 塗りつぶされた強度
+          if(val > 0) {
+            const name = BODY_PART_NAMES[partId] || partId;
+            // 数値に応じてレベル表現を変える
+            const lv = val > 2000 ? 3 : (val > 500 ? 2 : 1); 
+            fatigueParts.push(`${name}(Lv${lv})`);
+          }
+        });
+        const fatigueStr = fatigueParts.length > 0 ? fatigueParts.join(", ") : "なし";
 
-        let menuText = (data.train || "").replace(/\n/g, " ").slice(0, 100);
-        if(!menuText) menuText = "記載なし";
-
-        history.push(`- ${ymd(d)}: ${data.dist||0}km, [${(data.tags||[]).join(',')}], メニュー:${menuText}, 疲労:[${fatigueStr}], 調子:${data.condition||'-'}`);
+        history.push(`- ${ymd(d)}: ${data.dist||0}km, [${(data.tags||[]).join(',')}], 内容:${(data.train||"").slice(0,50)}, 疲労:${fatigueStr}, 調子:${data.condition||'-'}`);
       }
 
-      // プロンプト作成
       const systemPrompt = `
-あなたは陸上中長距離の科学的な知識を持つプロコーチです。
-以下は担当選手のプロフィールと直近7日間の練習ログです。
-
+あなたは陸上中長距離のプロコーチです。以下の選手データを分析しアドバイスしてください。
 【プロフィール】${profileText}
-【練習ログ】
+【直近7日間のログ】
 ${history.join('\n')}
 
-これらを分析し、練習のバランス、疲労状況（特に部位データ）、調子を考慮して、
-具体的かつ客観的なアドバイスを日本語で回答してください。
-`;
-      // 初回は履歴をクリアしてシステムプロンプトを投入
-      // (Gemini APIは system instruction が別枠ですが、ここでは user メッセージとして最初に送る簡易方式をとります)
+特に、筋肉マップから抽出された「疲労部位」と練習メニューの関連性を科学的に分析してください。
+最初は簡潔に全体的な評価と今後のアドバイスをお願いします。`;
+
       aiChatHistory = [{ role: 'user', parts: [{ text: systemPrompt }] }];
-      
     } else {
-      // --- 2回目以降: ユーザーの入力を追加済み ---
-      // aiChatHistory は addAiChatMessage で更新済み
+      // 追加質問の場合は履歴にユーザー発言を追加済み
     }
 
-    // API呼び出し
-    const callApi = async (modelName) => {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${cleanKey}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: aiChatHistory })
-      });
-      if(!res.ok) throw { status: res.status };
-      return res.json();
-    };
-
-    // ロード表示
-    if(!isInitial) {
-       // ユーザーメッセージの下に「入力中...」を出すなどの処理があればここ
-    }
-
-    let json;
-    try {
-      json = await callApi('gemini-2.0-flash');
-    } catch(e1) {
-      console.warn('2.0 busy, trying backup...', e1);
-      await new Promise(r => setTimeout(r, 2000));
-      json = await callApi('gemini-flash-latest');
-    }
-
+    // API呼び出し（前回のコードと同様）
+    const json = await callGeminiApi(cleanKey, aiChatHistory);
     const aiText = json.candidates?.[0]?.content?.parts?.[0]?.text || '回答を得られませんでした';
     
-    // AIの回答を表示
     addAiChatMessage('model', aiText);
 
   } catch(e) {
     console.error(e);
-    alert(`エラーが発生しました: ${e.status || e.message}`);
     addAiChatMessage('system', 'エラーが発生しました。時間を置いて試してください。');
   } finally {
     runBtn.disabled = false;
     sendBtn.disabled = false;
   }
+}
+
+// API呼び出し補助
+async function callGeminiApi(key, history) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: history })
+  });
+  if(!res.ok) throw new Error('API Error');
+  return res.json();
 }
 let typePieChart = null;
 
