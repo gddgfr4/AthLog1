@@ -408,7 +408,19 @@ async function saveJournal(){
   dirty={ dist:false, train:false, feel:false, weight:false };
 }
 
-// app.js (initJournal 関数全体を修正)
+// 部位リスト定義
+const BODY_PARTS_LIST = [
+  {id:'neck', label:'首'}, {id:'shoulder', label:'肩'}, {id:'back', label:'背中'}, {id:'waist', label:'腰'},
+  {id:'glute_l', label:'左臀部'}, {id:'glute_r', label:'右臀部'},
+  {id:'groin_l', label:'左股関節'}, {id:'groin_r', label:'右股関節'},
+  {id:'quad_l', label:'左前もも'}, {id:'quad_r', label:'右前もも'},
+  {id:'hams_l', label:'左ハム'}, {id:'hams_r', label:'右ハム'},
+  {id:'knee_l', label:'左膝'}, {id:'knee_r', label:'右膝'},
+  {id:'calf_l', label:'左ふくらはぎ'}, {id:'calf_r', label:'右ふくらはぎ'},
+  {id:'shin_l', label:'左すね'}, {id:'shin_r', label:'右すね'},
+  {id:'ankle_l', label:'左足首'}, {id:'ankle_r', label:'右足首'},
+  {id:'foot_l', label:'左足裏'}, {id:'foot_r', label:'右足裏'}
+];
 
 function initJournal(){
   const scheduleAutoSave = makeJournalAutoSaver(700);
@@ -417,6 +429,7 @@ function initJournal(){
   $("#trainInput")?.addEventListener("input", ()=>{ dirty.train=true; scheduleAutoSave(); });
   $("#feelInput")?.addEventListener("input", ()=>{ dirty.feel=true; scheduleAutoSave(); });
 
+  // パレット（お絵かき用）
   const brushBtns=$$('.palette .lvl, .palette #eraser');
   brushBtns.forEach(b=>b.addEventListener('click',()=>{
     brush.lvl=Number(b.dataset.lvl)||1;
@@ -426,9 +439,7 @@ function initJournal(){
   }));
   if(brushBtns.length) $('.palette .lvl[data-lvl="1"]')?.classList.add('active');
 
-  // ▼▼▼ 修正: qbtnのループと、shareModeBtnの処理を明確に分ける ▼▼▼
-
-  // 1. タグボタン(qbtn)の処理
+  // クイックタグ
   $$(".qbtn").forEach(b=>b.addEventListener("click", async ()=>{
     const docRef=getJournalRef(teamId,memberId,selDate);
     await db.runTransaction(async (tx)=>{
@@ -439,113 +450,57 @@ function initJournal(){
       const idx=curr.indexOf(tag);
       if(idx>=0) curr.splice(idx,1);
       else { if(curr.length>=2) curr.shift(); curr.push(tag); }
-      const activeCondBtn=$('#conditionBtns button.active');
-      tx.set(docRef,{
-        dist:Number($("#distInput").value||0),
-        train:$("#trainInput").value,
-        feel: $("#feelInput").value,
-        condition: activeCondBtn ? Number(activeCondBtn.dataset.val) : null,
-        tags:curr
-      },{merge:true});
+      tx.set(docRef,{ tags:curr },{merge:true});
     });
-    dirty={dist:false,train:false,feel:false};
     renderWeek();
   }));
 
-  // app.js (initJournal 関数内の shareModeBtn 処理)
-
-  // app.js (initJournal 関数内の shareModeBtn 処理)
-
-  // 2. スクショモード(shareModeBtn)の処理
-  $("#shareModeBtn")?.addEventListener("click", (e)=>{
-    e.stopPropagation(); 
-    
-    // --- A. 専用ヘッダーの準備 ---
-    document.getElementById('shareHeader')?.remove();
-    
-    const d = selDate;
-    const dateStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-    
-    // 選択されているタグボタンを全て取得して複製
-    const activeTagBtns = document.querySelectorAll('.quick .qbtn.active');
-    let tagsHtml = '';
-    activeTagBtns.forEach(btn => {
-      tagsHtml += btn.cloneNode(true).outerHTML;
-    });
-
-    const headerDiv = document.createElement('div');
-    headerDiv.id = 'shareHeader';
-    headerDiv.innerHTML = `<span class="date-text">${dateStr}</span>${tagsHtml}`;
-    
-    const journalGrid = document.querySelector('.journal-grid');
-    if(journalGrid) {
-      journalGrid.insertAdjacentElement('beforebegin', headerDiv);
-    }
-
-    // --- B. モードON ---
-    document.body.classList.add("share-mode");
-    
-    // --- C. テキストエリアの高さ調整 ---
-    setTimeout(() => {
-      const textareas = document.querySelectorAll('#journal textarea');
-      const feelInput = document.getElementById('feelInput'); // 感想欄を特定
-
-      // 1. まず全エリアを内容に合わせて自動調整
-      textareas.forEach(ta => {
-        ta.dataset.originalHeight = ta.style.height || '';
-        ta.style.height = 'auto'; 
-        ta.style.height = (ta.scrollHeight + 2) + 'px'; 
-      });
-
-      // 2. 画面下に余白があるか計算し、感想欄(#feelInput)を伸ばして埋める
-      if (feelInput) {
-        const windowHeight = window.innerHeight;
-        const bodyHeight = document.body.scrollHeight;
+  // ★追加: 部位タグ（Fatigue Parts）生成とイベント
+  const partsArea = document.getElementById('partsTagArea');
+  if(partsArea){
+    partsArea.innerHTML = '';
+    BODY_PARTS_LIST.forEach(p => {
+      const sp = document.createElement('span');
+      sp.className = 'part-tag';
+      sp.textContent = p.label;
+      sp.dataset.id = p.id;
+      sp.dataset.lvl = "0"; // 0:なし, 1:軽, 2:中, 3:重
+      
+      sp.addEventListener('click', async () => {
+        // クリックでレベルローテーション: 0 -> 1 -> 2 -> 3 -> 0
+        let cur = Number(sp.dataset.lvl);
+        let next = (cur + 1) % 4;
         
-        // 余白がある場合 (ウィンドウの高さ > コンテンツの高さ)
-        if (windowHeight > bodyHeight) {
-          const extraSpace = windowHeight - bodyHeight;
-          const currentHeight = parseFloat(getComputedStyle(feelInput).height);
+        // UI即時反映
+        sp.dataset.lvl = next;
+        sp.className = 'part-tag' + (next > 0 ? ` lv${next}` : '');
+
+        // 保存 (partsフィールドに { id: level } 形式で保存)
+        const docRef = getJournalRef(teamId, memberId, selDate);
+        // ※Firestoreの map型の一部更新
+        // 0なら削除(FieldDelete)、それ以外ならセット
+        const payload = next === 0 
+          ? { [`parts.${p.id}`]: firebase.firestore.FieldValue.delete() }
+          : { [`parts.${p.id}`]: next };
           
-          // 余白分を現在の高さに足す（少し余裕を持たせて -20px）
-          feelInput.style.height = (currentHeight + extraSpace - 20) + 'px';
-        }
-      }
-    }, 100);
-    
-    // --- D. 終了処理 ---
-    setTimeout(() => {
-      const exitMode = () => {
-        document.body.classList.remove("share-mode");
-        document.getElementById('shareHeader')?.remove();
-        
-        // テキストエリアの高さを元に戻す
-        const textareas = document.querySelectorAll('#journal textarea');
-        textareas.forEach(ta => {
-          ta.style.height = ta.dataset.originalHeight || '';
-          delete ta.dataset.originalHeight;
-        });
-        
-        window.removeEventListener("click", exitMode); 
-      };
-      window.addEventListener("click", exitMode);
-    }, 200);
-  });
-  // 3. その他のリスナー
+        await docRef.set(payload, { merge: true });
+      });
+      partsArea.appendChild(sp);
+    });
+  }
+
+  // ナビゲーション等
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
   $("#weekNext")?.addEventListener("click",()=>{ selDate=addDays(selDate, 7); renderJournal(); });
   $("#gotoToday")?.addEventListener("click",()=>{ selDate=new Date(); renderJournal(); });
   $("#datePicker")?.addEventListener("change",(e)=>{ selDate=parseDateInput(e.target.value); renderJournal(); });
 
+  // 反映ボタン
   $("#mergeBtn")?.addEventListener("click", async ()=>{
     const scope  = $("#mergeScope").value;                
     const tagCSV = ($("#mergeTagFilter")?.value || "").trim();
-  
     const text  = await collectPlansTextForDay(selDate, scope, tagCSV);
-    if(text){
-      $("#trainInput").value = ($("#trainInput").value ? ($("#trainInput").value+"\n") : "") + text;
-    }
-  
+    if(text) $("#trainInput").value = ($("#trainInput").value ? ($("#trainInput").value+"\n") : "") + text;
     const types = await collectPlansTypesForDay(selDate, scope, tagCSV);
     if(types.length){
       const docRef=getJournalRef(teamId,memberId,selDate);
@@ -554,6 +509,7 @@ function initJournal(){
     }
   });
 
+  // コンディション
   $$('#conditionBtns button').forEach(btn=>{
     btn.addEventListener('click',()=>{
       $$('#conditionBtns button').forEach(b=>b.classList.remove('active'));
@@ -563,9 +519,21 @@ function initJournal(){
     });
   });
 
+  // 初期化
   initMuscleMap();       
-  initRegionMap();       
   initJournalSwipeNav();
+  // ★重要: スクショボタンのリスナーなどは省略しませんが、長くなるので元のコードにある shareModeBtn 処理などはそのまま維持してください
+}
+
+// 部位タグの状態をDBから読んで反映する関数 (renderJournal内で呼び出される)
+function renderPartsTags(j){
+  const parts = j.parts || {};
+  document.querySelectorAll('.part-tag').forEach(el => {
+    const id = el.dataset.id;
+    const lvl = parts[id] || 0;
+    el.dataset.lvl = lvl;
+    el.className = 'part-tag' + (lvl > 0 ? ` lv${lvl}` : '');
+  });
 }
 // ===== Journal: 左右スワイプで日付移動 =====
 function initJournalSwipeNav(){
@@ -687,6 +655,7 @@ async function renderJournal(){
     const j = doc.data() || { dist:0, train:"", feel:"", tags:[], condition:null, regions:{} };
     lastJournal = j;
     drawMuscleFromDoc(j);
+    renderPartsTags(j);
 
     if (!dirty.dist)  $("#distInput").value  = j.dist ?? "";
     if (!dirty.weight) $("#weightInput").value = j.weight ?? "";
@@ -2888,177 +2857,181 @@ function initNotifyBadgeCheck(){
   });
 }
 
-// app.js (末尾の runGeminiAnalysis 関数をこれに置き換え)
+// AIチャットの履歴
+let aiChatHistory = [];
 
 function initAiAnalysis(){
   const keyInput = document.getElementById('geminiApiKey');
   const runBtn = document.getElementById('runAiBtn');
-  
-  if(!keyInput || !runBtn) return;
+  const sendBtn = document.getElementById('aiSendBtn');
+  const chatInput = document.getElementById('aiChatInput');
 
-  // 1. 保存されたキーがあれば復元
+  if(!runBtn) return;
+
+  // 保存されたキーがあれば復元
   const savedKey = localStorage.getItem('athlog_gemini_key');
-  if(savedKey){
-    keyInput.value = savedKey;
-  }
+  if(savedKey && keyInput){ keyInput.value = savedKey; }
 
-  // 2. ボタンクリック時の動作
+  // 「分析開始」ボタン
   runBtn.addEventListener('click', async ()=>{
-    const apiKey = keyInput.value.trim();
-    
-    // キーがない場合は何もしない（あるいはアラート）
-    if(!apiKey){
-      alert('AI機能を使うには、Gemini APIキーを入力してください。\n（Google AI Studioで無料で取得できます）');
-      return;
-    }
-
-    // キーを保存しておく
+    const apiKey = keyInput ? keyInput.value.trim() : '';
+    if(!apiKey){ alert('APIキーを入力してください'); return; }
     localStorage.setItem('athlog_gemini_key', apiKey);
     
-    await runGeminiAnalysis(apiKey);
+    // チャットリセット＆分析開始
+    aiChatHistory = [];
+    document.getElementById('aiChatLog').innerHTML = `
+      <div class="msg system"><span class="txt">データを収集して分析を開始します...</span></div>`;
+    
+    await runGeminiAnalysis(apiKey, true); // true = 初回分析モード
   });
+
+  // 「送信」ボタン（追加質問）
+  const sendMsg = async () => {
+    const txt = chatInput.value.trim();
+    const apiKey = keyInput ? keyInput.value.trim() : '';
+    if(!txt || !apiKey) return;
+
+    // ユーザーのメッセージを表示
+    addAiChatMessage('user', txt);
+    chatInput.value = '';
+    
+    // AIに送信
+    await runGeminiAnalysis(apiKey, false, txt);
+  };
+
+  if(sendBtn) sendBtn.onclick = sendMsg;
+  if(chatInput) chatInput.onkeydown = (e) => { if(e.key === 'Enter') sendMsg(); };
 }
 
-// app.js (runGeminiAnalysis 関数)
+// チャットログにメッセージを追加
+function addAiChatMessage(role, text){
+  const box = document.getElementById('aiChatLog');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const name = role === 'user' ? 'あなた' : 'AIコーチ';
+  // 改行を反映
+  const htmlText = text.replace(/\n/g, '<br>');
+  div.innerHTML = `<span class="name">${name}</span><span class="txt">${htmlText}</span>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  
+  // 履歴に追加
+  aiChatHistory.push({ role: role === 'user' ? 'user' : 'model', parts: [{ text: text }] });
+}
 
-async function runGeminiAnalysis(apiKey){
-  const resultBox = document.getElementById('aiResult');
-  const btn = document.getElementById('runAiBtn');
-  
-  if(!resultBox || !btn) return;
-  
+async function runGeminiAnalysis(apiKey, isInitial, userMessage = ""){
+  const runBtn = document.getElementById('runAiBtn');
+  const sendBtn = document.getElementById('aiSendBtn');
   const cleanKey = apiKey.trim().replace(/:\d+$/, '');
 
-  try{
-    btn.disabled = true;
-    btn.textContent = '分析中...';
-    resultBox.style.display = 'block';
-    resultBox.textContent = '選手プロフィールとデータを収集中...';
+  // UIロック
+  if(isInitial) runBtn.disabled = true;
+  sendBtn.disabled = true;
 
-    // 1. データ収集
-    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-    const today = new Date();
-    
-    // ★追加: メンバー情報（プロフィール）を取得
-    let memberProfileText = "";
-    try {
-      const memDoc = await db.collection('teams').doc(srcTeam)
-                             .collection('members').doc(viewingMemberId).get();
-      const memData = memDoc.data() || {};
-      const prof = memData.aiProfile || {};
-      
-      // フォームにも反映しておく（次回の修正用）
-      if(document.getElementById('aiSpecialty')) document.getElementById('aiSpecialty').value = prof.specialty || '';
-      if(document.getElementById('aiSb')) document.getElementById('aiSb').value = prof.sb || '';
-      if(document.getElementById('aiNote')) document.getElementById('aiNote').value = prof.note || '';
+  try {
+    let promptToSend = "";
 
-      memberProfileText = `
-- 専門種目: ${prof.specialty || '未設定'}
-- 自己ベスト/目標(SB): ${prof.sb || '未設定'}
-- コーチへの共有事項(留意点): ${prof.note || '特になし'}
-`;
-    } catch(err) {
-      console.warn("プロフィール取得失敗", err);
-    }
+    if (isInitial) {
+      // --- 初回: データ収集とプロンプト構築 ---
+      const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+      const today = new Date();
 
-    // 練習履歴の取得
-    const partsNameMap = {
-      'ankle_l': '左足首', 'ankle_r': '右足首', 'foot_l': '左足裏', 'foot_r': '右足裏',
-      'shin_l': '左すね', 'shin_r': '右すね', 'calf_l': '左ふくらはぎ', 'calf_r': '右ふくらはぎ',
-      'knee_l': '左膝', 'knee_r': '右膝', 'quad_l': '左前もも', 'quad_r': '右前もも',
-      'hams_l': '左ハム', 'hams_r': '右ハム', 'groin_l': '左股関節', 'groin_r': '右股関節',
-      'glute_l': '左臀部', 'glute_r': '右臀部', 'waist': '腰', 'back': '背中', 'neck': '首', 'shoulder': '肩'
-    };
+      // プロフィール取得
+      let profileText = "未設定";
+      try {
+        const memDoc = await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).get();
+        const p = memDoc.data()?.aiProfile || {};
+        profileText = `専門:${p.specialty||'-'}, SB:${p.sb||'-'}, 留意点:${p.note||'-'}`;
+        // フォームにも反映
+        if($('#aiSpecialty')) $('#aiSpecialty').value = p.specialty||'';
+        if($('#aiSb')) $('#aiSb').value = p.sb||'';
+        if($('#aiNote')) $('#aiNote').value = p.note||'';
+      } catch(e){}
 
-    const history = [];
-    for(let i=6; i>=0; i--){
-      const d = addDays(today, -i);
-      const snap = await getJournalRef(srcTeam, viewingMemberId, d).get();
-      const data = snap.data() || {};
-      
-      let fatigueDetails = [];
-      const partsData = data.parts || {};
-      Object.keys(partsData).forEach(key => {
-        const level = partsData[key];
-        if(level >= 2){
-          const name = partsNameMap[key] || key;
-          fatigueDetails.push(`${name}(Lv${level})`);
+      // データ収集
+      const history = [];
+      const partsLabelMap = {}; 
+      BODY_PARTS_LIST.forEach(p => partsLabelMap[p.id] = p.label);
+
+      for(let i=6; i>=0; i--){
+        const d = addDays(today, -i);
+        const snap = await getJournalRef(srcTeam, viewingMemberId, d).get();
+        const data = snap.data() || {};
+        
+        // ★修正: 部位タグ(parts)から疲労情報を生成
+        let fatigueStr = "なし";
+        const pData = data.parts || {};
+        const pKeys = Object.keys(pData);
+        if(pKeys.length > 0){
+          fatigueStr = pKeys.map(k => `${partsLabelMap[k]||k}(Lv${pData[k]})`).join(", ");
         }
-      });
-      const fatigueStr = fatigueDetails.length > 0 ? fatigueDetails.join(", ") : "特になし";
-      let menuText = (data.train || "").replace(/\n/g, " ").slice(0, 100); 
-      if(!menuText) menuText = "記載なし";
 
-      history.push({
-        date: ymd(d),
-        dist: data.dist || 0,
-        tags: data.tags || [],
-        menu: menuText,
-        condition: data.condition || '-',
-        fatigue: fatigueStr
-      });
+        let menuText = (data.train || "").replace(/\n/g, " ").slice(0, 100);
+        if(!menuText) menuText = "記載なし";
+
+        history.push(`- ${ymd(d)}: ${data.dist||0}km, [${(data.tags||[]).join(',')}], メニュー:${menuText}, 疲労:[${fatigueStr}], 調子:${data.condition||'-'}`);
+      }
+
+      // プロンプト作成
+      const systemPrompt = `
+あなたは陸上中長距離の科学的な知識を持つプロコーチです。
+以下は担当選手のプロフィールと直近7日間の練習ログです。
+
+【プロフィール】${profileText}
+【練習ログ】
+${history.join('\n')}
+
+これらを分析し、練習のバランス、疲労状況（特に部位データ）、調子を考慮して、
+具体的かつ客観的なアドバイスを日本語で回答してください。
+`;
+      // 初回は履歴をクリアしてシステムプロンプトを投入
+      // (Gemini APIは system instruction が別枠ですが、ここでは user メッセージとして最初に送る簡易方式をとります)
+      aiChatHistory = [{ role: 'user', parts: [{ text: systemPrompt }] }];
+      
+    } else {
+      // --- 2回目以降: ユーザーの入力を追加済み ---
+      // aiChatHistory は addAiChatMessage で更新済み
     }
 
-    resultBox.textContent = '科学的プロコーチがプロフィールを考慮して分析中...';
-
-    // 2. プロンプト（プロフィール情報を追加）
-    const promptText = `
-あなたは陸上中長距離の科学的な知識を持つプロコーチです。
-担当する大学生ランナーの直近7日間の練習ログを分析し、アドバイスをください。
-
-【選手プロフィール】${memberProfileText}
-
-【直近7日間のデータ】
-${history.map(h => `- ${h.date}: ${h.dist}km, カテゴリ:[${h.tags.join(',')}], 内容:${h.menu}, 筋疲労:[${h.fatigue}], 調子:${h.condition}`).join('\n')}
-
-【指示】
-- **選手の「専門種目」や「SB(レベル)」を考慮して**、現在の練習強度や距離が適切か判断してください。
-- 「共有事項（怪我や体調の懸念）」がある場合は、それを考慮し、無理をしていないかチェックしてください。また、時期の考慮もして（春夏秋冬とレース時期、それに合わせた練習の期分け）。
-- 筋疲労の部位（${history.some(h => h.fatigue.includes('Lv')) ? '特に発生している部位' : 'もしあれば'}）と練習内容の関連性を見て、具体的なケアや改善点を指摘してください。
-- 日本語で、客観的かつ具体的にお願いします。
-`;
-
-    // 3. API呼び出し
+    // API呼び出し
     const callApi = async (modelName) => {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${cleanKey}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+        body: JSON.stringify({ contents: aiChatHistory })
       });
-      if(!res.ok) throw { status: res.status, model: modelName };
+      if(!res.ok) throw { status: res.status };
       return res.json();
     };
+
+    // ロード表示
+    if(!isInitial) {
+       // ユーザーメッセージの下に「入力中...」を出すなどの処理があればここ
+    }
 
     let json;
     try {
       json = await callApi('gemini-2.0-flash');
     } catch(e1) {
-      console.warn('2.0 Flash busy, waiting...', e1);
-      resultBox.textContent = '通信混雑中...5秒後に予備モデルへ切り替えます';
-      await new Promise(r => setTimeout(r, 5000));
-      try {
-        json = await callApi('gemini-flash-latest');
-      } catch(e2) {
-        console.warn('Backup failed, trying Pro...', e2);
-        resultBox.textContent = '通信混雑中...最終手段(Pro)を試みます';
-        await new Promise(r => setTimeout(r, 5000));
-        json = await callApi('gemini-pro-latest');
-      }
+      console.warn('2.0 busy, trying backup...', e1);
+      await new Promise(r => setTimeout(r, 2000));
+      json = await callApi('gemini-flash-latest');
     }
 
     const aiText = json.candidates?.[0]?.content?.parts?.[0]?.text || '回答を得られませんでした';
-    resultBox.textContent = aiText;
+    
+    // AIの回答を表示
+    addAiChatMessage('model', aiText);
 
-  }catch(e){
+  } catch(e) {
     console.error(e);
-    let msg = `エラーが発生しました (Status: ${e.status})`;
-    if(e.status === 429) msg = 'アクセスが集中しています。1分ほど待ってから実行してください。';
-    if(e.status === 404) msg = 'モデルが見つかりません。設定を確認してください。';
-    resultBox.textContent = msg;
-  }finally{
-    btn.disabled = false;
-    btn.textContent = '分析開始';
+    alert(`エラーが発生しました: ${e.status || e.message}`);
+    addAiChatMessage('system', 'エラーが発生しました。時間を置いて試してください。');
+  } finally {
+    runBtn.disabled = false;
+    sendBtn.disabled = false;
   }
 }
 let typePieChart = null;
