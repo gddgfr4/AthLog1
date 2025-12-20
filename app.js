@@ -2930,6 +2930,8 @@ const BODY_PART_NAMES = {
   'foot_l': '左足裏', 'foot_r': '右足裏'
 };
 
+// app.js (runGeminiAnalysis 関数)
+
 async function runGeminiAnalysis(apiKey, isInitial, userMessage = "") {
   const runBtn = document.getElementById('runAiBtn');
   const sendBtn = document.getElementById('aiSendBtn');
@@ -2945,9 +2947,11 @@ async function runGeminiAnalysis(apiKey, isInitial, userMessage = "") {
 
       // プロフィール取得
       let profileText = "";
-      const memDoc = await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).get();
-      const p = memDoc.data()?.aiProfile || {};
-      profileText = `専門:${p.specialty||'未設定'}, SB:${p.sb||'未設定'}, 留意点:${p.note||'なし'}`;
+      try {
+        const memDoc = await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).get();
+        const p = memDoc.data()?.aiProfile || {};
+        profileText = `専門:${p.specialty||'未設定'}, SB:${p.sb||'未設定'}, 留意点:${p.note||'なし'}`;
+      } catch(e) { profileText = "取得失敗"; }
 
       // 過去7日間のデータ収集
       const history = [];
@@ -2956,53 +2960,79 @@ async function runGeminiAnalysis(apiKey, isInitial, userMessage = "") {
         const snap = await getJournalRef(srcTeam, viewingMemberId, d).get();
         const data = snap.data() || {};
         
-        // ★筋肉マップの「塗り」から疲労部位を特定
+        // ★筋肉マップの「塗り(mmStats)」から疲労部位を特定
         let fatigueParts = [];
         const stats = data.mmStats || {}; 
-        // mmStats内の各部位の数値をチェック
         Object.keys(stats).forEach(partId => {
-          const val = stats[partId]; // 塗りつぶされた強度
+          const val = stats[partId]; 
           if(val > 0) {
             const name = BODY_PART_NAMES[partId] || partId;
-            // 数値に応じてレベル表現を変える
+            // 塗り面積(px数)に応じてレベルを推測
             const lv = val > 2000 ? 3 : (val > 500 ? 2 : 1); 
             fatigueParts.push(`${name}(Lv${lv})`);
           }
         });
         const fatigueStr = fatigueParts.length > 0 ? fatigueParts.join(", ") : "なし";
+        let menuText = (data.train || "").replace(/\n/g, " ").slice(0, 50);
 
-        history.push(`- ${ymd(d)}: ${data.dist||0}km, [${(data.tags||[]).join(',')}], 内容:${(data.train||"").slice(0,50)}, 疲労:${fatigueStr}, 調子:${data.condition||'-'}`);
+        history.push(`- ${ymd(d)}: ${data.dist||0}km, [${(data.tags||[]).join(',')}], 内容:${menuText}, 疲労:${fatigueStr}, 調子:${data.condition||'-'}`);
       }
 
-      const systemPrompt = `
-あなたは陸上中長距離のプロコーチです。以下の選手データを分析しアドバイスしてください。
+      const systemPrompt = `あなたは陸上中長距離のプロコーチです。
 【プロフィール】${profileText}
 【直近7日間のログ】
 ${history.join('\n')}
-
-特に、筋肉マップから抽出された「疲労部位」と練習メニューの関連性を科学的に分析してください。
-最初は簡潔に全体的な評価と今後のアドバイスをお願いします。`;
+上記データを分析し、特に筋肉マップから抽出された「疲労部位」と練習メニューの関連性を科学的に分析してアドバイスしてください。`;
 
       aiChatHistory = [{ role: 'user', parts: [{ text: systemPrompt }] }];
     } else {
-      // 追加質問の場合は履歴にユーザー発言を追加済み
+      // チャット継続時は aiChatHistory は更新済み
     }
 
-    // API呼び出し（前回のコードと同様）
-    const json = await callGeminiApi(cleanKey, aiChatHistory);
+    // --- モデル切り替えのリレー方式 ---
+    let json;
+    const call = async (model) => {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: aiChatHistory })
+      });
+      if(!res.ok) throw { status: res.status, model: model };
+      return res.json();
+    };
+
+    try {
+      // 1回目: 本命 2.0 Flash
+      json = await call('gemini-2.0-flash');
+    } catch(e1) {
+      console.warn("2.0 Flash Busy. Waiting 5s for Backup...", e1);
+      // 混雑時は5秒待つ
+      await new Promise(r => setTimeout(r, 5000));
+      try {
+        // 2回目: 予備 1.5 Flash (正式名称に変更)
+        json = await call('gemini-1.5-flash');
+      } catch(e2) {
+        console.warn("Backup failed. Waiting 5s for Final...", e2);
+        await new Promise(r => setTimeout(r, 5000));
+        // 3回目: 最終予備
+        json = await call('gemini-pro-latest');
+      }
+    }
+
     const aiText = json.candidates?.[0]?.content?.parts?.[0]?.text || '回答を得られませんでした';
-    
     addAiChatMessage('model', aiText);
 
   } catch(e) {
     console.error(e);
-    addAiChatMessage('system', 'エラーが発生しました。時間を置いて試してください。');
+    let errorMsg = "エラーが発生しました。時間を置いて試してください。";
+    if(e.status === 429) errorMsg = "アクセス集中により制限されています。1分ほど待ってから再度お試しください。";
+    addAiChatMessage('system', errorMsg);
   } finally {
     runBtn.disabled = false;
     sendBtn.disabled = false;
   }
 }
-
 // API呼び出し補助
 async function callGeminiApi(key, history) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
