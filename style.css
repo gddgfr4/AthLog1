@@ -1043,4 +1043,34 @@ body.share-mode #app {
   margin-top: 10px;
 }
 
+/* AIコーチ チャット */
+#aiChatLog .msg { margin-bottom: 12px; }
+#aiChatLog .msg.user { text-align: right; }
+#aiChatLog .msg.user .txt { 
+  background: var(--primary); color: #fff; 
+  display: inline-block; padding: 8px 12px; border-radius: 12px 12px 0 12px; text-align: left;
+}
+#aiChatLog .msg.model .txt, #aiChatLog .msg.system .txt { 
+  background: var(--q-off-light); color: var(--text);
+  display: inline-block; padding: 10px; border-radius: 12px; width: 100%;
+}
+#aiChatLog .msg .name { font-size: 11px; color: var(--muted); display: block; margin-bottom: 2px; }
+
+/* 部位タグエリア */
+.parts-tag-area {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.part-tag {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  cursor: pointer;
+  user-select: none;
+}
+/* Lv1: 青, Lv2: 黄, Lv3: 赤 */
+.part-tag.lv1 { background: #bfdbfe; color: #1e3a8a; border-color: #60a5fa; }
+.part-tag.lv2 { background: #fed7aa; color: #7c2d12; border-color: #fb923c; }
+.part-tag.lv3 { background: #fca5a5; color: #7f1d1d; border-color: #f87171; font-weight: bold; }
 
