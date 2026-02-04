@@ -200,8 +200,10 @@ const getTeamMemoCollectionRef=(team)=> db.collection('teams').doc(team).collect
 const getMonthChatCollectionRef=(team,month)=> db.collection('teams').doc(team).collection('chat').doc(month).collection('messages');
 const getMembersRef=(team)=> db.collection('teams').doc(team).collection('members');
 
-// app.js (showApp() 関数全体を置き換え)
 async function showApp(){
+  // 1. まずUIをホーム状態にリセット（これでタブが消えます）
+  switchTab("home", true);
+  
   $("#teamLabel").textContent=teamId;
   $("#memberLabel").textContent = getDisplayName(viewingMemberId); 
   
@@ -230,16 +232,17 @@ async function showApp(){
     switchTab(currentTab, true);
   });
 
+  // 各画面の初期化
   initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
-  initHome(); // ホーム画面の初期化
+  
+  // ★ホーム画面のボタン初期化を確実に実行
+  initHome(); 
 
   selDate=new Date();
   const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
   refreshBadges();
   
-  // ★ 初期表示をホーム画面に変更
-  switchTab("home");
-
+  // 各種チェック処理
   checkNewMemo();
   initTeamSwitcher();
   initGlobalTabSwipe();
@@ -334,8 +337,6 @@ function initTeamSwitcher(){
   };
 }
 
-
-// ★ switchTab 関数を大幅改修
 function switchTab(id, forceRender=false){
   if (id === 'clock') {
     openLtimer();
@@ -397,18 +398,20 @@ function switchTab(id, forceRender=false){
   if(id==="dashboard") renderDashboard();
   if(id==="memo"){ renderMemo(); markMemoRead(); }
   if(id==="notify"){ renderNotify(); }
-  // homeの場合は特になし
 }
 
 function initHome() {
-  const buttons = $$(".home-card");
-  buttons.forEach(btn => {
-    btn.addEventListener("click", () => {
-      const target = btn.dataset.target;
-      if (target) {
-        switchTab(target);
-      }
-    });
+  const grid = document.getElementById('homeMenuGrid');
+  if(!grid) return;
+  
+  // 既存のリスナー重複防止のため、replaceNodeするか、あるいはonclickで設定する手もあるが
+  // シンプルに addEventListener で親要素に設定（イベント委譲）
+  grid.addEventListener('click', (e) => {
+    // クリックされた要素が .home-card またはその内部か判定
+    const card = e.target.closest('.home-card');
+    if (card && card.dataset.target) {
+      switchTab(card.dataset.target);
+    }
   });
 }
 // ===== Login & Logout =====
