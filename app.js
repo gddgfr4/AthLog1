@@ -3880,7 +3880,7 @@ async function runGeminiAnalysis(apiKey, isInitial, userMessage = "") {
 【プロフィール】${profileText}
 【直近7日間のログ】
 ${history.join('\n')}
-上記データを分析し、特に筋肉マップから抽出された「疲労部位」と練習メニューの関連性を科学的に分析してアドバイスしてください。`;
+上記データを分析し、特に筋肉マップから抽出された「疲労部位」と練習メニューの関連性を科学的に分析してアドバイスしてください。また、練習の組み方へも言及すること。`;
 
       aiChatHistory = [{ role: 'user', parts: [{ text: systemPrompt }] }];
     }
