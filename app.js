@@ -872,7 +872,7 @@ function tickSplit() {
     $("#lt-summary").classList.remove('lt-hidden');
     ltWatches = ltWatches.map(w => ({...w, running:false, elapsed:0, start:0, lastLap:0, laps:[]}));
     renderSplit();
-};
+}
 
 // ===== PM Logic =====
 function initPacemaker() {
