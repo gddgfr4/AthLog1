@@ -3887,35 +3887,45 @@ ${history.join('\n')}
 
     // ... (前略) ...
 
-    // --- モデル切り替えのリレー方式 (修正版) ---
-    let json;
-    const call = async (model) => {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`;
+    // ... (前略: システムプロンプト作成部分などはそのまま) ...
+
+    // --- モデル呼び出し (修正版: バックアップ廃止・安定版一本化) ---
+    // 予備のProモデル(2回/分制限)を使わず、Flashモデル(15回/分)のみを使用します。
+    const call = async () => {
+      // モデル名を安定版の 'gemini-1.5-flash' に固定
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanKey}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: aiChatHistory })
       });
-      if(!res.ok) throw { status: res.status, model: model };
+      if(!res.ok) throw { status: res.status };
       return res.json();
     };
 
+    let json;
     try {
-      // 1回目: 安定版 1.5 Flash (モデル名を修正)
-      json = await call('gemini-1.5-flash-latest');
-    } catch(e1) {
-      console.warn("Primary model failed. Waiting 2s...", e1);
-      await new Promise(r => setTimeout(r, 2000));
-      try {
-        // 2回目: 安定版 1.5 Pro
-        json = await call('gemini-1.5-pro-latest');
-      } catch(e2) {
-        console.warn("Backup failed. Waiting 2s...", e2);
-        await new Promise(r => setTimeout(r, 2000));
-        // 3回目: 旧安定版
-        json = await call('gemini-pro');
-      }
+      json = await call();
+    } catch(e) {
+      console.warn("AI Analysis failed:", e);
+      // エラー時の再試行も、制限にかかりやすいため今回は行いません
+      throw e; 
     }
+
+    const aiText = json.candidates?.[0]?.content?.parts?.[0]?.text || '回答を得られませんでした';
+    addAiChatMessage('model', aiText);
+
+  } catch(e) {
+    console.error(e);
+    let errorMsg = "エラーが発生しました。";
+    if(e.status === 429) errorMsg = "アクセスが集中しています（429）。1分ほど待ってから再度お試しください。";
+    if(e.status === 404) errorMsg = "モデルが見つかりません（404）。管理者に連絡してください。";
+    addAiChatMessage('system', errorMsg);
+  } finally {
+    if(runBtn) runBtn.disabled = false;
+    if(sendBtn) sendBtn.disabled = false;
+  }
+}
 
     const aiText = json.candidates?.[0]?.content?.parts?.[0]?.text || '回答を得られませんでした';
     addAiChatMessage('model', aiText);
