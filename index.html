@@ -328,6 +328,131 @@
         <div class="muted" id="notifyEmpty" style="display:none; padding:12px 0;">なし</div>
       </div>
     </section>
+    <section id="home" class="tabpanel active">
+       <button class="home-card" data-target="clock">
+            <div class="home-icon">⏱</div>
+            <div class="home-label">時計</div>
+            <div class="home-desc">Ltimer (多機能タイマー)</div>
+          </button>
+       </section>
+
+    <section id="clock" class="tabpanel" style="height: calc(100vh - 60px); display: none;"> <div id="ltimer-app" class="lt-h-full">
+        <div id="lt-back" class="lt-back-btn lt-hidden">
+          <button aria-label="戻る">←</button>
+        </div>
+
+        <div id="lt-menu" class="lt-screen lt-justify-center lt-items-center lt-p-4">
+          <h2 class="lt-text-2xl lt-font-bold" style="margin-bottom: 20px;">Ltimer Menu</h2>
+          
+          <div class="lt-w-full" style="max-width: 320px; background: white; padding: 16px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 24px;">
+            <p class="lt-text-sm lt-text-gray-500 lt-text-center" style="margin-bottom:8px;">2人で使う場合は合言葉を入力</p>
+            <div class="lt-flex lt-gap-2">
+              <input id="share-passcode" type="text" placeholder="合言葉" class="lt-input">
+              <button id="share-connect-btn" class="lt-bg-blue-500 lt-text-white lt-font-bold lt-rounded-lg" style="padding: 0 16px; white-space: nowrap;">接続</button>
+            </div>
+            <div id="share-status-msg" class="lt-text-sm lt-text-center lt-font-bold" style="margin-top: 8px; color: var(--primary);"></div>
+          </div>
+
+          <div class="lt-w-full" style="max-width: 320px; display: flex; flex-direction: column; gap: 12px;">
+            <div class="lt-grid-cols-3 lt-gap-2">
+              <button id="choose-split" class="lt-col-span-2 lt-p-4 lt-text-xl lt-font-bold lt-text-white lt-bg-indigo-600 lt-rounded-xl lt-shadow">ペース走</button>
+              <button id="help-split" class="lt-p-2 lt-text-sm lt-font-bold lt-text-indigo-700 lt-bg-indigo-50 lt-rounded-xl lt-border">説明</button>
+            </div>
+            <div class="lt-grid-cols-3 lt-gap-2">
+              <button id="choose-pm" class="lt-col-span-2 lt-p-4 lt-text-xl lt-font-bold lt-text-white lt-bg-green-600 lt-rounded-xl lt-shadow">インターバル</button>
+              <button id="help-pm" class="lt-p-2 lt-text-sm lt-font-bold lt-text-green-700 lt-bg-green-50 lt-rounded-xl lt-border">説明</button>
+            </div>
+            <div class="lt-grid-cols-3 lt-gap-2">
+              <button id="choose-custom" class="lt-col-span-2 lt-p-4 lt-text-xl lt-font-bold lt-text-white lt-bg-gray-800 lt-rounded-xl lt-shadow">タイマー</button>
+              <button id="help-custom" class="lt-p-2 lt-text-sm lt-font-bold lt-text-gray-700 lt-bg-gray-100 lt-rounded-xl lt-border">説明</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="lt-split" class="lt-screen lt-hidden">
+          <div class="runner-wrap">
+            <div id="split-grid" class="runner-grid"></div>
+            <div id="split-master" class="split-master">
+              <div id="share-controls" class="lt-hidden lt-w-full lt-flex lt-flex-col lt-items-center lt-text-sm">
+                <div id="share-status-text" style="margin-bottom:4px;">接続中...</div>
+                <div class="lt-w-full" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                  <button id="share-ready-btn-1" class="lt-p-2 lt-border lt-rounded-lg lt-bg-gray-200">User1</button>
+                  <button id="share-ready-btn-2" class="lt-p-2 lt-border lt-rounded-lg lt-bg-gray-200">User2</button>
+                </div>
+              </div>
+              <div id="standalone-controls" class="lt-flex lt-gap-2 lt-items-center lt-justify-center">
+                  <button data-action="add" class="lt-bg-blue-500 lt-text-white lt-font-bold lt-rounded-xl" style="width:40px; height:40px; font-size:24px;">+</button>
+                  <button data-action="remove" class="lt-bg-gray-500 lt-text-white lt-font-bold lt-rounded-xl" style="width:40px; height:40px; font-size:24px;">−</button>
+                  <button data-action="start-all" class="lt-bg-green-500 lt-text-white lt-font-bold lt-rounded-lg" style="padding: 0 12px; height: 40px;">ALL START</button>
+                  <button data-action="stop-all"  class="lt-bg-red-500 lt-text-white lt-font-bold lt-rounded-lg" style="padding: 0 12px; height: 40px;">STOP</button>
+                  <button data-action="review-reset" class="lt-bg-orange-500 lt-text-white lt-font-bold lt-rounded-lg" style="padding: 0 12px; height: 40px;">結果</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="lt-pm" class="lt-screen lt-hidden">
+          <div id="pm-settings" class="lt-p-4 lt-h-full" style="overflow-y:auto;">
+            <h2 class="lt-text-xl lt-font-bold lt-text-center lt-p-4">インターバル設定</h2>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:12px;">
+              <input id="pm-distance" type="number" placeholder="距離(m)/本" class="lt-input" value="1000">
+              <input id="pm-lap-distance" type="number" placeholder="トラック1周(m)" value="400" class="lt-input">
+              <input id="pm-reps" type="number" placeholder="本数" class="lt-input">
+              <div style="display:flex; align-items:center;">
+                <button id="pm-lane-minus" class="lt-p-2 lt-border lt-bg-gray-200">-</button>
+                <span id="pm-lane-count" class="lt-p-2 lt-border" style="flex:1; text-align:center;">1レーン</span>
+                <button id="pm-lane-plus" class="lt-p-2 lt-border lt-bg-gray-200">+</button>
+              </div>
+              <input id="pm-rest-dist" type="number" placeholder="レスト(m)" class="lt-input" style="grid-column: span 2;">
+            </div>
+            <div id="pm-lane-targets" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <button id="pm-start-btn" class="lt-w-full lt-bg-green-500 lt-text-white lt-font-bold lt-rounded-lg lt-shadow" style="padding:12px; margin-top:16px;">練習開始</button>
+          </div>
+          <div id="pm-runner" class="lt-hidden runner-wrap">
+              <div id="pm-info-bar" class="lt-bg-gray-800 lt-text-white lt-text-center lt-p-2 lt-font-bold"></div>
+              <div id="pm-runner-grid" class="pm-grid"></div>
+          </div>
+        </div>
+
+        <div id="lt-custom" class="lt-screen lt-hidden">
+          <div id="custom-settings" class="lt-p-4">
+            <h2 class="lt-text-xl lt-font-bold lt-text-center lt-p-4">タイマー設定</h2>
+            <div id="custom-steps-container" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <button id="custom-add-step-btn" class="lt-w-full lt-text-indigo-700 lt-border lt-rounded-lg lt-font-bold" style="padding:8px; margin-top:16px;">ステップ追加</button>
+            <div style="margin-top:16px;">
+              <label class="lt-font-bold">セット数</label>
+              <input id="custom-reps" type="number" value="1" class="lt-input">
+            </div>
+            <button id="custom-start-btn" class="lt-w-full lt-bg-green-500 lt-text-white lt-font-bold lt-rounded-lg lt-shadow" style="padding:12px; margin-top:16px;">START</button>
+          </div>
+          <div id="custom-runner" class="lt-hidden custom-runner">
+            <div>
+              <div id="custom-runner-set-info" class="lt-text-2xl lt-font-bold"></div>
+              <div id="custom-runner-step-info" class="lt-text-xl"></div>
+            </div>
+            <div id="custom-runner-time" style="font-size: 80px; font-weight:800;">00:00</div>
+            <div class="lt-w-full"><button id="custom-reset-btn" class="lt-w-full lt-bg-gray-200 lt-text-gray-700 lt-font-bold lt-rounded-lg" style="padding:12px;">RESET</button></div>
+          </div>
+        </div>
+
+        <div id="lt-summary" class="lt-modal lt-hidden">
+          <div class="lt-modal-content">
+            <h2 class="lt-text-2xl lt-font-bold lt-text-center">結果</h2>
+            <div id="summary-table"></div>
+            <button id="summary-close" class="lt-w-full lt-bg-gray-200 lt-text-gray-700 lt-font-bold lt-rounded-lg lt-p-2">閉じる</button>
+          </div>
+        </div>
+        <div id="lt-help" class="lt-modal lt-hidden">
+          <div class="lt-modal-content">
+            <div class="lt-flex lt-justify-between lt-items-center">
+              <h2 id="help-title" class="lt-text-xl lt-font-bold"></h2>
+              <button id="help-close" class="lt-bg-gray-200 lt-rounded lt-p-2">閉じる</button>
+            </div>
+            <div id="help-body" class="lt-text-sm" style="margin-top:12px; line-height:1.5;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 
   <div id="login" class="login">
@@ -363,3 +488,4 @@
   </script>
 </body>
 </html>
+
