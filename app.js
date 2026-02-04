@@ -216,24 +216,22 @@ const getMembersRef=(team)=> db.collection('teams').doc(team).collection('member
 // ========== Header Buttons Logic ==========
 // ==========================================
 
-// ★ 追加: ヘッダーボタン（ログアウト・メイン設定）のイベント初期化
+// ==========================================
+// ========== Header Buttons Logic ==========
+// ==========================================
 function initHeaderEvents() {
-  // 保存用のキー定数（もし未定義ならここで定義）
-  const K_TEAM = (typeof KEY_TEAM !== 'undefined') ? KEY_TEAM : 'athlog_teamId';
-  const K_MEM = (typeof KEY_MEMBER !== 'undefined') ? KEY_MEMBER : 'athlog_memberId';
-
   // --- 1. ログアウトボタン ---
   const logoutBtn = document.getElementById("logoutBtn");
   if(logoutBtn) {
-    // 重複防止のため、一度クローンしてリスナーをリセット
     const newLogout = logoutBtn.cloneNode(true);
     logoutBtn.parentNode.replaceChild(newLogout, logoutBtn);
     
     newLogout.addEventListener("click", () => {
       if(confirm("ログアウトしますか？")) {
-        localStorage.removeItem(K_TEAM);
-        localStorage.removeItem(K_MEM);
-        location.reload(); // ログイン画面に戻る
+        // ★修正: 正しい保存キー "athlog:last" を削除する
+        localStorage.removeItem("athlog:last");
+        localStorage.removeItem("athlog:profiles"); // 念のためプロフィール履歴も消すなら
+        location.reload(); 
       }
     });
   }
@@ -243,22 +241,13 @@ function initHeaderEvents() {
   if(setMainBtn) {
     const newMainBtn = setMainBtn.cloneNode(true);
     setMainBtn.parentNode.replaceChild(newMainBtn, setMainBtn);
-
     newMainBtn.addEventListener("click", () => {
       if(!teamId) return;
-      
-      // ローカルストレージに保存
-      localStorage.setItem(K_TEAM, teamId);
-      // 念のため現在のメンバーも保存しておくと次回スムーズです
-      if(viewingMemberId) {
-        localStorage.setItem(K_MEM, viewingMemberId);
-      }
-
-      // バッジを表示して完了通知（リロードはしない）
+      // メイン設定ロジック
+      setMainTeamOf(memberId, teamId);
       const badge = document.getElementById("mainTeamBadge");
       if(badge) badge.classList.remove("hidden");
-      
-      alert(`チーム「${teamId}」をメインに設定しました。\n次回から自動でログインします。`);
+      alert(`チーム「${teamId}」をメインに設定しました。`);
     });
   }
 }
@@ -266,64 +255,63 @@ function initHeaderEvents() {
 // ==========================================
 // ========== App Initialization ============
 // ==========================================
-
 async function showApp(){
-  // 1. 先にUIリセット
-  // (まだmyMemberIdが無いので、ここでは単純にホーム表示のみ)
-  $("#login").classList.add("hidden");
-  $("#app").classList.remove("hidden");
+  switchTab("home", true);
   
   $("#teamLabel").textContent = teamId;
-  
-  // メンバーリスト取得
+  $("#login").classList.add("hidden");
+  $("#app").classList.remove("hidden");
+
+  // 日付初期化
+  const __nowMon = getMonthStr(new Date());
+  if($("#monthPick") && !$("#monthPick").value) $("#monthPick").value = __nowMon;
+  if($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value = __nowMon;
+
   await populateMemberSelect();
   
-const loginName = $("#memberName").value.trim();
+  // 自分（ログインユーザー）の特定
+  const loginName = $("#memberName").value.trim();
   const memberSelect = $("#memberSelect");
-  
   let correctId = null;
   if(memberSelect) {
     for (let opt of memberSelect.options) {
-      // IDそのもの、または表示名が一致するものを探す
       if (opt.value === memberId || opt.text === memberId) { 
         correctId = opt.value; 
         break; 
       }
     }
   }
-  
-  // 見つかればそのID、見つからなければ入力値をそのまま使う
   myMemberId = correctId || memberId;
-  viewingMemberId = myMemberId; // ★強制的に自分を表示状態にする
-  
-  // プルダウンも自分に合わせる
-  if(memberSelect) memberSelect.value = myMemberId;
+  viewingMemberId = myMemberId;
+  if(memberSelect && correctId) memberSelect.value = correctId;
+
   $("#memberLabel").textContent = getDisplayName(viewingMemberId);
-  refreshBadges(); // バッジ更新（ここで閲覧のみが消えるはず）
-  // メンバー変更イベント
+  refreshBadges();
+  
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId = $("#memberSelect").value;
     $("#memberLabel").textContent = getDisplayName(viewingMemberId);
-    
     selDate = new Date();
     const dp = $("#datePicker"); if(dp) dp.value = ymd(selDate);
     refreshBadges();
-    
     const currentTab = $(".tab.active")?.dataset.tab || 'home';
     switchTab(currentTab, true);
   });
 
-  // 各機能の初期化
+  // ★追加: タブボタン（日誌・月一覧・グラフ）にクリックイベントを設定
+  $$(".tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.tab;
+      if(target) switchTab(target);
+    });
+  });
+
   initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
   initHome();
-  
-  // ★ ここでヘッダーボタンのイベントを設定！
-  initHeaderEvents();
+  initHeaderEvents(); // ヘッダーボタン初期化
 
-  // 画面表示
-  switchTab("home");
+  switchTab("home"); 
 
-  // その他バックグラウンド処理
   checkNewMemo();
   initTeamSwitcher();
   initGlobalTabSwipe();
@@ -333,7 +321,6 @@ const loginName = $("#memberName").value.trim();
   
   $("#goHomeBtn")?.addEventListener("click", () => switchTab("home"));
 }
-
 // ... (以下 switchTab 等のコード) ...
 function initTeamSwitcher(){
   const wrap   = $("#teamSwitchWrap");
