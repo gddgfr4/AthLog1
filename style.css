@@ -1074,3 +1074,87 @@ body.share-mode #app {
 .part-tag.lv2 { background: #fed7aa; color: #7c2d12; border-color: #fb923c; }
 .part-tag.lv3 { background: #fca5a5; color: #7f1d1d; border-color: #f87171; font-weight: bold; }
 
+/* ... (既存のスタイルは維持) ... */
+
+/* ========== Home Screen Styles ========== */
+.home-container {
+  max-width: 600px;
+  margin: 20px auto;
+  padding: 0 10px;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.home-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+
+.home-card:active {
+  transform: scale(0.98);
+  background: var(--chip);
+}
+
+.home-icon {
+  font-size: 32px;
+  margin-bottom: 4px;
+}
+
+.home-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.home-desc {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+/* スマホではグリッドの間隔を調整 */
+@media (max-width: 480px) {
+  .home-grid {
+    gap: 10px;
+  }
+  .home-card {
+    padding: 16px 8px;
+  }
+  .home-label {
+    font-size: 16px;
+  }
+}
+
+/* 戻るボタンのスタイル調整 */
+#goHomeBtn {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background-color: var(--chip);
+  border: 1px solid var(--line);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+#goHomeBtn:hover {
+  background-color: var(--chip-on);
+}
+
+/* タブバーの非表示用（hiddenクラスは共通定義済みだが念のため確認） */
+/* .hidden { display: none !important; } が既に定義されている */
