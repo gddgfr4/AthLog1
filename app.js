@@ -201,10 +201,8 @@ const getMonthChatCollectionRef=(team,month)=> db.collection('teams').doc(team).
 const getMembersRef=(team)=> db.collection('teams').doc(team).collection('members');
 
 // app.js (showApp() 関数全体を置き換え)
-
 async function showApp(){
   $("#teamLabel").textContent=teamId;
-  // ★メンバー表示要素の参照を元に戻す★
   $("#memberLabel").textContent = getDisplayName(viewingMemberId); 
   
   $("#login").classList.add("hidden");
@@ -216,35 +214,43 @@ async function showApp(){
 
   await populateMemberSelect();
   
-  // ★メンバー表示要素の参照を元に戻す★
   $("#memberLabel").textContent = getDisplayName(viewingMemberId);
   
   const memberSelect=$("#memberSelect");
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId=$("#memberSelect").value;
-    
-    // ★メンバー表示要素の参照を元に戻す★
     $("#memberLabel").textContent = getDisplayName(viewingMemberId);
     
     selDate=new Date();
     const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
     refreshBadges();
-    switchTab($(".tab.active")?.dataset.tab, true);
+    
+    // 現在アクティブなタブを再表示（ホームの場合は再描画不要だが呼んでもOK）
+    const currentTab = $(".tab.active")?.dataset.tab || 'home';
+    switchTab(currentTab, true);
   });
 
   initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
+  initHome(); // ホーム画面の初期化
 
   selDate=new Date();
   const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
   refreshBadges();
-  switchTab("journal");
+  
+  // ★ 初期表示をホーム画面に変更
+  switchTab("home");
+
   checkNewMemo();
   initTeamSwitcher();
   initGlobalTabSwipe();
   initNotifyBadgeCheck();
   initMemberNav();
   initAiAnalysis();
+  
+  // ホームへ戻るボタンのイベントリスナー
+  $("#goHomeBtn")?.addEventListener("click", () => switchTab("home"));
 }
+
 function initTeamSwitcher(){
   const wrap   = $("#teamSwitchWrap");
   const sel    = $("#teamSwitchSelect");
@@ -329,6 +335,7 @@ function initTeamSwitcher(){
 }
 
 
+// ★ switchTab 関数を大幅改修
 function switchTab(id, forceRender=false){
   if (id === 'clock') {
     openLtimer();
@@ -338,21 +345,72 @@ function switchTab(id, forceRender=false){
     openStadiumMap();
     return;
   }
-  if(!forceRender && $(".tab.active")?.dataset.tab===id) return;
-  $$(".tab").forEach(btn=>btn.classList.toggle("active", btn.dataset.tab===id));
-  $$(".tabpanel").forEach(p=>p.classList.toggle("active", p.id===id));
+  
+  // ホーム画面以外でアクティブなタブがあれば、重複処理防止
+  if(!forceRender && $(".tabpanel.active")?.id === id && id !== 'home') return;
+
+  // 1. すべてのパネルを非表示にする
+  $$(".tabpanel").forEach(p => p.classList.remove("active"));
+  
+  // 2. 指定されたIDのパネルを表示する
+  const targetPanel = document.getElementById(id);
+  if (targetPanel) {
+    targetPanel.classList.add("active");
+  }
+
+  // 3. ナビゲーションバー（タブ）と戻るボタンの表示制御
+  const tabsNav = document.getElementById("journalTabs");
+  const homeBtn = document.getElementById("goHomeBtn");
+  
+  // タブボタンの active 状態リセット
+  $$(".tab").forEach(btn => btn.classList.remove("active"));
+
+  if (id === 'home') {
+    // ホーム画面: タブなし、戻るボタンなし
+    if(tabsNav) tabsNav.classList.add("hidden");
+    if(homeBtn) homeBtn.classList.add("hidden");
+  } 
+  else if (['journal', 'month', 'dashboard'].includes(id)) {
+    // 日誌系画面: タブあり、戻るボタンあり
+    if(tabsNav) tabsNav.classList.remove("hidden");
+    if(homeBtn) homeBtn.classList.remove("hidden");
+    
+    // 該当するタブボタンを active にする
+    const activeBtn = $(`.tab[data-tab="${id}"]`);
+    if(activeBtn) activeBtn.classList.add("active");
+  } 
+  else {
+    // 単独機能画面 (予定, メモ, AIコーチ, 通知): タブなし、戻るボタンあり
+    if(tabsNav) tabsNav.classList.add("hidden");
+    if(homeBtn) homeBtn.classList.remove("hidden");
+  }
+
+  // 4. クリーンアップと描画処理
   if(unsubscribePlans) unsubscribePlans();
   if(unsubscribeMemo) unsubscribeMemo();
   if(unsubscribeMonthChat) unsubscribeMonthChat();
   if(unsubscribeJournal) unsubscribeJournal();
+
   if(id==="journal") renderJournal();
   if(id==="month") renderMonth();
   if(id==="plans") renderPlans();
   if(id==="dashboard") renderDashboard();
   if(id==="memo"){ renderMemo(); markMemoRead(); }
-  if(id==="notify"){ renderNotify(); } 
+  if(id==="notify"){ renderNotify(); }
+  // homeの場合は特になし
 }
 
+function initHome() {
+  const buttons = $$(".home-card");
+  buttons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.target;
+      if (target) {
+        switchTab(target);
+      }
+    });
+  });
+}
 // ===== Login & Logout =====
 $("#logoutBtn")?.addEventListener("click", ()=>{
   localStorage.removeItem("athlog:last");
@@ -408,6 +466,29 @@ async function saveJournal(){
   dirty={ dist:false, train:false, feel:false, weight:false };
 }
 
+// ===== Global: 端/上部スワイプでタブ移動 =====
+// タブ移動のロジックも、日誌画面の時だけ有効にするように調整が必要かもしれないが、
+// switchTabが適切にハンドリングするのでそのままでも致命的ではない。
+// ただし、TAB_ORDER に 'home' は含めない方がスワイプで意図せずホームに戻らなくて良い。
+// 現在の TAB_ORDER = ['journal','month','plans','dashboard','memo']; 
+// これを日誌画面用の順序に変更する。
+const TAB_ORDER = ['journal', 'month', 'dashboard']; // 日誌画面内のタブのみ
+
+function getActiveTabIndex(){
+  // 現在アクティブなタブボタンを探す
+  const activeBtn = document.querySelector('.tab.active');
+  if(!activeBtn) return -1; // ホームや単独画面では -1
+  return TAB_ORDER.indexOf(activeBtn.dataset.tab);
+}
+
+function goTabDelta(delta){
+  let i = getActiveTabIndex();
+  if (i < 0) return; // 日誌画面以外ではスワイプ切り替え無効
+  
+  const n = TAB_ORDER.length;
+  i = (i + delta + n) % n;
+  switchTab(TAB_ORDER[i], true);
+}
 // 部位リスト定義
 const BODY_PARTS_LIST = [
   {id:'neck', label:'首'}, {id:'shoulder', label:'肩'}, {id:'back', label:'背中'}, {id:'waist', label:'腰'},
