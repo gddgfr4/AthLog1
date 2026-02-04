@@ -3884,7 +3884,9 @@ ${history.join('\n')}
       // チャット継続時は aiChatHistory は更新済み
     }
 
-    // --- モデル切り替えのリレー方式 ---
+    // ... (前略) ...
+
+    // --- モデル切り替えのリレー方式 (修正版) ---
     let json;
     const call = async (model) => {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`;
@@ -3898,20 +3900,19 @@ ${history.join('\n')}
     };
 
     try {
-      // 1回目: 本命 2.0 Flash
-      json = await call('gemini-2.0-flash');
+      // 1回目: 安定版 1.5 Flash (モデル名を修正)
+      json = await call('gemini-1.5-flash-latest');
     } catch(e1) {
-      console.warn("2.0 Flash Busy. Waiting 5s for Backup...", e1);
-      // 混雑時は5秒待つ
-      await new Promise(r => setTimeout(r, 5000));
+      console.warn("Primary model failed. Waiting 2s...", e1);
+      await new Promise(r => setTimeout(r, 2000));
       try {
-        // 2回目: 予備 1.5 Flash (正式名称に変更)
-        json = await call('gemini-1.5-flash');
+        // 2回目: 安定版 1.5 Pro
+        json = await call('gemini-1.5-pro-latest');
       } catch(e2) {
-        console.warn("Backup failed. Waiting 5s for Final...", e2);
-        await new Promise(r => setTimeout(r, 5000));
-        // 3回目: 最終予備
-        json = await call('gemini-pro-latest');
+        console.warn("Backup failed. Waiting 2s...", e2);
+        await new Promise(r => setTimeout(r, 2000));
+        // 3回目: 旧安定版
+        json = await call('gemini-pro');
       }
     }
 
