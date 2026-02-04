@@ -292,12 +292,14 @@ async function showApp(){
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId = $("#memberSelect").value;
     // ★削除
-    // $("#memberLabel").textContent = getDisplayName(viewingMemberId);
+    $("#memberLabel").textContent = getDisplayName(viewingMemberId);
     
     selDate = new Date();
     const dp = $("#datePicker"); if(dp) dp.value = ymd(selDate);
     refreshBadges();
-    const currentTab = $(".tab.active")?.dataset.tab || 'home';
+    const activePanel = $(".tabpanel.active")?.id;
+    // 日誌系画面ならその画面を維持、それ以外なら日誌('journal')へ
+    const targetTab = ['journal', 'month', 'dashboard'].includes(activePanel) ? activePanel : 'journal';
     switchTab(currentTab, true);
   });
 
