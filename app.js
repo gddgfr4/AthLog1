@@ -191,6 +191,7 @@ let memberNameMap = {};
 let weightChart = null;
 let weightMode = 'day'; // day, week, month
 let weightOffset = 0;
+let myMemberId = null;
 
 // ===== Data Access Layer =====
 const getJournalRef  = (team,member,day)=> db.collection('teams').doc(team).collection('members').doc(member).collection('journal').doc(ymd(day));
@@ -201,11 +202,10 @@ const getMonthChatCollectionRef=(team,month)=> db.collection('teams').doc(team).
 const getMembersRef=(team)=> db.collection('teams').doc(team).collection('members');
 
 async function showApp(){
-  // 1. まずUIをホーム状態にリセット（これでタブが消えます）
+  // 1. まずUIをホーム状態にリセット
   switchTab("home", true);
   
   $("#teamLabel").textContent=teamId;
-  $("#memberLabel").textContent = getDisplayName(viewingMemberId); 
   
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
@@ -214,11 +214,36 @@ async function showApp(){
   if($("#monthPick") && !$("#monthPick").value) $("#monthPick").value=__nowMon;
   if($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value=__nowMon;
 
+  // メンバーリストを取得してプルダウンを作成
   await populateMemberSelect();
   
+  // ★追加: ログイン時に入力された名前から「自分」のIDを特定して保存
+  const loginName = $("#memberName").value.trim();
+  const memberSelect = $("#memberSelect");
+  let foundId = null;
+  
+  // プルダウンの選択肢から、入力された名前と一致するものを探す
+  for (let opt of memberSelect.options) {
+    // 表示名の一部一致なども考慮する場合はここを調整。現状は完全一致または含む場合で判定
+    if (opt.text.includes(loginName)) {
+      foundId = opt.value;
+      break;
+    }
+  }
+
+  if (foundId) {
+    myMemberId = foundId;       // 自分のIDを確定
+    viewingMemberId = foundId;  // 初期表示も自分にする
+    memberSelect.value = foundId;
+  } else {
+    // 名前が見つからない場合は、リストの先頭（または現在選択されているもの）を自分とみなす
+    myMemberId = memberSelect.value;
+    viewingMemberId = myMemberId;
+  }
+
   $("#memberLabel").textContent = getDisplayName(viewingMemberId);
   
-  const memberSelect=$("#memberSelect");
+  // メンバー変更時のイベントリスナー
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId=$("#memberSelect").value;
     $("#memberLabel").textContent = getDisplayName(viewingMemberId);
@@ -227,7 +252,7 @@ async function showApp(){
     const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
     refreshBadges();
     
-    // 現在アクティブなタブを再表示（ホームの場合は再描画不要だが呼んでもOK）
+    // 現在アクティブなタブを再表示
     const currentTab = $(".tab.active")?.dataset.tab || 'home';
     switchTab(currentTab, true);
   });
@@ -235,14 +260,16 @@ async function showApp(){
   // 各画面の初期化
   initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
   
-  // ★ホーム画面のボタン初期化を確実に実行
+  // ホーム画面のボタン初期化
   initHome(); 
 
   selDate=new Date();
   const dp=$("#datePicker"); if(dp) dp.value=ymd(selDate);
   refreshBadges();
   
-  // 各種チェック処理
+  // ★ 初期表示をホーム画面にする（ここで myMemberId が適用される）
+  switchTab("home");
+
   checkNewMemo();
   initTeamSwitcher();
   initGlobalTabSwipe();
@@ -250,7 +277,6 @@ async function showApp(){
   initMemberNav();
   initAiAnalysis();
   
-  // ホームへ戻るボタンのイベントリスナー
   $("#goHomeBtn")?.addEventListener("click", () => switchTab("home"));
 }
 
@@ -347,46 +373,60 @@ function switchTab(id, forceRender=false){
     return;
   }
   
-  // ホーム画面以外でアクティブなタブがあれば、重複処理防止
   if(!forceRender && $(".tabpanel.active")?.id === id && id !== 'home') return;
 
-  // 1. すべてのパネルを非表示にする
+  // 1. パネル表示切り替え
   $$(".tabpanel").forEach(p => p.classList.remove("active"));
-  
-  // 2. 指定されたIDのパネルを表示する
   const targetPanel = document.getElementById(id);
   if (targetPanel) {
     targetPanel.classList.add("active");
   }
 
-  // 3. ナビゲーションバー（タブ）と戻るボタンの表示制御
+  // 2. UIコントロール（タブ、ホームボタン、メンバー選択）の制御
   const tabsNav = document.getElementById("journalTabs");
   const homeBtn = document.getElementById("goHomeBtn");
-  
-  // タブボタンの active 状態リセット
+  const memberNav = document.getElementById("memberNavWrap"); // メンバー選択エリア
+
+  // タブのアクティブ状態リセット
   $$(".tab").forEach(btn => btn.classList.remove("active"));
 
   if (id === 'home') {
-    // ホーム画面: タブなし、戻るボタンなし
+    // === ホーム画面の場合 ===
+    // タブなし、ホームボタンなし
     if(tabsNav) tabsNav.classList.add("hidden");
     if(homeBtn) homeBtn.classList.add("hidden");
-  } 
-  else if (['journal', 'month', 'dashboard'].includes(id)) {
-    // 日誌系画面: タブあり、戻るボタンあり
-    if(tabsNav) tabsNav.classList.remove("hidden");
-    if(homeBtn) homeBtn.classList.remove("hidden");
     
-    // 該当するタブボタンを active にする
-    const activeBtn = $(`.tab[data-tab="${id}"]`);
-    if(activeBtn) activeBtn.classList.add("active");
+    // ★ メンバー選択UIを隠す
+    if(memberNav) memberNav.classList.add("hidden");
+
+    // ★ 強制的に「自分」に戻す
+    if (myMemberId && viewingMemberId !== myMemberId) {
+        viewingMemberId = myMemberId;
+        $("#memberSelect").value = myMemberId;
+        $("#memberLabel").textContent = getDisplayName(viewingMemberId);
+        refreshBadges();
+        // データの再描画は不要（ホーム画面には個人データが表示されていないため）
+    }
   } 
   else {
-    // 単独機能画面 (予定, メモ, AIコーチ, 通知): タブなし、戻るボタンあり
-    if(tabsNav) tabsNav.classList.add("hidden");
-    if(homeBtn) homeBtn.classList.remove("hidden");
+    // === その他の機能画面の場合 ===
+    
+    // ★ メンバー選択UIを表示する（他人の日誌を見るため）
+    if(memberNav) memberNav.classList.remove("hidden");
+
+    if (['journal', 'month', 'dashboard'].includes(id)) {
+      // 日誌系: タブあり、戻るボタンあり
+      if(tabsNav) tabsNav.classList.remove("hidden");
+      if(homeBtn) homeBtn.classList.remove("hidden");
+      $(`.tab[data-tab="${id}"]`)?.classList.add("active");
+    } else {
+      // 単独画面: タブなし、戻るボタンあり
+      if(tabsNav) tabsNav.classList.add("hidden");
+      if(homeBtn) homeBtn.classList.remove("hidden");
+    }
   }
 
-  // 4. クリーンアップと描画処理
+  // 3. クリーンアップと描画処理
   if(unsubscribePlans) unsubscribePlans();
   if(unsubscribeMemo) unsubscribeMemo();
   if(unsubscribeMonthChat) unsubscribeMonthChat();
@@ -399,7 +439,6 @@ function switchTab(id, forceRender=false){
   if(id==="memo"){ renderMemo(); markMemoRead(); }
   if(id==="notify"){ renderNotify(); }
 }
-
 function initHome() {
   const grid = document.getElementById('homeMenuGrid');
   if(!grid) return;
