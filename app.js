@@ -626,29 +626,40 @@ function setupLtimerEvents() {
   window._ltEventsSetup = true;
 
   // 内部戻るボタン
-  $("#lt-back button").onclick = (e) => {
-    e.stopPropagation();
-    stopCustomTimer();
-    if(ltPmState.lanes) ltPmState.lanes.forEach(l => l.running = false);
-    if(ltSessionRef && ltUserId) {
-        ltSessionRef.child('users').child(ltUserId).remove();
-        ltSessionRef.off(); ltSessionRef = null; ltUserId = null;
-        $("#share-status-msg").textContent = "";
-    }
-    showLtScreen('menu');
-  };
+  const backBtn = $("#lt-back button");
+  if (backBtn) {
+    backBtn.onclick = (e) => {
+      e.stopPropagation();
+      stopCustomTimer();
+      if(ltPmState.lanes) ltPmState.lanes.forEach(l => l.running = false);
+      if(ltSessionRef && ltUserId) {
+          ltSessionRef.child('users').child(ltUserId).remove();
+          ltSessionRef.off(); ltSessionRef = null; ltUserId = null;
+          $("#share-status-msg").textContent = "";
+      }
+      showLtScreen('menu');
+    };
+  }
 
   // 共有接続
-  $("#share-connect-btn").onclick = async () => {
-    const code = $("#share-passcode").value.trim();
-    if(!code) return alert("合言葉を入力してください");
-    await connectLtSession(code);
-  };
+  const shareBtn = $("#share-connect-btn");
+  if (shareBtn) {
+    shareBtn.onclick = async () => {
+      const code = $("#share-passcode").value.trim();
+      if(!code) return alert("合言葉を入力してください");
+      await connectLtSession(code);
+    };
+  }
 
   // モード選択
-  $("#choose-split").onclick = () => { initSplit(!!ltSessionRef); showLtScreen('split'); };
-  $("#choose-pm").onclick = (e) => { if(!e.target.disabled) { initPacemaker(); showLtScreen('pm'); }};
-  $("#choose-custom").onclick = (e) => { if(!e.target.disabled) { initCustom(); showLtScreen('custom'); }};
+  const btnSplit = $("#choose-split");
+  if (btnSplit) btnSplit.onclick = () => { initSplit(!!ltSessionRef); showLtScreen('split'); };
+  
+  const btnPm = $("#choose-pm");
+  if (btnPm) btnPm.onclick = (e) => { if(!e.target.disabled) { initPacemaker(); showLtScreen('pm'); }};
+  
+  const btnCustom = $("#choose-custom");
+  if (btnCustom) btnCustom.onclick = (e) => { if(!e.target.disabled) { initCustom(); showLtScreen('custom'); }};
 
   // ヘルプ関連
   const helpData = {
@@ -661,11 +672,13 @@ function setupLtimerEvents() {
     $("#help-body").textContent = helpData[k].b;
     $("#lt-help").classList.remove("lt-hidden");
   };
-  $("#help-split").onclick = () => showHelp('split');
-  $("#help-pm").onclick = () => showHelp('pm');
-  $("#help-custom").onclick = () => showHelp('custom');
-  $("#help-close").onclick = () => $("#lt-help").classList.add("lt-hidden");
-  $("#summary-close").onclick = () => $("#lt-summary").classList.add("lt-hidden");
+
+  const hSplit = $("#help-split"); if (hSplit) hSplit.onclick = () => showHelp('split');
+  const hPm = $("#help-pm"); if (hPm) hPm.onclick = () => showHelp('pm');
+  const hCustom = $("#help-custom"); if (hCustom) hCustom.onclick = () => showHelp('custom');
+  
+  const hClose = $("#help-close"); if (hClose) hClose.onclick = () => $("#lt-help").classList.add("lt-hidden");
+  const sClose = $("#summary-close"); if (sClose) sClose.onclick = () => $("#lt-summary").classList.add("lt-hidden");
 }
 
 function updateLtChooserView() {
