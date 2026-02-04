@@ -1106,7 +1106,55 @@ function initStadium() {
   // レンダリング崩れ防止のため少し待ってリサイズ
   setTimeout(() => { mapInstance.invalidateSize(); }, 200);
 }
+// ★ 追加: 欠けていた関数
+function renderRegions() {
+  const container = document.getElementById('std-region-overlay');
+  if(!container) return;
 
+  // 地域リスト
+  const regions = ['すべて', '北海道', '東北', '関東', '中部', '近畿', '中国', '四国', '九州'];
+  
+  container.innerHTML = regions.map(r => {
+    const val = (r === 'すべて') ? 'all' : r;
+    const activeClass = (val === currentRegionFilter) ? 'primary' : 'bg-white text-gray-700';
+    // スタイル調整（横スクロールしやすいチップ型）
+    return `<button 
+      class="std-region-chip ${activeClass}" 
+      data-region="${val}"
+      onclick="selectMapRegion('${val}')"
+      style="display:inline-block; margin-right:6px; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:bold; border:1px solid #ddd; box-shadow:0 2px 4px rgba(0,0,0,0.1); flex-shrink:0;">
+      ${r}
+    </button>`;
+  }).join('');
+}
+
+// グローバルスコープに関数を公開 (onclickで呼ぶため)
+window.selectMapRegion = (region) => {
+  currentRegionFilter = region;
+  renderRegions(); // ボタンの色を更新
+  applyMapFilters(); // 地図を更新
+};
+
+function applyMapFilters() {
+  const keyword = document.getElementById('std-search-input')?.value.toLowerCase() || '';
+  
+  const filtered = STADIUM_DATA.filter(s => {
+    // 地域フィルタ
+    const matchRegion = (currentRegionFilter === 'all') || (s.region === currentRegionFilter);
+    // 検索ワードフィルタ
+    const matchKey = !keyword || s.name.toLowerCase().includes(keyword) || s.address.includes(keyword);
+    
+    return matchRegion && matchKey;
+  });
+
+  renderMapMarkers(filtered);
+  
+  // 絞り込み結果が1つ以上あれば、最初のピンにズーム
+  if(filtered.length > 0 && (keyword || currentRegionFilter !== 'all')) {
+    // 複数の場合は範囲に合わせる手もあるが、簡易的に最初の要素へ
+    mapInstance.setView([filtered[0].lat, filtered[0].lng], 10);
+  }
+}
 function renderMapMarkers(list) {
   if(!markersLayer) return;
   markersLayer.clearLayers();
