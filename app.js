@@ -854,24 +854,30 @@ window.ltLapWatch = (id) => {
 
 function tickSplit() {
     const now = Date.now();
+    
     ltWatches.forEach(w => {
         const card = document.getElementById(`w-${w.id}`);
         if(!card) return;
-        const elapsed = w.running ? (now - w.start) : w.elapsed;
-        const lap = w.running ? (elapsed - w.lastLap) : (w.elapsed - w.lastLap);
         
-        card.querySelector('.runner-main-time').textContent = fmt(elapsed);
-        card.querySelector('.runner-lap-live').textContent = fmt(lap);
-        card.className = `runner-card ${getCardColor({...w, running: w.running, start:w.start, lastLap:w.lastLap})}`;
+        // 走っているなら現在時刻から計算、止まっているなら保持しているelapsed
+        const elapsed = w.running ? (now - w.start) : w.elapsed;
+        const lap = elapsed - w.lastLap;
+        
+        // 画面表示更新 (再レンダリングせずテキストのみ書き換えで高速化)
+        const mainTimeEl = card.querySelector('.runner-main-time');
+        const lapTimeEl = card.querySelector('.runner-lap-live');
+        
+        if(mainTimeEl) mainTimeEl.textContent = fmt(elapsed);
+        if(lapTimeEl) lapTimeEl.textContent = "Lap: " + fmt(lap);
+        
+        // クラス（色）更新
+        // wの状態を一時的に複製して判定に渡す
+        const colorClass = getCardColor({...w, running: w.running, start: w.start, lastLap: w.lastLap, elapsed: elapsed});
+        
+        // 既存のクラスを維持しつつ、色クラスだけ入れ替え
+        // (runner-cardクラスは必須)
+        card.className = `runner-card ${colorClass}`;
     });
-}
-
-
-    html += '</table>';
-    $("#summary-table").innerHTML = html;
-    $("#lt-summary").classList.remove('lt-hidden');
-    ltWatches = ltWatches.map(w => ({...w, running:false, elapsed:0, start:0, lastLap:0, laps:[]}));
-    renderSplit();
 }
 
 // ===== PM Logic =====
