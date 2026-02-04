@@ -278,33 +278,26 @@ async function showApp(){
   // メンバーリスト取得
   await populateMemberSelect();
   
-  // ★ 自分（myMemberId）を特定するロジック
-  const loginName = $("#memberName").value.trim();
+const loginName = $("#memberName").value.trim();
   const memberSelect = $("#memberSelect");
-  let foundId = null;
   
+  let correctId = null;
   if(memberSelect) {
     for (let opt of memberSelect.options) {
-      // 入力名が含まれるか確認
-      if (opt.text.includes(loginName)) { 
-        foundId = opt.value; 
+      // IDそのもの、または表示名が一致するものを探す
+      if (opt.value === memberId || opt.text === memberId) { 
+        correctId = opt.value; 
         break; 
       }
     }
   }
   
-  if (foundId) {
-    myMemberId = foundId;      // 自分のIDを保存
-    viewingMemberId = foundId; // 表示も自分にする
-    if(memberSelect) memberSelect.value = foundId;
-  } else {
-    // 見つからなければ先頭を自分とする（あるいはエラー処理）
-    if(memberSelect && memberSelect.options.length > 0) {
-        myMemberId = memberSelect.value;
-        viewingMemberId = myMemberId;
-    }
-  }
-
+  // 見つかればそのID、見つからなければ入力値をそのまま使う
+  myMemberId = correctId || memberId;
+  viewingMemberId = myMemberId; // ★強制的に自分を表示状態にする
+  
+  // プルダウンも自分に合わせる
+  if(memberSelect) memberSelect.value = myMemberId;
   $("#memberLabel").textContent = getDisplayName(viewingMemberId);
   refreshBadges(); // バッジ更新（ここで閲覧のみが消えるはず）
   // メンバー変更イベント
@@ -681,7 +674,62 @@ function setupLtimerEvents() {
   
   const hClose = $("#help-close"); if (hClose) hClose.onclick = () => $("#lt-help").classList.add("lt-hidden");
   const sClose = $("#summary-close"); if (sClose) sClose.onclick = () => $("#lt-summary").classList.add("lt-hidden");
+const pmPlus = $("#pm-lane-plus"); 
+  if(pmPlus) pmPlus.onclick = () => { let c=parseInt($("#pm-lane-count").textContent); if(c<4) renderPmSettings(c+1); };
+  
+  const pmMinus = $("#pm-lane-minus"); 
+  if(pmMinus) pmMinus.onclick = () => { let c=parseInt($("#pm-lane-count").textContent); if(c>1) renderPmSettings(c-1); };
 
+  const pmStart = $("#pm-start-btn");
+  if(pmStart) pmStart.onclick = () => {
+      const dist = +$("#pm-distance").value;
+      const reps = +$("#pm-reps").value;
+      if(!dist || !reps) return;
+      
+      const cnt = parseInt($("#pm-lane-count").textContent);
+      ltPmState.lanes = [];
+      for(let i=1; i<=cnt; i++) {
+          const val = document.getElementById(`pm-name-${i}`)?.value; // 安全に取得
+          const name = (typeof getDisplayName === 'function' ? getDisplayName(val) : val) || val || `レーン${i}`; 
+          const m = +document.getElementById(`pm-m-${i}`)?.value || 0;
+          const s = +document.getElementById(`pm-s-${i}`)?.value || 0;
+          ltPmState.lanes.push({
+              id:i, name:name, 
+              targetTime: (m*60+s)*1000, 
+              running:false, startTime:0, laps:[], 
+              rep:1, totalReps: reps
+          });
+      }
+      
+      const sEl = document.querySelector("#lt-pm #pm-settings");
+      if(sEl) sEl.classList.add("lt-hidden");
+      const rEl = document.querySelector("#lt-pm #pm-runner");
+      if(rEl) rEl.classList.remove("lt-hidden");
+      
+      renderPmRunner();
+  };
+
+  // Custom (タイマー) モードのボタン
+  const cAdd = $("#custom-add-step-btn"); 
+  if(cAdd) cAdd.onclick = () => { ltCustomSteps.push({type:'WORK', dur:30}); renderCustomSteps(); };
+
+  const cStart = $("#custom-start-btn"); 
+  if(cStart) cStart.onclick = () => {
+      ltCustomState = {
+          running: true, steps: [...ltCustomSteps], 
+          rep: 1, totalReps: +$("#custom-reps").value,
+          stepIdx: 0, stepStart: Date.now(), remain: ltCustomSteps[0].dur
+      };
+      $("#custom-settings").classList.add("lt-hidden");
+      $("#custom-runner").classList.remove("lt-hidden");
+  };
+  
+  const cReset = $("#custom-reset-btn"); 
+  if(cReset) cReset.onclick = () => {
+      ltCustomState.running = false;
+      $("#custom-settings").classList.remove("lt-hidden");
+      $("#custom-runner").classList.add("lt-hidden");
+  };
   // ★以前エラーが出ていたボタン設定をここに移動（要素があるかチェックしてから設定）
   const btnAdd = $("#standalone-controls button[data-action='add']");
   if(btnAdd) btnAdd.onclick = () => {
