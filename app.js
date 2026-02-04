@@ -679,6 +679,47 @@ function setupLtimerEvents() {
   
   const hClose = $("#help-close"); if (hClose) hClose.onclick = () => $("#lt-help").classList.add("lt-hidden");
   const sClose = $("#summary-close"); if (sClose) sClose.onclick = () => $("#lt-summary").classList.add("lt-hidden");
+
+  // ★★★ ここに移動・修正したボタン設定 ★★★
+  const btnAdd = $("#standalone-controls button[data-action='add']");
+  if(btnAdd) btnAdd.onclick = () => {
+      const newId = ltWatches.length ? Math.max(...ltWatches.map(w=>w.id))+1 : 0;
+      ltWatches.push({id:newId, name:'', running:false, elapsed:0, start:0, lastLap:0, laps:[]});
+      renderSplit();
+  };
+  
+  const btnStartAll = $("#standalone-controls button[data-action='start-all']");
+  if(btnStartAll) btnStartAll.onclick = () => {
+      const now = Date.now();
+      ltWatches.forEach(w => { if(!w.running){ w.running=true; w.start=now-w.elapsed; }});
+      renderSplit();
+  };
+
+  const btnStopAll = $("#standalone-controls button[data-action='stop-all']");
+  if(btnStopAll) btnStopAll.onclick = () => {
+      const now = Date.now();
+      ltWatches.forEach(w => { if(w.running){ w.running=false; w.elapsed=now-w.start; }});
+      renderSplit();
+  };
+
+  const btnReset = $("#standalone-controls button[data-action='review-reset']");
+  if(btnReset) btnReset.onclick = () => {
+      let html = '<table style="width:100%; text-align:center;"><tr><th>Name</th><th>Total</th><th>Laps</th></tr>';
+      ltWatches.forEach(w => {
+          const dispName = getDisplayName(w.name) || w.name || 'No Name';
+          html += `<tr><td>${dispName}</td><td>${fmt(w.elapsed)}</td><td>${w.laps.length}</td></tr>`;
+      });
+      html += '</table>';
+      
+      const sumTable = $("#summary-table");
+      if(sumTable) sumTable.innerHTML = html;
+      
+      const sumModal = $("#lt-summary");
+      if(sumModal) sumModal.classList.remove('lt-hidden');
+      
+      ltWatches = ltWatches.map(w => ({...w, running:false, elapsed:0, start:0, lastLap:0, laps:[]}));
+      renderSplit();
+  };
 }
 
 function updateLtChooserView() {
@@ -825,29 +866,7 @@ function tickSplit() {
     });
 }
 
-// Standalone Buttons
-$("#standalone-controls button[data-action='add']").onclick = () => {
-    const newId = ltWatches.length ? Math.max(...ltWatches.map(w=>w.id))+1 : 0;
-    ltWatches.push({id:newId, name:'', running:false, elapsed:0, start:0, lastLap:0, laps:[]});
-    renderSplit();
-};
-$("#standalone-controls button[data-action='start-all']").onclick = () => {
-    const now = Date.now();
-    ltWatches.forEach(w => { if(!w.running){ w.running=true; w.start=now-w.elapsed; }});
-    renderSplit();
-};
-$("#standalone-controls button[data-action='stop-all']").onclick = () => {
-    const now = Date.now();
-    ltWatches.forEach(w => { if(w.running){ w.running=false; w.elapsed=now-w.start; }});
-    renderSplit();
-};
-$("#standalone-controls button[data-action='review-reset']").onclick = () => {
-    let html = '<table style="width:100%; text-align:center;"><tr><th>Name</th><th>Total</th><th>Laps</th></tr>';
-    ltWatches.forEach(w => {
-        // 名前解決（IDから表示名へ）
-        const dispName = getDisplayName(w.name) || w.name || 'No Name';
-        html += `<tr><td>${dispName}</td><td>${fmt(w.elapsed)}</td><td>${w.laps.length}</td></tr>`;
-    });
+
     html += '</table>';
     $("#summary-table").innerHTML = html;
     $("#lt-summary").classList.remove('lt-hidden');
