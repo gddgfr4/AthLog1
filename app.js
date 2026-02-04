@@ -3684,8 +3684,6 @@ function openStadiumMap() {
 }
 
 
-// app.js (ファイル末尾に追加)
-
 // メンバーを一人ずつ移動するロジック
 function goMemberDelta(delta){
   const select = document.getElementById('memberSelect');
@@ -3709,14 +3707,15 @@ function goMemberDelta(delta){
   select.value = newMemberId;
   
   // 表示名とバッジを更新
-  $("#memberLabel").textContent = getDisplayName(viewingMemberId);
+  // ★修正: 要素が存在する場合のみ書き込むように変更 (以前削除したため)
+  const ml = document.getElementById("memberLabel");
+  if (ml) ml.textContent = getDisplayName(viewingMemberId);
+  
   refreshBadges();
 
   // 現在のタブを再描画してデータを読み込み直す
   switchTab($(".tab.active")?.dataset.tab, true);
 }
-
-// メンバー移動ボタンの初期化
 function initMemberNav(){
     $("#memberPrev")?.addEventListener("click", () => goMemberDelta(-1));
     $("#memberNext")?.addEventListener("click", () => goMemberDelta(1));
