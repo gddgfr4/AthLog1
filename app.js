@@ -373,12 +373,12 @@ function initTeamSwitcher(){
 }
 
 const STADIUM_DATA = [
-  { name: "国立競技場", region: "関東", address: "東京都新宿区霞ヶ丘町10-1", lat: 35.6778, lng: 139.7145 },
-  { name: "駒沢オリンピック公園陸上競技場", region: "関東", address: "東京都世田谷区駒沢公園1-1", lat: 35.6253, lng: 139.6631 },
-  { name: "日産スタジアム", region: "関東", address: "神奈川県横浜市港北区小机町3300", lat: 35.5100, lng: 139.6062 },
-  { name: "大阪ヤンマースタジアム長居", region: "近畿", address: "大阪府大阪市東住吉区長居公園1-1", lat: 34.6121, lng: 135.5173 },
-  { name: "博多の森陸上競技場", region: "九州", address: "福岡県福岡市博多区東平尾公園2-1-2", lat: 33.5857, lng: 130.4605 },
-  // ... 他のデータ ...
+  { name: "国立競技場", region: "関東", address: "東京都新宿区霞ヶ丘町10-1", lat: 35.6778, lng: 139.7145, url: "https://www.jpnsport.go.jp/kokuritu/" },
+  { name: "駒沢オリンピック公園", region: "関東", address: "東京都世田谷区駒沢公園1-1", lat: 35.6253, lng: 139.6631, url: "https://www.tef.or.jp/kopgp/" },
+  { name: "日産スタジアム", region: "関東", address: "神奈川県横浜市港北区小机町3300", lat: 35.5100, lng: 139.6062, url: "https://www.nissan-stadium.jp/" },
+  { name: "ヤンマースタジアム長居", region: "近畿", address: "大阪府大阪市東住吉区長居公園1-1", lat: 34.6121, lng: 135.5173, url: "https://www.nagaipark.com/stadium/" },
+  { name: "博多の森陸上競技場", region: "九州", address: "福岡県福岡市博多区東平尾公園2-1-2", lat: 33.5857, lng: 130.4605, url: "https://www.midorimachi.jp/park/detail.php?code=202001" },
+  // ... 必要に応じて追加 ...
 ];
 
 function switchTab(id, forceRender = false) {
@@ -1019,160 +1019,92 @@ function updateLtMemberSelects() {
 // ========== Stadium Map Logic =============
 // ==========================================
 
-let stdListInitialized = false;
+let mapInstance = null;
+let markersLayer = null;
 
 function initStadium() {
-  if(stdListInitialized) return;
-  stdListInitialized = true;
-  
-  renderStadiumList(STADIUM_DATA);
-  
-  // フィルターイベント
-  const filters = $$("#std-region-filters .chip");
-  filters.forEach(btn => {
-    btn.addEventListener('click', () => {
-      filters.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      filterStadiums();
-    });
-  });
-
-  // 検索イベント
-  const searchInput = document.getElementById('std-search');
-  if(searchInput) {
-    searchInput.addEventListener('input', filterStadiums);
-  }
-
-  // 現在地検索
-  const geoBtn = document.getElementById('std-geo-btn');
-  if(geoBtn) {
-    geoBtn.addEventListener('click', searchNearestStadium);
-  }
-}
-
-function filterStadiums() {
-  const region = $("#std-region-filters .chip.active")?.dataset.region || 'all';
-  const keyword = $("#std-search").value.toLowerCase().trim();
-  
-  const filtered = STADIUM_DATA.filter(s => {
-    const matchRegion = (region === 'all') || (s.region === region);
-    const matchKey = !keyword || s.name.toLowerCase().includes(keyword) || s.address.toLowerCase().includes(keyword);
-    return matchRegion && matchKey;
-  });
-  
-  renderStadiumList(filtered);
-}
-
-function renderStadiumList(list) {
-  const container = document.getElementById('std-list');
-  if(!container) return;
-  
-  if(list.length === 0) {
-    container.innerHTML = '<div class="muted" style="text-align:center; padding:20px;">見つかりませんでした</div>';
+  // すでに初期化済みならサイズ再計算だけして終了（地図崩れ防止）
+  if(mapInstance) {
+    setTimeout(() => { mapInstance.invalidateSize(); }, 200);
     return;
   }
 
-  container.innerHTML = list.map(s => {
-    // Google Mapsへのリンク生成
-    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.name + " " + s.address)}`;
+  // 1. 地図の初期化 (初期表示は東京あたり)
+  mapInstance = L.map('std-map').setView([36.0, 138.0], 5);
+
+  // 2. 地図タイル (OpenStreetMap) の読み込み
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(mapInstance);
+
+  // 3. マーカーレイヤーグループ作成
+  markersLayer = L.layerGroup().addTo(mapInstance);
+
+  // 4. マーカー配置
+  renderMapMarkers(STADIUM_DATA);
+
+  // 5. 現在地ボタン
+  document.getElementById('std-geo-btn')?.addEventListener('click', () => {
+    mapInstance.locate({setView: true, maxZoom: 12});
+  });
+  
+  // 6. 地図内検索
+  document.getElementById('std-search-input')?.addEventListener('input', (e) => {
+    const val = e.target.value.toLowerCase();
+    if(!val) {
+        renderMapMarkers(STADIUM_DATA);
+        return;
+    }
+    const filtered = STADIUM_DATA.filter(s => s.name.toLowerCase().includes(val) || s.address.includes(val));
+    renderMapMarkers(filtered);
+    if(filtered.length > 0) {
+        // 最初の結果にズーム
+        mapInstance.setView([filtered[0].lat, filtered[0].lng], 10);
+    }
+  });
+
+  // レンダリング崩れ防止のため少し待ってリサイズ
+  setTimeout(() => { mapInstance.invalidateSize(); }, 200);
+}
+
+function renderMapMarkers(list) {
+  if(!markersLayer) return;
+  markersLayer.clearLayers();
+
+  list.forEach(s => {
+    // マーカーを作成
+    const marker = L.marker([s.lat, s.lng]);
     
-    return `
-      <div class="std-card">
-        <div class="std-info">
-          <span class="std-region">${s.region}</span>
-          <div class="std-name">${s.name}</div>
-          <div class="std-address">${s.address}</div>
-        </div>
-        <a href="${mapUrl}" target="_blank" class="std-map-btn">
-          <span>🗺</span>
-          MAP
-        </a>
+    // ポップアップの中身 (HTML)
+    const popupContent = `
+      <div class="std-popup-title">${s.name}</div>
+      <div class="std-popup-addr">${s.address}</div>
+      <div class="std-popup-actions">
+        ${s.url ? `<a href="${s.url}" target="_blank" class="std-popup-btn btn-web">🌐 公式HPを開く</a>` : ''}
+        <button class="std-popup-btn btn-plan" onclick="addToPlan('${s.name}')">📅 行く予定に追加</button>
       </div>
     `;
-  }).join('');
+
+    marker.bindPopup(popupContent);
+    markersLayer.addLayer(marker);
+  });
 }
 
-function searchNearestStadium() {
-  if (!navigator.geolocation) return alert("お使いの端末は位置情報に対応していません。");
+// 行く予定に追加ボタンの処理
+window.addToPlan = (stadiumName) => {
+  if(!confirm(`「${stadiumName}」へ行く予定を立てますか？\n（予定作成画面へ移動します）`)) return;
   
-  const btn = document.getElementById('std-geo-btn');
-  const originalText = btn.textContent;
-  btn.textContent = "測位中...";
-  btn.disabled = true;
-
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      
-      // 距離計算してソート
-      const withDist = STADIUM_DATA.map(s => {
-        const d = getDistance(lat, lng, s.lat, s.lng);
-        return { ...s, dist: d };
-      }).sort((a, b) => a.dist - b.dist);
-
-      // 上位10件を表示
-      renderStadiumList(withDist.slice(0, 10));
-      
-      // フィルターUIリセット
-      $$("#std-region-filters .chip").forEach(b => b.classList.remove('active'));
-      $("#std-search").value = "";
-      
-      btn.textContent = originalText;
-      btn.disabled = false;
-    },
-    (err) => {
-      alert("位置情報の取得に失敗しました。");
-      btn.textContent = originalText;
-      btn.disabled = false;
-    }
-  );
-}
-
-// 2点間の距離(km)計算 (Haversine formula)
-function getDistance(lat1, lng1, lat2, lng2) {
-  if(!lat1 || !lng1 || !lat2 || !lng2) return 99999;
-  const R = 6371; 
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLng = (lng2 - lng1) * (Math.PI / 180);
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * (Math.PI/180)) * Math.cos(lat2 * (Math.PI/180)) * Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
-
-// ===== Login & Logout =====
-$("#logoutBtn")?.addEventListener("click", ()=>{
-  localStorage.removeItem("athlog:last");
-  teamId=null; memberId=null; viewingMemberId=null;
-  window.location.reload();
-});
-$$(".tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
-
-// ----- 旧SVG（存在しない場合は即return）-----
-function renderRegions(regions={}){
-  document.querySelectorAll('#bodyMap .region').forEach(el=>{
-    el.classList.remove('f1','f2','f3');
-    const lvl=regions[el.dataset.id];
-    if(lvl) el.classList.add(`f${lvl}`);
-  });
-}
-function initRegionMap(){
-  const svg=document.getElementById('bodyMap');
-  if(!svg) return;
-  svg.addEventListener('click', async (e)=>{
-    const target=e.target.closest('.region'); if(!target) return;
-    if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
-    const id=target.dataset.id;
-    const docRef=getJournalRef(teamId,memberId,selDate);
-    const payload= brush.erase
-      ? { [`regions.${id}`]: firebase.firestore.FieldValue.delete() }
-      : { [`regions.${id}`]: (brush.lvl||1) };
-    await docRef.set(payload,{merge:true});
-  });
-}
-
+  // 予定作成画面へ遷移し、タイトルに競技場名を入れる等の連携
+  switchTab('plans');
+  
+  // 少し強引ですが、UIが切り替わった後にフォームに入力する
+  setTimeout(() => {
+    // もし予定追加用のモーダルや入力欄があればそこに値を入れる
+    // 現状のplans実装に合わせて調整してください。ここでは例としてアラートのみ。
+    // 例: document.getElementById('planTitleInput').value = stadiumName + "で練習";
+    alert(`「${stadiumName}」での練習予定を作成してください。`);
+  }, 500);
+};
 // 入力の自動保存（デバウンス）
 function makeJournalAutoSaver(delayMs=700){
   let t=null;
