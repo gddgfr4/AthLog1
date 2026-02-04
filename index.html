@@ -15,7 +15,7 @@
 <body>
   <div id="app" class="app hidden">
     <header class="topbar">
-      <button class="ghost hidden" id="goHomeBtn" style="font-weight:bold; margin-right:8px;">🏠 ホーム</button>
+      <button class="ghost hidden" id="goHomeBtn" style="font-weight:bold; margin-right:8px;">🏠</button>
       
       <button class="ghost" id="openHelpBtn">ヘルプ</button>
       <div class="brand">AthLog</div>
@@ -40,7 +40,7 @@
       </div>
     </header>
 
-    <nav class="tabs" id="journalTabs">
+    <nav class="tabs hidden" id="journalTabs">
       <button data-tab="journal" class="tab active">日誌</button>
       <button data-tab="month" class="tab">月一覧</button>
       <button data-tab="dashboard" class="tab">グラフ</button>
@@ -50,7 +50,7 @@
     <section id="home" class="tabpanel active">
       <div class="home-container">
         <h2 style="text-align:center; margin-bottom:20px; color:var(--text);">メニュー選択</h2>
-        <div class="home-grid">
+        <div class="home-grid" id="homeMenuGrid">
           <button class="home-card" data-target="journal">
             <div class="home-icon">📓</div>
             <div class="home-label">日誌</div>
@@ -91,91 +91,91 @@
     </section>
 
     <section id="journal" class="tabpanel">
-      <div class="journal-grid">
-        <div class="panel">
-          <div class="muscle-header">
-            <h3>筋疲労</h3>
-            <div class="palette">
-              <button class="lvl active" data-lvl="1"><span class="dot dot1"></span>1</button>
-              <button class="lvl" data-lvl="2"><span class="dot dot2"></span>2</button>
-              <button class="lvl" data-lvl="3"><span class="dot dot3"></span>3</button>
-              <button id="eraser" class="lvl">🧼</button>
-            </div>
-          </div>
-          <div id="mmWrap">
-            <img id="mmBg" src="./human.webp" alt="" style="display:block;width:100%;height:auto;pointer-events:none;">
-            <canvas id="mmBase"></canvas>
-            <canvas id="mmBarrier"></canvas>
-            <canvas id="mmOverlay"></canvas>
-          </div>
-        </div>
-
-        <div class="panel right">
-          <div class="weekbar">
-            <button id="weekPrev" class="ghost">&larr;</button>
-            <div id="weekChips" class="chips"></div>
-            <button id="weekNext" class="ghost">&rarr;</button>
-            <input type="date" id="datePicker" />
-            <button id="gotoToday" class="ghost">今日</button>
-            <button id="shareModeBtn" class="ghost">📷</button>
-          </div>
-
-          <div class="quick" style="justify-content:center;">
-            <button class="qbtn jog">ジョグ</button>
-            <button class="qbtn point">ポイント</button>
-            <button class="qbtn sup">補強</button>
-            <button class="qbtn off">オフ</button>
-            <button class="qbtn other">その他</button>
-          </div>
-
-          <div class="formcol">
-            <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">
-              <div style="width: 70px;">
-                <label>距離(km)</label>
-                <input type="number" id="distInput" step="0.1" min="0" />
-              </div>
-              <div style="width: 70px;">
-                <label>体重(kg)</label>
-                <input type="number" id="weightInput" step="0.1" min="0" />
-              </div>
-              <div style="flex:1; min-width:150px;">
-                <label>調子</label>
-                <div id="conditionBtns" class="condition-rating">
-                  <button data-val="1">1</button>
-                  <button data-val="2">2</button>
-                  <button data-val="3">3</button>
-                  <button data-val="4">4</button>
-                  <button data-val="5">5</button>
+        <div class="journal-grid">
+            <div class="panel">
+                <div class="muscle-header">
+                <h3>筋疲労</h3>
+                <div class="palette">
+                    <button class="lvl active" data-lvl="1"><span class="dot dot1"></span>1</button>
+                    <button class="lvl" data-lvl="2"><span class="dot dot2"></span>2</button>
+                    <button class="lvl" data-lvl="3"><span class="dot dot3"></span>3</button>
+                    <button id="eraser" class="lvl">🧼</button>
                 </div>
-              </div>
+                </div>
+                <div id="mmWrap">
+                <img id="mmBg" src="./human.webp" alt="" style="display:block;width:100%;height:auto;pointer-events:none;">
+                <canvas id="mmBase"></canvas>
+                <canvas id="mmBarrier"></canvas>
+                <canvas id="mmOverlay"></canvas>
+                </div>
             </div>
-            <div class="note">
-              <label>練習内容</label>
-              <textarea id="trainInput" rows="3"></textarea>
-              <div class="merge">
-                <select id="mergeScope" class="ghost"></select>
-                <input id="mergeTagFilter" class="ghost" placeholder="タグ" />
-                <button id="mergeBtn" class="ghost">反映</button>
-              </div>
+
+            <div class="panel right">
+                <div class="weekbar">
+                <button id="weekPrev" class="ghost">&larr;</button>
+                <div id="weekChips" class="chips"></div>
+                <button id="weekNext" class="ghost">&rarr;</button>
+                <input type="date" id="datePicker" />
+                <button id="gotoToday" class="ghost">今日</button>
+                <button id="shareModeBtn" class="ghost">📷</button>
+                </div>
+
+                <div class="quick" style="justify-content:center;">
+                <button class="qbtn jog">ジョグ</button>
+                <button class="qbtn point">ポイント</button>
+                <button class="qbtn sup">補強</button>
+                <button class="qbtn off">オフ</button>
+                <button class="qbtn other">その他</button>
+                </div>
+
+                <div class="formcol">
+                <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">
+                    <div style="width: 70px;">
+                    <label>距離(km)</label>
+                    <input type="number" id="distInput" step="0.1" min="0" />
+                    </div>
+                    <div style="width: 70px;">
+                    <label>体重(kg)</label>
+                    <input type="number" id="weightInput" step="0.1" min="0" />
+                    </div>
+                    <div style="flex:1; min-width:150px;">
+                    <label>調子</label>
+                    <div id="conditionBtns" class="condition-rating">
+                        <button data-val="1">1</button>
+                        <button data-val="2">2</button>
+                        <button data-val="3">3</button>
+                        <button data-val="4">4</button>
+                        <button data-val="5">5</button>
+                    </div>
+                    </div>
+                </div>
+                <div class="note">
+                    <label>練習内容</label>
+                    <textarea id="trainInput" rows="3"></textarea>
+                    <div class="merge">
+                    <select id="mergeScope" class="ghost"></select>
+                    <input id="mergeTagFilter" class="ghost" placeholder="タグ" />
+                    <button id="mergeBtn" class="ghost">反映</button>
+                    </div>
+                </div>
+                <div class="note">
+                    <label>タイム・感想</label>
+                    <textarea id="feelInput" rows="6"></textarea>
+                </div>
+                <div class="savebar">
+                    <div id="distanceSummary" class="muted">...</div>
+                </div>
+                <div class="note" id="teamSharedCommentBox">
+                    <label>コメント</label>
+                    <textarea id="teamSharedComment" rows="2" placeholder="共有コメント..."></textarea>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                    <div id="teamSharedCommentStatus" class="muted"></div>
+                    <button id="tscSendBtn" class="primary">送信</button>
+                    </div>
+                </div>
+                </div>
             </div>
-            <div class="note">
-              <label>タイム・感想</label>
-              <textarea id="feelInput" rows="6"></textarea>
-            </div>
-            <div class="savebar">
-             <div id="distanceSummary" class="muted">...</div>
-            </div>
-            <div class="note" id="teamSharedCommentBox">
-              <label>コメント</label>
-              <textarea id="teamSharedComment" rows="2" placeholder="共有コメント..."></textarea>
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                <div id="teamSharedCommentStatus" class="muted"></div>
-                <button id="tscSendBtn" class="primary">送信</button>
-              </div>
-            </div>
-          </div>
         </div>
-      </div>
     </section>
 
     <section id="month" class="tabpanel">
@@ -355,7 +355,7 @@
     };
     if (!firebase.apps || !firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
   </script>
-  <script src="app.js?v=20251221_home2" defer></script>
+  <script src="app.js?v=20251221_home_fix" defer></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(console.error); });
