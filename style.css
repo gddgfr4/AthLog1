@@ -1239,3 +1239,109 @@ body.share-mode #app {
 #goHomeBtn:hover {
   background-color: var(--chip-on);
 }
+
+/* ... (既存のスタイルはそのまま維持) ... */
+
+/* ========== Ltimer Styles & Mini-Tailwind Shim ========== */
+:root {
+  /* Ltimer Variables */
+  --lt-approaching-warn-color: #facc15;
+  --lt-approaching-imminent-color: #fb923c;
+  --lt-exceeded-color: #f87171;
+  --lt-work-color: #4ade80;
+  --lt-rest-color: #60a5fa;
+  --lt-font-main: clamp(28px, 8vw, 40px);
+  --lt-font-live: clamp(22px, 6vw, 32px);
+  --lt-btn-h: 56px;
+  --lt-master-h: 64px;
+  --lt-pm-btn-h: 76px;
+}
+
+/* Utilities reused from Tailwind */
+.lt-hidden { display: none !important; }
+.lt-flex { display: flex; }
+.lt-flex-col { flex-direction: column; }
+.lt-items-center { align-items: center; }
+.lt-justify-center { justify-content: center; }
+.lt-justify-between { justify-content: space-between; }
+.lt-gap-2 { gap: 8px; }
+.lt-gap-3 { gap: 12px; }
+.lt-gap-4 { gap: 16px; }
+.lt-p-2 { padding: 8px; }
+.lt-p-4 { padding: 16px; }
+.lt-p-6 { padding: 24px; }
+.lt-w-full { width: 100%; }
+.lt-h-full { height: 100%; }
+.lt-text-center { text-align: center; }
+.lt-font-bold { font-weight: 700; }
+.lt-text-xl { font-size: 1.25rem; }
+.lt-text-2xl { font-size: 1.5rem; }
+.lt-text-sm { font-size: 0.875rem; }
+.lt-text-white { color: white; }
+.lt-rounded-lg { border-radius: 8px; }
+.lt-rounded-xl { border-radius: 12px; }
+.lt-shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06); }
+.lt-border { border: 1px solid #e5e7eb; }
+
+/* Colors */
+.lt-bg-indigo-600 { background-color: #4f46e5; }
+.lt-text-indigo-700 { color: #4338ca; }
+.lt-bg-indigo-50 { background-color: #eef2ff; }
+.lt-bg-green-500 { background-color: #22c55e; }
+.lt-bg-green-600 { background-color: #16a34a; }
+.lt-text-green-700 { color: #15803d; }
+.lt-bg-green-50 { background-color: #f0fdf4; }
+.lt-bg-gray-800 { background-color: #1f2937; }
+.lt-bg-gray-200 { background-color: #e5e7eb; }
+.lt-bg-gray-100 { background-color: #f3f4f6; }
+.lt-text-gray-700 { color: #374151; }
+.lt-text-gray-500 { color: #6b7280; }
+.lt-bg-red-500 { background-color: #ef4444; }
+.lt-bg-blue-500 { background-color: #3b82f6; }
+.lt-bg-orange-500 { background-color: #f97316; }
+
+/* Ltimer Components */
+.lt-screen { position: relative; height: 100%; width: 100%; overflow: hidden; display: flex; flex-direction: column; }
+.lt-back-btn { position: absolute; left: 10px; top: 10px; z-index: 60; }
+.lt-back-btn button { width: 44px; height: 44px; border-radius: 50%; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.15); border: none; font-size: 20px; cursor: pointer; }
+
+/* Grid Layouts */
+.lt-grid-cols-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.lt-col-span-2 { grid-column: span 2 / span 2; }
+.lt-col-span-1 { grid-column: span 1 / span 1; }
+
+/* Runner Cards */
+.runner-wrap { display: flex; flex-direction: column; height: 100%; flex: 1; overflow: hidden; }
+.runner-grid { display: grid; flex: 1; padding: 6px; gap: 6px; overflow-y: auto; align-content: start; }
+.runner-card { background: #F9FAFB; border-radius: 12px; padding: 8px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto 1fr auto; gap: 6px; height: 100%; min-height: 180px; overflow: hidden; border: 1px solid #e5e7eb; position: relative; }
+.runner-card-header { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr minmax(80px, 40%); gap: 6px; align-items: center; }
+.runner-main-time { grid-column: 1 / -1; font-size: var(--lt-font-main); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.runner-lap-live { grid-column: 1 / -1; font-size: var(--lt-font-live); font-weight: 800; border-radius: 8px; padding: 2px 6px; font-variant-numeric: tabular-nums; }
+.runner-lap-history { grid-column: 1 / -1; overflow-y: auto; background: rgba(229,231,235,0.8); border-radius: 8px; padding: 4px; font-size: 11px; height: 100%; }
+.runner-actions { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1.6fr; gap: 6px; margin-top: auto; }
+.btn-lap, .btn-start { height: var(--lt-btn-h); border: none; font-weight: bold; color: white; border-radius: 8px; cursor: pointer; }
+
+.split-master { min-height: var(--lt-master-h); background: #1f2937; color: white; display: flex; align-items: center; justify-content: center; padding: 8px; gap: 8px; flex-wrap: wrap; }
+.split-master button.btn { height: 40px; }
+
+/* PM Mode */
+.pm-grid { display: grid; flex: 1; padding: 6px; gap: 6px; overflow-y: auto; }
+.pm-lane { background: #fff; border-radius: 12px; padding: 8px; display: grid; grid-template-rows: auto auto auto 1fr auto; gap: 6px; height: 100%; overflow: hidden; border: 1px solid #e5e7eb; }
+.pm-lap-btn { width: 100%; height: var(--lt-pm-btn-h); font-size: 18px; font-weight: bold; border: none; border-radius: 12px; color: white; cursor: pointer; }
+
+/* Custom Timer */
+.custom-runner { height: 100%; display: flex; flex-direction: column; justify-content: space-between; align-items: center; text-align: center; padding: 20px; transition: background-color 0.3s; }
+.work-bg { background-color: var(--lt-work-color); }
+.rest-bg { background-color: var(--lt-rest-color); color: white; }
+
+/* Modal */
+.lt-modal { position: absolute; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 100; padding: 16px; }
+.lt-modal-content { background: #fff; border-radius: 12px; padding: 16px; width: 100%; max-width: 600px; max-height: 90%; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+
+/* Frames */
+.frame-warn10 { background: #fde047 !important; }
+.frame-warn5 { background: #fdba74 !important; }
+.frame-bad { background: #fca5a5 !important; }
+
+/* Form Controls */
+.lt-input { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; text-align: center; font-size: 16px; }
