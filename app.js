@@ -3826,15 +3826,19 @@ const BODY_PART_NAMES = {
   'foot_l': '左足裏', 'foot_r': '右足裏'
 };
 
+// app.js の runGeminiAnalysis 関数全体をこれに置き換えてください
+
 async function runGeminiAnalysis(apiKey, isInitial, userMessage = "") {
   const runBtn = document.getElementById('runAiBtn');
   const sendBtn = document.getElementById('aiSendBtn');
+  // APIキーの不要な文字を除去
   const cleanKey = apiKey.trim().replace(/:\d+$/, '');
 
   if(isInitial && runBtn) runBtn.disabled = true;
   if(sendBtn) sendBtn.disabled = true;
 
   try {
+    // 初回分析時のシステムプロンプト生成
     if (isInitial) {
       const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
       const today = new Date();
@@ -3856,10 +3860,12 @@ async function runGeminiAnalysis(apiKey, isInitial, userMessage = "") {
         
         let fatigueParts = [];
         const stats = data.mmStats || {}; 
+        const getPartName = (id) => (typeof BODY_PART_NAMES !== 'undefined' ? BODY_PART_NAMES[id] : id);
+
         Object.keys(stats).forEach(partId => {
           const val = stats[partId]; 
           if(val > 0) {
-            const name = BODY_PART_NAMES[partId] || partId;
+            const name = getPartName(partId);
             const lv = val > 2000 ? 3 : (val > 500 ? 2 : 1); 
             fatigueParts.push(`${name}(Lv${lv})`);
           }
@@ -3877,20 +3883,20 @@ ${history.join('\n')}
 上記データを分析し、特に筋肉マップから抽出された「疲労部位」と練習メニューの関連性を科学的に分析してアドバイスしてください。`;
 
       aiChatHistory = [{ role: 'user', parts: [{ text: systemPrompt }] }];
-    } else {
-      // チャット継続時は aiChatHistory は更新済み
     }
 
-    // --- モデル呼び出し (バックアップ廃止・安定版一本化) ---
+    // --- モデル呼び出し (最新版: gemini-2.5-flash) ---
     const call = async () => {
-      // モデル名を安定版の 'gemini-1.5-flash' に固定
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanKey}`;
+      // ★ここを修正しました: gemini-2.5-flash
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${cleanKey}`;
+      
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: aiChatHistory })
       });
-      if(!res.ok) throw { status: res.status };
+      
+      if(!res.ok) throw { status: res.status, statusText: res.statusText };
       return res.json();
     };
 
@@ -3908,15 +3914,22 @@ ${history.join('\n')}
   } catch(e) {
     console.error(e);
     let errorMsg = "エラーが発生しました。";
-    if(e.status === 429) errorMsg = "アクセスが集中しています（429）。1分ほど待ってから再度お試しください。";
-    if(e.status === 404) errorMsg = "モデルが見つかりません（404）。管理者に連絡してください。";
+    
+    // エラーメッセージの分岐
+    if(e.status === 429) {
+      errorMsg = "アクセスが集中しています（429）。\n1分ほど時間を空けてから、再度ボタンを押してください。";
+    } else if(e.status === 404) {
+      errorMsg = "指定されたモデルが見つかりません（404）。\nコード内のモデル名を 'gemini-2.5-flash' に修正してください。";
+    } else if(e.status === 400) {
+      errorMsg = "リクエストが無効です（400）。\nAPIキーが正しいか確認してください。";
+    }
+    
     addAiChatMessage('system', errorMsg);
   } finally {
     if(runBtn) runBtn.disabled = false;
     if(sendBtn) sendBtn.disabled = false;
   }
 }
-
 async function callGeminiApi(key, history) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
   const res = await fetch(url, {
