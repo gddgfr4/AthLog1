@@ -256,20 +256,19 @@ function initHeaderEvents() {
 // ========== App Initialization ============
 // ==========================================
 async function showApp(){
+  // 先にUIリセット（タブを消す）
   switchTab("home", true);
   
   $("#teamLabel").textContent = teamId;
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
 
-  // 日付初期化
   const __nowMon = getMonthStr(new Date());
   if($("#monthPick") && !$("#monthPick").value) $("#monthPick").value = __nowMon;
   if($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value = __nowMon;
 
   await populateMemberSelect();
   
-  // 自分（ログインユーザー）の特定
   const loginName = $("#memberName").value.trim();
   const memberSelect = $("#memberSelect");
   let correctId = null;
@@ -283,14 +282,18 @@ async function showApp(){
   }
   myMemberId = correctId || memberId;
   viewingMemberId = myMemberId;
-  if(memberSelect && correctId) memberSelect.value = correctId;
+  if(memberSelect) memberSelect.value = myMemberId;
 
-  $("#memberLabel").textContent = getDisplayName(viewingMemberId);
+  // ★削除: 名前ラベルへの書き込みを削除
+  // $("#memberLabel").textContent = getDisplayName(viewingMemberId);
+  
   refreshBadges();
   
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId = $("#memberSelect").value;
-    $("#memberLabel").textContent = getDisplayName(viewingMemberId);
+    // ★削除
+    // $("#memberLabel").textContent = getDisplayName(viewingMemberId);
+    
     selDate = new Date();
     const dp = $("#datePicker"); if(dp) dp.value = ymd(selDate);
     refreshBadges();
@@ -298,7 +301,7 @@ async function showApp(){
     switchTab(currentTab, true);
   });
 
-  // ★追加: タブボタン（日誌・月一覧・グラフ）にクリックイベントを設定
+  // タブボタンイベント
   $$(".tab").forEach(btn => {
     btn.addEventListener("click", () => {
       const target = btn.dataset.tab;
@@ -308,7 +311,7 @@ async function showApp(){
 
   initJournal(); initMonth(); initPlans(); initDashboard(); initMemo();
   initHome();
-  initHeaderEvents(); // ヘッダーボタン初期化
+  initHeaderEvents();
 
   switchTab("home"); 
 
@@ -418,18 +421,15 @@ function switchTab(id, forceRender = false) {
 
   // ★ ヘルパー: 強制的に「自分」のデータに戻す
   const enforceMyData = () => {
-    // IDがセットされているか確認
-    if (myMemberId) {
-      // 強制的に自分のIDにする
+    if (myMemberId && viewingMemberId !== myMemberId) {
       viewingMemberId = myMemberId;
-      
       const ms = document.getElementById("memberSelect");
       if (ms) ms.value = myMemberId;
       
-      const ml = document.getElementById("memberLabel");
-      if (ml) ml.textContent = getDisplayName(viewingMemberId);
+      // ★削除: 名前ラベルへの書き込みを削除（重複防止）
+      // const ml = document.getElementById("memberLabel");
+      // if (ml) ml.textContent = getDisplayName(viewingMemberId);
       
-      // ★重要: 「閲覧のみ」バッジを確実に消すために更新を呼ぶ
       refreshBadges();
     }
   };
@@ -443,11 +443,15 @@ function switchTab(id, forceRender = false) {
 
     if (navWrap) {
       navWrap.classList.remove("hidden");
-      // UIを目立たなくする
-      navWrap.style.opacity = enable ? "1" : "0.3"; 
-      navWrap.style.pointerEvents = enable ? "auto" : "none"; // クリック自体も無効化
+      navWrap.style.opacity = enable ? "1" : "0.5"; 
+      navWrap.style.pointerEvents = enable ? "auto" : "none";
     }
+    if (sel) sel.disabled = !enable;
   };
+
+  // ナビゲーション要素
+  const tabsNav = document.getElementById("journalTabs");
+  const homeBtn = document.getElementById("goHomeBtn");
 
   // --- 1. 競技場マップ ---
   if (id === 'stadium') {
@@ -456,12 +460,12 @@ function switchTab(id, forceRender = false) {
     
     document.getElementById('stadium')?.classList.add("active");
     
-    $("#journalTabs")?.classList.add("hidden");
-    $("#goHomeBtn")?.classList.remove("hidden");
+    // タブを確実に消す
+    if(tabsNav) { tabsNav.classList.add("hidden"); tabsNav.style.display = 'none'; }
+    if(homeBtn) homeBtn.classList.remove("hidden");
 
-    enforceMyData();           // 自分に戻す
-    configureMemberUI(false);  // 選択不可
-
+    enforceMyData();
+    configureMemberUI(false);
     ltimerRunning = false;
     initStadium();
     return;
@@ -473,12 +477,12 @@ function switchTab(id, forceRender = false) {
     const cp = document.getElementById('clock');
     if(cp) { cp.style.display='block'; cp.classList.add('active'); }
 
-    $("#journalTabs")?.classList.add("hidden");
-    $("#goHomeBtn")?.classList.remove("hidden");
+    // タブを確実に消す
+    if(tabsNav) { tabsNav.classList.add("hidden"); tabsNav.style.display = 'none'; }
+    if(homeBtn) homeBtn.classList.remove("hidden");
 
-    enforceMyData();           // 自分に戻す
-    configureMemberUI(false);  // 選択不可
-
+    enforceMyData();
+    configureMemberUI(false);
     initLtimer();
     return;
   }
@@ -492,47 +496,40 @@ function switchTab(id, forceRender = false) {
   $$(".tabpanel").forEach(p => p.classList.remove("active"));
   document.getElementById(id)?.classList.add("active");
 
-  const tabsNav = document.getElementById("journalTabs");
-  const homeBtn = document.getElementById("goHomeBtn");
-
   $$(".tab").forEach(btn => btn.classList.remove("active"));
 
-  // 日誌系画面判定
   const isJournalTab = ['journal', 'month', 'dashboard'].includes(id);
 
   if (isJournalTab) {
     // === 日誌系 ===
-    configureMemberUI(true); // 変更許可
-
-    tabsNav?.classList.remove("hidden");
-    homeBtn?.classList.remove("hidden");
+    configureMemberUI(true); 
+    
+    // タブを表示
+    if(tabsNav) { tabsNav.classList.remove("hidden"); tabsNav.style.display = 'flex'; }
+    if(homeBtn) homeBtn.classList.remove("hidden");
 
     $(`.tab[data-tab="${id}"]`)?.classList.add("active");
 
-    // 日誌タブでは enforceMyData を呼ばない（選択した他人を見られるように）
-
   } else {
     // === ホーム、その他 ===
-    enforceMyData();           // ★ここで確実に自分に戻す
-    configureMemberUI(false);  // 選択不可
+    enforceMyData();
+    configureMemberUI(false);
 
-    tabsNav?.classList.add("hidden");
+    // タブを確実に消す
+    if(tabsNav) { tabsNav.classList.add("hidden"); tabsNav.style.display = 'none'; }
 
-    // ホームだけ戻るボタンを消す
     if (id === 'home') {
-      homeBtn?.classList.add("hidden");
+      if(homeBtn) homeBtn.classList.add("hidden");
     } else {
-      homeBtn?.classList.remove("hidden");
+      if(homeBtn) homeBtn.classList.remove("hidden");
     }
   }
 
-  // クリーンアップ
-  if (typeof unsubscribePlans === 'function') unsubscribePlans();
-  if (typeof unsubscribeMemo === 'function') unsubscribeMemo();
-  if (typeof unsubscribeMonthChat === 'function') unsubscribeMonthChat();
-  if (typeof unsubscribeJournal === 'function') unsubscribeJournal();
+  if (unsubscribePlans) unsubscribePlans();
+  if (unsubscribeMemo) unsubscribeMemo();
+  if (unsubscribeMonthChat) unsubscribeMonthChat();
+  if (unsubscribeJournal) unsubscribeJournal();
 
-  // 描画
   if (id === "journal") renderJournal();
   if (id === "month") renderMonth();
   if (id === "plans") renderPlans();
