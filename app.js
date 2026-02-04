@@ -372,40 +372,84 @@ function initTeamSwitcher(){
   };
 }
 
+const STADIUM_DATA = [
+  { name: "国立競技場", region: "関東", address: "東京都新宿区霞ヶ丘町10-1", lat: 35.6778, lng: 139.7145 },
+  { name: "駒沢オリンピック公園陸上競技場", region: "関東", address: "東京都世田谷区駒沢公園1-1", lat: 35.6253, lng: 139.6631 },
+  { name: "日産スタジアム", region: "関東", address: "神奈川県横浜市港北区小机町3300", lat: 35.5100, lng: 139.6062 },
+  { name: "大阪ヤンマースタジアム長居", region: "近畿", address: "大阪府大阪市東住吉区長居公園1-1", lat: 34.6121, lng: 135.5173 },
+  { name: "博多の森陸上競技場", region: "九州", address: "福岡県福岡市博多区東平尾公園2-1-2", lat: 33.5857, lng: 130.4605 },
+  // ... 他のデータ ...
+];
+
 function switchTab(id, forceRender = false) {
-  // 1. 特殊な画面遷移（競技場マップなど外部連携）
+  // ===============================================
+  // 1. 特殊モード: 競技場マップ (Stadium Map)
+  // ===============================================
   if (id === 'stadium') {
-    openStadiumMap();
+    // 既存のタブパネルをすべて非表示にする
+    $$(".tabpanel").forEach(p => p.classList.remove("active"));
+    
+    // 時計パネルが表示されていたら隠す（念のため）
+    const clockPanel = document.getElementById('clock');
+    if (clockPanel) {
+      clockPanel.style.display = 'none';
+      clockPanel.classList.remove('active');
+    }
+
+    // 競技場パネルを表示
+    const stdPanel = document.getElementById('stadium');
+    if (stdPanel) {
+      stdPanel.classList.add("active");
+    }
+
+    // ナビゲーション制御
+    const tabsNav = document.getElementById("journalTabs");
+    const homeBtn = document.getElementById("goHomeBtn");
+    const memberNav = document.getElementById("memberNavWrap");
+
+    if (tabsNav) tabsNav.classList.add("hidden");      // タブは隠す
+    if (homeBtn) homeBtn.classList.remove("hidden");   // ★ホームに戻るボタンは表示
+    if (memberNav) memberNav.classList.add("hidden");  // メンバー選択は不要なので隠す
+
+    // Ltimerが動いていたら停止
+    ltimerRunning = false;
+
+    // 競技場機能の初期化
+    initStadium();
     return;
   }
 
-  // 2. 時計（Ltimer）画面への切り替え処理
+  // ===============================================
+  // 2. 特殊モード: 時計 (Ltimer)
+  // ===============================================
   if (id === 'clock') {
-    // 既存のすべてのタブパネルを非表示にする
+    // 既存のタブパネルをすべて非表示にする
     $$(".tabpanel").forEach(p => p.classList.remove("active"));
 
-    // 時計パネルを表示（HTML側で style="display:none" している場合の対策含む）
+    // 時計パネルを表示（HTML側で style="display:none" している場合の対策）
     const clockPanel = document.getElementById('clock');
     if (clockPanel) {
       clockPanel.style.display = 'block';
       clockPanel.classList.add('active');
     }
 
-    // UIパーツの表示制御
+    // ナビゲーション制御
     const tabsNav = document.getElementById("journalTabs");
     const homeBtn = document.getElementById("goHomeBtn");
     const memberNav = document.getElementById("memberNavWrap");
 
-    if (tabsNav) tabsNav.classList.add("hidden");      // 日誌タブは隠す
-    if (homeBtn) homeBtn.classList.remove("hidden");   // ホームに戻るボタンは表示
-    if (memberNav) memberNav.classList.add("hidden");  // メンバー選択は隠す（Ltimer内で独自に行うため）
+    if (tabsNav) tabsNav.classList.add("hidden");      // タブは隠す
+    if (homeBtn) homeBtn.classList.remove("hidden");   // ★ホームに戻るボタンは表示
+    if (memberNav) memberNav.classList.add("hidden");  // メンバー選択はLtimer内で行うため隠す
 
     // Ltimerを初期化して起動
     initLtimer();
     return;
   }
 
-  // === 以下、通常のタブ切り替え処理 ===
+  // ===============================================
+  // 3. 通常モード (ホーム, 日誌, 予定, メモ, 通知など)
+  // ===============================================
 
   // Ltimerが動いていたら停止フラグを立てる
   ltimerRunning = false;
@@ -417,17 +461,17 @@ function switchTab(id, forceRender = false) {
     clockPanel.classList.remove('active');
   }
 
-  // 重複描画防止（ホーム画面以外で、既に同じタブが開いている場合は何もしない）
+  // 重複レンダリング防止（ホーム画面以外で、既に同じタブが開いている場合は何もしない）
   if (!forceRender && $(".tabpanel.active")?.id === id && id !== 'home') return;
 
-  // 3. パネルの表示切り替え
+  // パネルの表示切り替え
   $$(".tabpanel").forEach(p => p.classList.remove("active"));
   const targetPanel = document.getElementById(id);
   if (targetPanel) {
     targetPanel.classList.add("active");
   }
 
-  // 4. ナビゲーションバー（タブ・ボタン・メンバー選択）の制御
+  // ナビゲーションバー（タブ・ボタン・メンバー選択）の制御
   const tabsNav = document.getElementById("journalTabs");
   const homeBtn = document.getElementById("goHomeBtn");
   const memberNav = document.getElementById("memberNavWrap");
@@ -474,19 +518,20 @@ function switchTab(id, forceRender = false) {
     }
   }
 
-  // 5. データのクリーンアップ（Firestore監視の解除）
+  // 4. データのクリーンアップ（Firestore監視の解除）
   if (unsubscribePlans) unsubscribePlans();
   if (unsubscribeMemo) unsubscribeMemo();
   if (unsubscribeMonthChat) unsubscribeMonthChat();
   if (unsubscribeJournal) unsubscribeJournal();
 
-  // 6. 各画面の描画処理実行
+  // 5. 各画面の描画処理実行
   if (id === "journal") renderJournal();
   if (id === "month") renderMonth();
   if (id === "plans") renderPlans();
   if (id === "dashboard") renderDashboard();
   if (id === "memo") { renderMemo(); markMemoRead(); }
   if (id === "notify") { renderNotify(); }
+  // ai_coachは初期化済みならそのまま利用可能
 }
 function initHome() {
   const grid = document.getElementById('homeMenuGrid');
@@ -968,6 +1013,133 @@ function updateSharedWatches() {
 }
 function updateLtMemberSelects() {
     // チームメンバーをプルダウン等に入れる処理（必要なら実装）
+}
+
+// ==========================================
+// ========== Stadium Map Logic =============
+// ==========================================
+
+let stdListInitialized = false;
+
+function initStadium() {
+  if(stdListInitialized) return;
+  stdListInitialized = true;
+  
+  renderStadiumList(STADIUM_DATA);
+  
+  // フィルターイベント
+  const filters = $$("#std-region-filters .chip");
+  filters.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filters.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterStadiums();
+    });
+  });
+
+  // 検索イベント
+  const searchInput = document.getElementById('std-search');
+  if(searchInput) {
+    searchInput.addEventListener('input', filterStadiums);
+  }
+
+  // 現在地検索
+  const geoBtn = document.getElementById('std-geo-btn');
+  if(geoBtn) {
+    geoBtn.addEventListener('click', searchNearestStadium);
+  }
+}
+
+function filterStadiums() {
+  const region = $("#std-region-filters .chip.active")?.dataset.region || 'all';
+  const keyword = $("#std-search").value.toLowerCase().trim();
+  
+  const filtered = STADIUM_DATA.filter(s => {
+    const matchRegion = (region === 'all') || (s.region === region);
+    const matchKey = !keyword || s.name.toLowerCase().includes(keyword) || s.address.toLowerCase().includes(keyword);
+    return matchRegion && matchKey;
+  });
+  
+  renderStadiumList(filtered);
+}
+
+function renderStadiumList(list) {
+  const container = document.getElementById('std-list');
+  if(!container) return;
+  
+  if(list.length === 0) {
+    container.innerHTML = '<div class="muted" style="text-align:center; padding:20px;">見つかりませんでした</div>';
+    return;
+  }
+
+  container.innerHTML = list.map(s => {
+    // Google Mapsへのリンク生成
+    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.name + " " + s.address)}`;
+    
+    return `
+      <div class="std-card">
+        <div class="std-info">
+          <span class="std-region">${s.region}</span>
+          <div class="std-name">${s.name}</div>
+          <div class="std-address">${s.address}</div>
+        </div>
+        <a href="${mapUrl}" target="_blank" class="std-map-btn">
+          <span>🗺</span>
+          MAP
+        </a>
+      </div>
+    `;
+  }).join('');
+}
+
+function searchNearestStadium() {
+  if (!navigator.geolocation) return alert("お使いの端末は位置情報に対応していません。");
+  
+  const btn = document.getElementById('std-geo-btn');
+  const originalText = btn.textContent;
+  btn.textContent = "測位中...";
+  btn.disabled = true;
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      
+      // 距離計算してソート
+      const withDist = STADIUM_DATA.map(s => {
+        const d = getDistance(lat, lng, s.lat, s.lng);
+        return { ...s, dist: d };
+      }).sort((a, b) => a.dist - b.dist);
+
+      // 上位10件を表示
+      renderStadiumList(withDist.slice(0, 10));
+      
+      // フィルターUIリセット
+      $$("#std-region-filters .chip").forEach(b => b.classList.remove('active'));
+      $("#std-search").value = "";
+      
+      btn.textContent = originalText;
+      btn.disabled = false;
+    },
+    (err) => {
+      alert("位置情報の取得に失敗しました。");
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  );
+}
+
+// 2点間の距離(km)計算 (Haversine formula)
+function getDistance(lat1, lng1, lat2, lng2) {
+  if(!lat1 || !lng1 || !lat2 || !lng2) return 99999;
+  const R = 6371; 
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLng = (lng2 - lng1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * (Math.PI/180)) * Math.cos(lat2 * (Math.PI/180)) * Math.sin(dLng/2) * Math.sin(dLng/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
 }
 
 // ===== Login & Logout =====
