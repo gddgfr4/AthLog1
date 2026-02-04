@@ -582,7 +582,7 @@ function initLtimer() {
   ltimerRunning = true;
   showLtScreen('menu'); // 初期画面はメニュー
   
-  // イベントリスナー設定
+  // イベントリスナー設定 (安全策付き)
   setupLtimerEvents();
   
   // ループ開始
@@ -620,8 +620,9 @@ function showLtScreen(name) {
   }
 }
 
+// ★ 安全なイベント設定関数
 function setupLtimerEvents() {
-  // 重複登録防止のためのフラグチェック
+  // 重複登録防止
   if(window._ltEventsSetup) return;
   window._ltEventsSetup = true;
 
@@ -632,6 +633,7 @@ function setupLtimerEvents() {
       e.stopPropagation();
       stopCustomTimer();
       if(ltPmState.lanes) ltPmState.lanes.forEach(l => l.running = false);
+      // セッション切断
       if(ltSessionRef && ltUserId) {
           ltSessionRef.child('users').child(ltUserId).remove();
           ltSessionRef.off(); ltSessionRef = null; ltUserId = null;
@@ -651,7 +653,7 @@ function setupLtimerEvents() {
     };
   }
 
-  // モード選択
+  // モード選択ボタン
   const btnSplit = $("#choose-split");
   if (btnSplit) btnSplit.onclick = () => { initSplit(!!ltSessionRef); showLtScreen('split'); };
   
@@ -680,11 +682,11 @@ function setupLtimerEvents() {
   const hClose = $("#help-close"); if (hClose) hClose.onclick = () => $("#lt-help").classList.add("lt-hidden");
   const sClose = $("#summary-close"); if (sClose) sClose.onclick = () => $("#lt-summary").classList.add("lt-hidden");
 
-  // ★★★ ここに移動・修正したボタン設定 ★★★
+  // ★以前エラーが出ていたボタン設定をここに移動（要素があるかチェックしてから設定）
   const btnAdd = $("#standalone-controls button[data-action='add']");
   if(btnAdd) btnAdd.onclick = () => {
       const newId = ltWatches.length ? Math.max(...ltWatches.map(w=>w.id))+1 : 0;
-      ltWatches.push({id:newId, name:'', running:false, elapsed:0, start:0, lastLap:0, laps:[]});
+      ltWatches.push({id:newId, name:(typeof viewingMemberId !== 'undefined' ? viewingMemberId : ''), running:false, elapsed:0, start:0, lastLap:0, laps:[], target:0});
       renderSplit();
   };
   
@@ -692,6 +694,7 @@ function setupLtimerEvents() {
   if(btnStartAll) btnStartAll.onclick = () => {
       const now = Date.now();
       ltWatches.forEach(w => { if(!w.running){ w.running=true; w.start=now-w.elapsed; }});
+      playClickSound();
       renderSplit();
   };
 
@@ -699,15 +702,16 @@ function setupLtimerEvents() {
   if(btnStopAll) btnStopAll.onclick = () => {
       const now = Date.now();
       ltWatches.forEach(w => { if(w.running){ w.running=false; w.elapsed=now-w.start; }});
+      playClickSound();
       renderSplit();
   };
 
   const btnReset = $("#standalone-controls button[data-action='review-reset']");
   if(btnReset) btnReset.onclick = () => {
-      let html = '<table style="width:100%; text-align:center;"><tr><th>Name</th><th>Total</th><th>Laps</th></tr>';
+      let html = '<table style="width:100%; text-align:center; border-collapse:collapse;"><tr><th style="border-bottom:1px solid #ddd;">Name</th><th style="border-bottom:1px solid #ddd;">Total</th><th style="border-bottom:1px solid #ddd;">Laps</th></tr>';
       ltWatches.forEach(w => {
-          const dispName = getDisplayName(w.name) || w.name || 'No Name';
-          html += `<tr><td>${dispName}</td><td>${fmt(w.elapsed)}</td><td>${w.laps.length}</td></tr>`;
+          const dispName = (typeof getDisplayName === 'function' ? getDisplayName(w.name) : w.name) || w.name || '-';
+          html += `<tr><td style="padding:4px;">${dispName}</td><td>${fmt(w.elapsed)}</td><td>${(w.laps||[]).length}</td></tr>`;
       });
       html += '</table>';
       
@@ -717,6 +721,7 @@ function setupLtimerEvents() {
       const sumModal = $("#lt-summary");
       if(sumModal) sumModal.classList.remove('lt-hidden');
       
+      // リセット
       ltWatches = ltWatches.map(w => ({...w, running:false, elapsed:0, start:0, lastLap:0, laps:[]}));
       renderSplit();
   };
@@ -725,11 +730,13 @@ function setupLtimerEvents() {
 function updateLtChooserView() {
   const isShared = !!ltSessionRef;
   const msg = $("#share-status-msg");
-  if(isShared) {
-      msg.textContent = "接続中";
-      msg.style.color = "var(--primary)";
-  } else {
-      msg.textContent = "";
+  if(msg) {
+    if(isShared) {
+        msg.textContent = "接続中";
+        msg.style.color = "var(--primary)";
+    } else {
+        msg.textContent = "";
+    }
   }
   ['choose-pm', 'choose-custom'].forEach(id => {
       const btn = document.getElementById(id);
@@ -741,17 +748,14 @@ function updateLtChooserView() {
   });
 }
 
-// ★ ヘルパー: メンバー選択肢のHTML生成
+// ヘルパー: メンバー選択肢のHTML生成
 function getLtMemberOptions(selectedVal) {
   const ms = document.getElementById("memberSelect");
-  // メンバーリストがまだロードされていない、または存在しない場合は単純なテキスト表示用のoptionを返す
   if(!ms || ms.options.length === 0) return `<option value="${selectedVal}">${selectedVal || '選手を選択'}</option>`;
   
   let html = '<option value="">-- 選手を選択 --</option>';
-  // グローバルなメンバー選択プルダウン(memberSelect)の選択肢をコピー
   for(let i=0; i<ms.options.length; i++) {
     const opt = ms.options[i];
-    // ID(value)が一致するかチェック
     const isSel = (opt.value === selectedVal) ? 'selected' : '';
     html += `<option value="${opt.value}" ${isSel}>${opt.text}</option>`;
   }
@@ -762,42 +766,54 @@ function getLtMemberOptions(selectedVal) {
 function initSplit(isShared) {
     const controls = $("#share-controls");
     const standalone = $("#standalone-controls");
+    
     if(isShared) {
-        controls.classList.remove('lt-hidden');
-        standalone.classList.add('lt-hidden');
-        if(!ltUserId) standalone.classList.remove('lt-hidden');
+        if(controls) controls.classList.remove('lt-hidden');
+        if(standalone) standalone.classList.add('lt-hidden');
+        if(!ltUserId && standalone) standalone.classList.remove('lt-hidden');
     } else {
-        controls.classList.add('lt-hidden');
-        standalone.classList.remove('lt-hidden');
-        // 初期化: 自分1人 (IDでセット)
-        const myId = viewingMemberId || ''; 
-        ltWatches = [{id:0, name:myId, running:false, start:0, elapsed:0, lastLap:0, laps:[], target:0}];
+        if(controls) controls.classList.add('lt-hidden');
+        if(standalone) standalone.classList.remove('lt-hidden');
+        
+        const myId = (typeof viewingMemberId !== 'undefined') ? viewingMemberId : ''; 
+        ltWatches = [{
+            id:0, name:myId, running:false, start:0, elapsed:0, lastLap:0, laps:[], target:0
+        }];
         renderSplit();
     }
 }
 
 function renderSplit() {
     const grid = $("#split-grid");
+    if (!grid) return;
+
     grid.innerHTML = ltWatches.map(w => {
         let cum = 0;
         const hist = (w.laps || []).map((l, i) => {
             cum += l;
-            return `<div style="display:flex; justify-content:space-between; font-size:11px;"><span>${i+1}</span><span>${fmt(l)}</span><span style="color:#666">(${fmt(cum)})</span></div>`;
+            return `<div style="display:flex; justify-content:space-between; font-size:11px; border-bottom:1px solid #eee;">
+                <span>Lap ${i+1}</span>
+                <span style="font-weight:bold;">${fmt(l)}</span>
+                <span style="color:#666">(${fmt(cum)})</span>
+            </div>`;
         }).reverse().join('');
         
-        // ★ 修正: input type="text" を select に変更
         return `
         <div class="runner-card ${getCardColor(w)}" id="w-${w.id}">
-           <button class="lt-btn-del" data-id="${w.id}" onclick="ltDelWatch(${w.id})" style="position:absolute; right:4px; top:4px; background:#ddd; border-radius:50%; width:24px; height:24px; border:none; z-index:10;">×</button>
+           <button class="lt-btn-del" onclick="ltDelWatch(${w.id})" style="position:absolute; right:4px; top:4px; background:#ddd; border-radius:50%; width:24px; height:24px; border:none; z-index:10; font-weight:bold; cursor:pointer;">×</button>
+           
            <div class="runner-card-header">
              <select onchange="ltUpdateName(${w.id}, this.value)" class="lt-input" style="padding:4px; font-weight:bold;">
                 ${getLtMemberOptions(w.name)}
              </select>
-             <input type="number" placeholder="目標" value="${w.target||''}" onchange="ltUpdateTarget(${w.id}, this.value)" class="lt-input" style="padding:4px;">
+             <input type="number" placeholder="目標(秒)" value="${w.target||''}" onchange="ltUpdateTarget(${w.id}, this.value)" class="lt-input" style="padding:4px;">
            </div>
-           <div class="runner-main-time">${fmt(w.elapsed)}</div>
-           <div class="runner-lap-live">${fmt(w.elapsed - w.lastLap)}</div>
+           
+           <div class="runner-main-time" style="font-family:monospace;">${fmt(w.elapsed)}</div>
+           <div class="runner-lap-live" style="font-family:monospace; color:#444;">Lap: ${fmt(w.elapsed - w.lastLap)}</div>
+           
            <div class="runner-lap-history">${hist}</div>
+           
            <div class="runner-actions">
              <button class="btn-start ${w.running?'lt-bg-red-500':'lt-bg-green-500'}" onclick="ltToggleWatch(${w.id})">${w.running?'STOP':'START'}</button>
              <button class="btn-lap lt-bg-gray-800" onclick="ltLapWatch(${w.id})">LAP</button>
@@ -809,16 +825,19 @@ function renderSplit() {
 
 function getCardColor(w) {
     if(!w.target || !w.running) return '';
-    const lapTime = (Date.now() - w.start) - w.lastLap;
-    const diff = (w.target * 1000) - lapTime;
+    const currentLapTime = (w.running ? (Date.now() - w.start) : w.elapsed) - w.lastLap;
+    const targetMs = w.target * 1000;
+    const diff = targetMs - currentLapTime;
+    
     if(diff < 0) return 'frame-bad';
     if(diff < 5000) return 'frame-warn5';
     if(diff < 10000) return 'frame-warn10';
     return '';
 }
 
-// Windowスコープ関数
+// Windowスコープ操作関数
 window.ltDelWatch = (id) => {
+    if(!confirm("このランナーを削除しますか？")) return;
     ltWatches = ltWatches.filter(w => w.id !== id);
     if(ltSessionRef) updateSharedWatches(); else renderSplit();
 };
@@ -827,8 +846,9 @@ window.ltUpdateName = (id, val) => {
     if(ltSessionRef) updateSharedWatches();
 };
 window.ltUpdateTarget = (id, val) => {
-    const w = ltWatches.find(x => x.id === id); if(w) w.target = +val;
+    const w = ltWatches.find(x => x.id === id); if(w) w.target = Number(val);
     if(ltSessionRef) updateSharedWatches();
+    if(!ltSessionRef) renderSplit(); 
 };
 window.ltToggleWatch = (id) => {
     const w = ltWatches.find(x => x.id === id); if(!w) return;
@@ -854,28 +874,20 @@ window.ltLapWatch = (id) => {
 
 function tickSplit() {
     const now = Date.now();
-    
     ltWatches.forEach(w => {
         const card = document.getElementById(`w-${w.id}`);
         if(!card) return;
         
-        // 走っているなら現在時刻から計算、止まっているなら保持しているelapsed
         const elapsed = w.running ? (now - w.start) : w.elapsed;
         const lap = elapsed - w.lastLap;
         
-        // 画面表示更新 (再レンダリングせずテキストのみ書き換えで高速化)
         const mainTimeEl = card.querySelector('.runner-main-time');
         const lapTimeEl = card.querySelector('.runner-lap-live');
         
         if(mainTimeEl) mainTimeEl.textContent = fmt(elapsed);
         if(lapTimeEl) lapTimeEl.textContent = "Lap: " + fmt(lap);
         
-        // クラス（色）更新
-        // wの状態を一時的に複製して判定に渡す
         const colorClass = getCardColor({...w, running: w.running, start: w.start, lastLap: w.lastLap, elapsed: elapsed});
-        
-        // 既存のクラスを維持しつつ、色クラスだけ入れ替え
-        // (runner-cardクラスは必須)
         card.className = `runner-card ${colorClass}`;
     });
 }
@@ -887,27 +899,28 @@ function initPacemaker() {
 }
 
 function renderPmSettings(cnt=1) {
-    $("#pm-lane-count").textContent = cnt + "レーン";
     const box = $("#pm-lane-targets");
-    box.innerHTML = '';
-    for(let i=1; i<=cnt; i++) {
-        // ★ 修正: テキスト入力ではなくメンバー選択プルダウンに変更
-        // デフォルトは自分、または空
-        const defVal = (i===1) ? (viewingMemberId||'') : '';
-        box.innerHTML += `
-        <div style="display:flex; gap:4px; margin-bottom:6px;">
-           <select class="lt-input" id="pm-name-${i}" style="flex:2">
-              ${getLtMemberOptions(defVal)}
-           </select>
-           <input class="lt-input" placeholder="分" type="number" id="pm-m-${i}" style="flex:1">
-           <input class="lt-input" placeholder="秒" type="number" id="pm-s-${i}" style="flex:1">
-        </div>`;
+    if(box) {
+        $("#pm-lane-count").textContent = cnt + "レーン";
+        box.innerHTML = '';
+        for(let i=1; i<=cnt; i++) {
+            const defVal = (i===1) ? ((typeof viewingMemberId !== 'undefined') ? viewingMemberId : '') : '';
+            box.innerHTML += `
+            <div style="display:flex; gap:4px; margin-bottom:6px;">
+            <select class="lt-input" id="pm-name-${i}" style="flex:2">
+                ${getLtMemberOptions(defVal)}
+            </select>
+            <input class="lt-input" placeholder="分" type="number" id="pm-m-${i}" style="flex:1">
+            <input class="lt-input" placeholder="秒" type="number" id="pm-s-${i}" style="flex:1">
+            </div>`;
+        }
     }
 }
-$("#pm-lane-plus").onclick = () => { let c=parseInt($("#pm-lane-count").textContent); if(c<4) renderPmSettings(c+1); };
-$("#pm-lane-minus").onclick = () => { let c=parseInt($("#pm-lane-count").textContent); if(c>1) renderPmSettings(c-1); };
+const pmPlus = $("#pm-lane-plus"); if(pmPlus) pmPlus.onclick = () => { let c=parseInt($("#pm-lane-count").textContent); if(c<4) renderPmSettings(c+1); };
+const pmMinus = $("#pm-lane-minus"); if(pmMinus) pmMinus.onclick = () => { let c=parseInt($("#pm-lane-count").textContent); if(c>1) renderPmSettings(c-1); };
 
-$("#pm-start-btn").onclick = () => {
+const pmStart = $("#pm-start-btn");
+if(pmStart) pmStart.onclick = () => {
     const dist = +$("#pm-distance").value;
     const reps = +$("#pm-reps").value;
     if(!dist || !reps) return;
@@ -916,7 +929,7 @@ $("#pm-start-btn").onclick = () => {
     ltPmState.lanes = [];
     for(let i=1; i<=cnt; i++) {
         const val = $(`#pm-name-${i}`).value;
-        const name = getDisplayName(val) || val || `レーン${i}`; // 名前解決
+        const name = (typeof getDisplayName === 'function' ? getDisplayName(val) : val) || val || `レーン${i}`; 
         const m = +$(`#pm-m-${i}`).value || 0;
         const s = +$(`#pm-s-${i}`).value || 0;
         ltPmState.lanes.push({
@@ -927,15 +940,17 @@ $("#pm-start-btn").onclick = () => {
         });
     }
     
-    document.querySelector("#lt-pm #pm-settings").classList.add("lt-hidden");
-    document.querySelector("#lt-pm #pm-runner").classList.remove("lt-hidden");
+    const sEl = document.querySelector("#lt-pm #pm-settings");
+    if(sEl) sEl.classList.add("lt-hidden");
+    const rEl = document.querySelector("#lt-pm #pm-runner");
+    if(rEl) rEl.classList.remove("lt-hidden");
     
     renderPmRunner();
 };
 
 function renderPmRunner() {
     const grid = $("#pm-runner-grid");
-    grid.innerHTML = ltPmState.lanes.map(l => `
+    if(grid) grid.innerHTML = ltPmState.lanes.map(l => `
         <div class="pm-lane" id="pm-l-${l.id}">
            <div class="lt-font-bold" style="font-size:18px;">${l.name}</div>
            <div class="pm-main-time timer-font">${fmt(0)}</div>
@@ -953,8 +968,11 @@ window.ltPmLap = (id) => {
     if(!l.running) {
         l.running = true;
         l.startTime = now;
-        document.querySelector(`#pm-l-${id} button`).textContent = "LAP";
-        document.querySelector(`#pm-l-${id} button`).classList.replace('lt-bg-blue-500', 'lt-bg-gray-800');
+        const btn = document.querySelector(`#pm-l-${id} button`);
+        if(btn) {
+            btn.textContent = "LAP";
+            btn.classList.replace('lt-bg-blue-500', 'lt-bg-gray-800');
+        }
     } else {
         const lap = now - l.startTime;
         l.laps.push(lap);
@@ -978,7 +996,7 @@ function initCustom() {
 }
 function renderCustomSteps() {
     const box = $("#custom-steps-container");
-    box.innerHTML = ltCustomSteps.map((s, i) => `
+    if(box) box.innerHTML = ltCustomSteps.map((s, i) => `
         <div style="display:flex; gap:8px; align-items:center;">
            <span>${i+1}.</span>
            <select class="lt-input" onchange="ltCustType(${i}, this.value)">
@@ -993,9 +1011,11 @@ function renderCustomSteps() {
 window.ltCustType = (i, v) => ltCustomSteps[i].type = v;
 window.ltCustDur = (i, v) => ltCustomSteps[i].dur = +v;
 window.ltCustDel = (i) => { ltCustomSteps.splice(i, 1); renderCustomSteps(); };
-$("#custom-add-step-btn").onclick = () => { ltCustomSteps.push({type:'WORK', dur:30}); renderCustomSteps(); };
 
-$("#custom-start-btn").onclick = () => {
+const cAdd = $("#custom-add-step-btn"); if(cAdd) cAdd.onclick = () => { ltCustomSteps.push({type:'WORK', dur:30}); renderCustomSteps(); };
+
+const cStart = $("#custom-start-btn"); 
+if(cStart) cStart.onclick = () => {
     ltCustomState = {
         running: true, steps: [...ltCustomSteps], 
         rep: 1, totalReps: +$("#custom-reps").value,
@@ -1004,7 +1024,8 @@ $("#custom-start-btn").onclick = () => {
     $("#custom-settings").classList.add("lt-hidden");
     $("#custom-runner").classList.remove("lt-hidden");
 };
-$("#custom-reset-btn").onclick = () => {
+const cReset = $("#custom-reset-btn"); 
+if(cReset) cReset.onclick = () => {
     ltCustomState.running = false;
     $("#custom-settings").classList.remove("lt-hidden");
     $("#custom-runner").classList.add("lt-hidden");
@@ -1036,8 +1057,10 @@ function tickCustomTimer() {
     
     $("#custom-runner-time").textContent = fmt(rem * 1000).slice(0, 5);
     const runner = $("#custom-runner");
-    runner.className = `lt-h-full custom-runner ${curStep.type==='WORK'?'work-bg':'rest-bg'}`;
-    $("#custom-runner-step-info").textContent = `${curStep.type} (${ltCustomState.stepIdx+1}/${ltCustomState.steps.length})`;
+    if(runner) {
+        runner.className = `lt-h-full custom-runner ${curStep.type==='WORK'?'work-bg':'rest-bg'}`;
+        $("#custom-runner-step-info").textContent = `${curStep.type} (${ltCustomState.stepIdx+1}/${ltCustomState.steps.length})`;
+    }
 }
 
 // ===== Utils =====
@@ -1051,26 +1074,35 @@ function fmt(ms) {
 }
 
 function playClickSound() {
-    if(!ltAudioCtx) ltAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if(ltAudioCtx.state === 'suspended') ltAudioCtx.resume();
-    const osc = ltAudioCtx.createOscillator();
-    const gain = ltAudioCtx.createGain();
-    osc.connect(gain); gain.connect(ltAudioCtx.destination);
-    osc.frequency.setValueAtTime(800, ltAudioCtx.currentTime);
-    gain.gain.setValueAtTime(0.1, ltAudioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ltAudioCtx.currentTime + 0.1);
-    osc.start(); osc.stop(ltAudioCtx.currentTime + 0.1);
+    try {
+        if(!ltAudioCtx) ltAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if(ltAudioCtx.state === 'suspended') ltAudioCtx.resume();
+        const osc = ltAudioCtx.createOscillator();
+        const gain = ltAudioCtx.createGain();
+        osc.connect(gain); gain.connect(ltAudioCtx.destination);
+        osc.frequency.setValueAtTime(800, ltAudioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, ltAudioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ltAudioCtx.currentTime + 0.1);
+        osc.start(); osc.stop(ltAudioCtx.currentTime + 0.1);
+    } catch(e) {}
+}
+
+function stopCustomTimer() {
+    if(ltCustomState && ltCustomState.running) {
+        ltCustomState.running = false;
+        $("#custom-settings")?.classList.remove("lt-hidden");
+        $("#custom-runner")?.classList.add("lt-hidden");
+    }
 }
 
 // ===== Firebase Shared (Mock) =====
 async function connectLtSession(code) {
-    if(!firebase.apps.length) return;
+    if(typeof firebase === 'undefined' || !firebase.apps.length) return;
     alert("接続機能はサーバー側の設定が必要です。UIのみ実装しました。");
     ltSessionRef = { key: code };
     updateLtChooserView();
 }
 function updateSharedWatches() {}
-
 // ==========================================
 // ========== Stadium Map Logic =============
 // ==========================================
