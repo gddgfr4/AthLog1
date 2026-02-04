@@ -15,6 +15,8 @@
 <body>
   <div id="app" class="app hidden">
     <header class="topbar">
+      <button class="ghost hidden" id="goHomeBtn" style="font-weight:bold; margin-right:8px;">🏠 ホーム</button>
+      
       <button class="ghost" id="openHelpBtn">ヘルプ</button>
       <div class="brand">AthLog</div>
       <div class="teamuser" style="display:flex; align-items:center; gap:12px;">
@@ -38,19 +40,57 @@
       </div>
     </header>
 
-    <nav class="tabs">
+    <nav class="tabs" id="journalTabs">
       <button data-tab="journal" class="tab active">日誌</button>
       <button data-tab="month" class="tab">月一覧</button>
-      <button data-tab="plans" class="tab">予定</button>
       <button data-tab="dashboard" class="tab">グラフ</button>
-      <button data-tab="ai_coach" class="tab">AIコーチ</button><button data-tab="memo" class="tab">メモ</button>
-      <button data-tab="notify" class="tab">通知</button>
-      <button class="tab" data-tab="clock">時計</button>
-      <button class="tab" data-tab="stadium">競技場</button>
     </nav>
     <div id="globalSwipeBar" aria-hidden="true"></div>
 
-    <section id="journal" class="tabpanel active">
+    <section id="home" class="tabpanel active">
+      <div class="home-container">
+        <h2 style="text-align:center; margin-bottom:20px; color:var(--text);">メニュー選択</h2>
+        <div class="home-grid">
+          <button class="home-card" data-target="journal">
+            <div class="home-icon">📓</div>
+            <div class="home-label">日誌</div>
+            <div class="home-desc">毎日の記録・月一覧・グラフ</div>
+          </button>
+          <button class="home-card" data-target="plans">
+            <div class="home-icon">📅</div>
+            <div class="home-label">予定</div>
+            <div class="home-desc">練習計画の確認・編集</div>
+          </button>
+          <button class="home-card" data-target="memo">
+            <div class="home-icon">💬</div>
+            <div class="home-label">メモ</div>
+            <div class="home-desc">チーム内共有メモ</div>
+          </button>
+          <button class="home-card" data-target="ai_coach">
+            <div class="home-icon">🤖</div>
+            <div class="home-label">AIコーチ</div>
+            <div class="home-desc">練習データの分析・助言</div>
+          </button>
+          <button class="home-card" data-target="notify">
+            <div class="home-icon">🔔</div>
+            <div class="home-label">通知</div>
+            <div class="home-desc">新着コメント・お知らせ</div>
+          </button>
+          <button class="home-card" data-target="clock">
+            <div class="home-icon">⏱</div>
+            <div class="home-label">時計</div>
+            <div class="home-desc">Ltimer (ストップウォッチ)</div>
+          </button>
+          <button class="home-card" data-target="stadium">
+            <div class="home-icon">🏟</div>
+            <div class="home-label">競技場</div>
+            <div class="home-desc">競技場マップ・予定</div>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section id="journal" class="tabpanel">
       <div class="journal-grid">
         <div class="panel">
           <div class="muscle-header">
@@ -110,6 +150,9 @@
               </div>
             </div>
             <div class="note">
+              <label>疲労部位 <span class="muted">(タップで強度変更)</span></label>
+              <div id="partsTagArea" class="parts-tag-area" style="margin-bottom:8px;"></div>
+              
               <label>練習内容</label>
               <textarea id="trainInput" rows="3"></textarea>
               <div class="merge">
@@ -315,7 +358,7 @@
     };
     if (!firebase.apps || !firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
   </script>
-  <script src="app.js?v=20251220_final" defer></script>
+  <script src="app.js?v=20251221_home" defer></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(console.error); });
@@ -323,5 +366,3 @@
   </script>
 </body>
 </html>
-
-
