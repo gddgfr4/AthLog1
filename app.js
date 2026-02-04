@@ -268,41 +268,45 @@ function initHeaderEvents() {
 // ==========================================
 
 async function showApp(){
-  // 1. UIリセット
-  switchTab("home", true);
-  
-  $("#teamLabel").textContent = teamId;
+  // 1. 先にUIリセット
+  // (まだmyMemberIdが無いので、ここでは単純にホーム表示のみ)
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
-
-  // 日付などの初期化
-  const __nowMon = getMonthStr(new Date());
-  if($("#monthPick") && !$("#monthPick").value) $("#monthPick").value = __nowMon;
-  if($("#planMonthPick") && !$("#planMonthPick").value) $("#planMonthPick").value = __nowMon;
-
-  // メンバー情報のロード
+  
+  $("#teamLabel").textContent = teamId;
+  
+  // メンバーリスト取得
   await populateMemberSelect();
   
-  // 自分（ログインユーザー）の特定ロジック
+  // ★ 自分（myMemberId）を特定するロジック
   const loginName = $("#memberName").value.trim();
   const memberSelect = $("#memberSelect");
   let foundId = null;
+  
   if(memberSelect) {
     for (let opt of memberSelect.options) {
-      if (opt.text.includes(loginName)) { foundId = opt.value; break; }
+      // 入力名が含まれるか確認
+      if (opt.text.includes(loginName)) { 
+        foundId = opt.value; 
+        break; 
+      }
     }
-    if (foundId) {
-      myMemberId = foundId;
-      viewingMemberId = foundId;
-      memberSelect.value = foundId;
-    } else {
-      myMemberId = memberSelect.value;
-      viewingMemberId = myMemberId;
+  }
+  
+  if (foundId) {
+    myMemberId = foundId;      // 自分のIDを保存
+    viewingMemberId = foundId; // 表示も自分にする
+    if(memberSelect) memberSelect.value = foundId;
+  } else {
+    // 見つからなければ先頭を自分とする（あるいはエラー処理）
+    if(memberSelect && memberSelect.options.length > 0) {
+        myMemberId = memberSelect.value;
+        viewingMemberId = myMemberId;
     }
   }
 
   $("#memberLabel").textContent = getDisplayName(viewingMemberId);
-  
+  refreshBadges(); // バッジ更新（ここで閲覧のみが消えるはず）
   // メンバー変更イベント
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId = $("#memberSelect").value;
@@ -434,147 +438,121 @@ function switchTab(id, forceRender = false) {
 
   // ★ ヘルパー: 強制的に「自分」のデータに戻す
   const enforceMyData = () => {
-    // 自分が特定できていて、かつ現在表示中が自分でない場合のみ実行
-    if (myMemberId && viewingMemberId !== myMemberId) {
+    // IDがセットされているか確認
+    if (myMemberId) {
+      // 強制的に自分のIDにする
       viewingMemberId = myMemberId;
+      
       const ms = document.getElementById("memberSelect");
       if (ms) ms.value = myMemberId;
+      
       const ml = document.getElementById("memberLabel");
       if (ml) ml.textContent = getDisplayName(viewingMemberId);
+      
+      // ★重要: 「閲覧のみ」バッジを確実に消すために更新を呼ぶ
       refreshBadges();
-      // 注: ここでのrender呼び出しは不要（この後の各画面描画処理で行われるため）
     }
   };
 
   // ★ ヘルパー: メンバー選択UIの有効/無効切り替え
-  // enable=true: 変更可能(日誌用), enable=false: 表示するけど変更不可(他用)
   const configureMemberUI = (enable) => {
     const navWrap = document.getElementById("memberNavWrap");
     const sel = document.getElementById("memberSelect");
     const prev = document.getElementById("memberPrev");
     const next = document.getElementById("memberNext");
 
-    // UI自体は常に表示する（hiddenを削除）
     if (navWrap) {
       navWrap.classList.remove("hidden");
-      // 変更不可の時は少し薄くして分かりやすくする（お好みで調整可）
-      navWrap.style.opacity = enable ? "1" : "0.7"; 
+      // UIを目立たなくする
+      navWrap.style.opacity = enable ? "1" : "0.3"; 
+      navWrap.style.pointerEvents = enable ? "auto" : "none"; // クリック自体も無効化
     }
-
-    // 入力要素の disabled を切り替え
-    if (sel) sel.disabled = !enable;
-    if (prev) prev.disabled = !enable;
-    if (next) next.disabled = !enable;
   };
 
-  // ===============================================
-  // 1. 特殊モード: 競技場マップ
-  // ===============================================
+  // --- 1. 競技場マップ ---
   if (id === 'stadium') {
     $$(".tabpanel").forEach(p => p.classList.remove("active"));
-    const clockPanel = document.getElementById('clock');
-    if (clockPanel) { clockPanel.style.display = 'none'; clockPanel.classList.remove('active'); }
+    $("#clock")?.classList.remove("active"); $("#clock") && ($("#clock").style.display='none');
     
-    const stdPanel = document.getElementById('stadium');
-    if (stdPanel) stdPanel.classList.add("active");
+    document.getElementById('stadium')?.classList.add("active");
+    
+    $("#journalTabs")?.classList.add("hidden");
+    $("#goHomeBtn")?.classList.remove("hidden");
 
-    const tabsNav = document.getElementById("journalTabs");
-    const homeBtn = document.getElementById("goHomeBtn");
-
-    if (tabsNav) tabsNav.classList.add("hidden");
-    if (homeBtn) homeBtn.classList.remove("hidden");
-
-    // ★自分に固定し、変更UIを無効化
-    enforceMyData();
-    configureMemberUI(false);
+    enforceMyData();           // 自分に戻す
+    configureMemberUI(false);  // 選択不可
 
     ltimerRunning = false;
     initStadium();
     return;
   }
 
-  // ===============================================
-  // 2. 特殊モード: 時計 (Ltimer)
-  // ===============================================
+  // --- 2. 時計 (Ltimer) ---
   if (id === 'clock') {
     $$(".tabpanel").forEach(p => p.classList.remove("active"));
-    const clockPanel = document.getElementById('clock');
-    if (clockPanel) { clockPanel.style.display = 'block'; clockPanel.classList.add('active'); }
+    const cp = document.getElementById('clock');
+    if(cp) { cp.style.display='block'; cp.classList.add('active'); }
 
-    const tabsNav = document.getElementById("journalTabs");
-    const homeBtn = document.getElementById("goHomeBtn");
+    $("#journalTabs")?.classList.add("hidden");
+    $("#goHomeBtn")?.classList.remove("hidden");
 
-    if (tabsNav) tabsNav.classList.add("hidden");
-    if (homeBtn) homeBtn.classList.remove("hidden");
-
-    // ★自分に固定し、変更UIを無効化
-    enforceMyData();
-    configureMemberUI(false);
+    enforceMyData();           // 自分に戻す
+    configureMemberUI(false);  // 選択不可
 
     initLtimer();
     return;
   }
 
-  // ===============================================
-  // 3. 通常モード
-  // ===============================================
+  // --- 3. 通常モード ---
   ltimerRunning = false;
-  const clockPanel = document.getElementById('clock');
-  if (clockPanel) { clockPanel.style.display = 'none'; clockPanel.classList.remove('active'); }
+  $("#clock")?.classList.remove("active"); $("#clock") && ($("#clock").style.display='none');
 
   if (!forceRender && $(".tabpanel.active")?.id === id && id !== 'home') return;
 
   $$(".tabpanel").forEach(p => p.classList.remove("active"));
-  const targetPanel = document.getElementById(id);
-  if (targetPanel) targetPanel.classList.add("active");
+  document.getElementById(id)?.classList.add("active");
 
   const tabsNav = document.getElementById("journalTabs");
   const homeBtn = document.getElementById("goHomeBtn");
 
   $$(".tab").forEach(btn => btn.classList.remove("active"));
 
-  // ★ 日誌系画面かどうかの判定
+  // 日誌系画面判定
   const isJournalTab = ['journal', 'month', 'dashboard'].includes(id);
 
   if (isJournalTab) {
-    // === 日誌・月一覧・グラフ ===
-    // メンバー変更を許可
-    configureMemberUI(true);
+    // === 日誌系 ===
+    configureMemberUI(true); // 変更許可
 
-    if (tabsNav) tabsNav.classList.remove("hidden");
-    if (homeBtn) homeBtn.classList.remove("hidden");
+    tabsNav?.classList.remove("hidden");
+    homeBtn?.classList.remove("hidden");
 
-    const activeBtn = $(`.tab[data-tab="${id}"]`);
-    if (activeBtn) activeBtn.classList.add("active");
+    $(`.tab[data-tab="${id}"]`)?.classList.add("active");
 
-    // 注意: ここで enforceMyData() は呼びません。
-    // これにより、日誌タブ内でのメンバー切り替え状態が維持されます。
-    // ただし、他のタブ(Home等)から戻ってきた場合は、Home側で既に「自分」になっているため、
-    // 結果として「日誌を開いたときは自分のページ」になります。
+    // 日誌タブでは enforceMyData を呼ばない（選択した他人を見られるように）
 
   } else {
-    // === ホーム、予定、メモ、通知、AIコーチなど ===
-    // 自分に固定し、変更UIを無効化
-    enforceMyData();
-    configureMemberUI(false);
+    // === ホーム、その他 ===
+    enforceMyData();           // ★ここで確実に自分に戻す
+    configureMemberUI(false);  // 選択不可
 
-    if (tabsNav) tabsNav.classList.add("hidden");
+    tabsNav?.classList.add("hidden");
 
-    // ホーム画面だけ戻るボタンを隠す
+    // ホームだけ戻るボタンを消す
     if (id === 'home') {
-      if (homeBtn) homeBtn.classList.add("hidden");
+      homeBtn?.classList.add("hidden");
     } else {
-      if (homeBtn) homeBtn.classList.remove("hidden");
+      homeBtn?.classList.remove("hidden");
     }
   }
 
-  // データのクリーンアップ
-  if (unsubscribePlans) unsubscribePlans();
-  if (unsubscribeMemo) unsubscribeMemo();
-  if (unsubscribeMonthChat) unsubscribeMonthChat();
-  if (unsubscribeJournal) unsubscribeJournal();
+  // クリーンアップ
+  if (typeof unsubscribePlans === 'function') unsubscribePlans();
+  if (typeof unsubscribeMemo === 'function') unsubscribeMemo();
+  if (typeof unsubscribeMonthChat === 'function') unsubscribeMonthChat();
+  if (typeof unsubscribeJournal === 'function') unsubscribeJournal();
 
-  // 各画面の描画
+  // 描画
   if (id === "journal") renderJournal();
   if (id === "month") renderMonth();
   if (id === "plans") renderPlans();
@@ -1061,6 +1039,7 @@ function updateSharedWatches() {}
 
 let mapInstance = null;
 let markersLayer = null;
+let currentRegionFilter = 'all';
 
 function initStadium() {
   // すでに初期化済みならサイズ再計算だけして終了（地図崩れ防止）
