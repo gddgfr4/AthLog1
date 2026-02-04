@@ -453,6 +453,40 @@
         </div>
       </div>
     </section>
+  <section id="home" class="tabpanel active">
+       <button class="home-card" data-target="stadium">
+            <div class="home-icon">🏟</div>
+            <div class="home-label">競技場</div>
+            <div class="home-desc">全国の陸上競技場マップ</div>
+          </button>
+       </section>
+
+    <section id="stadium" class="tabpanel">
+      <div class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <h3>競技場マップ</h3>
+          <button id="std-geo-btn" class="ghost small-btn">📍 現在地周辺</button>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <input type="text" id="std-search" class="form-control" placeholder="競技場名・住所で検索..." style="flex:1;">
+        </div>
+        <div id="std-region-filters" class="chips" style="margin-bottom:16px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:4px;">
+          <button class="chip active" data-region="all">すべて</button>
+          <button class="chip" data-region="北海道">北海道</button>
+          <button class="chip" data-region="東北">東北</button>
+          <button class="chip" data-region="関東">関東</button>
+          <button class="chip" data-region="中部">中部</button>
+          <button class="chip" data-region="近畿">近畿</button>
+          <button class="chip" data-region="中国">中国</button>
+          <button class="chip" data-region="四国">四国</button>
+          <button class="chip" data-region="九州">九州</button>
+        </div>
+
+        <div id="std-list" class="list" style="padding-bottom:80px;">
+          </div>
+      </div>
+    </section>
   </div>
 
   <div id="login" class="login">
@@ -488,4 +522,5 @@
   </script>
 </body>
 </html>
+
 
