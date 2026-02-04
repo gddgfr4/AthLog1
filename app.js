@@ -382,14 +382,27 @@ const STADIUM_DATA = [
 ];
 
 function switchTab(id, forceRender = false) {
+  
+  // ★ ヘルパー: 強制的に「自分」のデータに戻す関数
+  const enforceMyData = () => {
+    if (myMemberId && viewingMemberId !== myMemberId) {
+      viewingMemberId = myMemberId;
+      const ms = document.getElementById("memberSelect");
+      if (ms) ms.value = myMemberId;
+      const ml = document.getElementById("memberLabel");
+      if (ml) ml.textContent = getDisplayName(viewingMemberId);
+      refreshBadges();
+      // 注: ここでは再描画(render)は呼びません。この後の各画面の描画処理で反映されます。
+    }
+  };
+
   // ===============================================
   // 1. 特殊モード: 競技場マップ (Stadium Map)
   // ===============================================
   if (id === 'stadium') {
-    // 既存のタブパネルをすべて非表示にする
     $$(".tabpanel").forEach(p => p.classList.remove("active"));
     
-    // 時計パネルが表示されていたら隠す（念のため）
+    // 時計パネルを隠す
     const clockPanel = document.getElementById('clock');
     if (clockPanel) {
       clockPanel.style.display = 'none';
@@ -408,13 +421,16 @@ function switchTab(id, forceRender = false) {
     const memberNav = document.getElementById("memberNavWrap");
 
     if (tabsNav) tabsNav.classList.add("hidden");      // タブは隠す
-    if (homeBtn) homeBtn.classList.remove("hidden");   // ★ホームに戻るボタンは表示
-    if (memberNav) memberNav.classList.add("hidden");  // メンバー選択は不要なので隠す
+    if (homeBtn) homeBtn.classList.remove("hidden");   // ホームに戻るボタンは表示
+    if (memberNav) memberNav.classList.add("hidden");  // ★メンバー選択は隠す
 
-    // Ltimerが動いていたら停止
+    // ★強制的に自分に戻す
+    enforceMyData();
+
+    // Ltimer停止
     ltimerRunning = false;
 
-    // 競技場機能の初期化
+    // 競技場機能初期化
     initStadium();
     return;
   }
@@ -423,10 +439,9 @@ function switchTab(id, forceRender = false) {
   // 2. 特殊モード: 時計 (Ltimer)
   // ===============================================
   if (id === 'clock') {
-    // 既存のタブパネルをすべて非表示にする
     $$(".tabpanel").forEach(p => p.classList.remove("active"));
 
-    // 時計パネルを表示（HTML側で style="display:none" している場合の対策）
+    // 時計パネルを表示
     const clockPanel = document.getElementById('clock');
     if (clockPanel) {
       clockPanel.style.display = 'block';
@@ -438,11 +453,14 @@ function switchTab(id, forceRender = false) {
     const homeBtn = document.getElementById("goHomeBtn");
     const memberNav = document.getElementById("memberNavWrap");
 
-    if (tabsNav) tabsNav.classList.add("hidden");      // タブは隠す
-    if (homeBtn) homeBtn.classList.remove("hidden");   // ★ホームに戻るボタンは表示
-    if (memberNav) memberNav.classList.add("hidden");  // メンバー選択はLtimer内で行うため隠す
+    if (tabsNav) tabsNav.classList.add("hidden");
+    if (homeBtn) homeBtn.classList.remove("hidden");
+    if (memberNav) memberNav.classList.add("hidden");  // ★メンバー選択は隠す
 
-    // Ltimerを初期化して起動
+    // ★強制的に自分に戻す
+    enforceMyData();
+
+    // Ltimer初期化
     initLtimer();
     return;
   }
@@ -451,87 +469,79 @@ function switchTab(id, forceRender = false) {
   // 3. 通常モード (ホーム, 日誌, 予定, メモ, 通知など)
   // ===============================================
 
-  // Ltimerが動いていたら停止フラグを立てる
+  // Ltimer停止
   ltimerRunning = false;
 
-  // 時計パネルが表示されていたら隠す
+  // 時計パネルを隠す
   const clockPanel = document.getElementById('clock');
   if (clockPanel) {
     clockPanel.style.display = 'none';
     clockPanel.classList.remove('active');
   }
 
-  // 重複レンダリング防止（ホーム画面以外で、既に同じタブが開いている場合は何もしない）
+  // 重複レンダリング防止
   if (!forceRender && $(".tabpanel.active")?.id === id && id !== 'home') return;
 
-  // パネルの表示切り替え
+  // パネル切り替え
   $$(".tabpanel").forEach(p => p.classList.remove("active"));
   const targetPanel = document.getElementById(id);
   if (targetPanel) {
     targetPanel.classList.add("active");
   }
 
-  // ナビゲーションバー（タブ・ボタン・メンバー選択）の制御
+  // ナビゲーション制御用要素
   const tabsNav = document.getElementById("journalTabs");
   const homeBtn = document.getElementById("goHomeBtn");
   const memberNav = document.getElementById("memberNavWrap");
 
-  // タブボタンのアクティブ表示をリセット
+  // タブボタンのアクティブ状態リセット
   $$(".tab").forEach(btn => btn.classList.remove("active"));
 
-  if (id === 'home') {
-    // === ホーム画面 ===
-    // すべてのナビゲーションを隠す
+  // ★ 画面タイプ判定: 日誌系画面か？
+  const isJournalTab = ['journal', 'month', 'dashboard'].includes(id);
+
+  if (isJournalTab) {
+    // === 日誌系画面 (選手変更可能) ===
+    if (tabsNav) tabsNav.classList.remove("hidden");
+    if (homeBtn) homeBtn.classList.remove("hidden");
+    if (memberNav) memberNav.classList.remove("hidden"); // ★メンバー選択を表示
+
+    // 該当するタブボタンをアクティブに
+    const activeBtn = $(`.tab[data-tab="${id}"]`);
+    if (activeBtn) activeBtn.classList.add("active");
+
+  } else {
+    // === それ以外の画面 (ホーム, 予定, メモ, 通知, AIコーチ) ===
+    // ★ここでは選手変更不可 → 強制的に自分に戻す
+    enforceMyData();
+
+    // タブは隠す
     if (tabsNav) tabsNav.classList.add("hidden");
-    if (homeBtn) homeBtn.classList.add("hidden");
+    
+    // メンバー選択は隠す
     if (memberNav) memberNav.classList.add("hidden");
 
-    // ★重要: ホームに戻ったら強制的に「自分」のデータ表示に戻す
-    if (myMemberId && viewingMemberId !== myMemberId) {
-      viewingMemberId = myMemberId;
-      const ms = $("#memberSelect");
-      if (ms) ms.value = myMemberId;
-      $("#memberLabel").textContent = getDisplayName(viewingMemberId);
-      refreshBadges();
-      // ホーム画面自体には個人データがないため、render呼び出しは不要
-    }
-  } 
-  else {
-    // === その他の機能画面 ===
-    
-    // 日誌系画面かどうかで分岐
-    if (['journal', 'month', 'dashboard'].includes(id)) {
-      // 日誌系: タブあり、戻るボタンあり、メンバー選択あり
-      if (tabsNav) tabsNav.classList.remove("hidden");
+    // ホームボタンの制御 (ホーム画面以外では表示)
+    if (id === 'home') {
+      if (homeBtn) homeBtn.classList.add("hidden");
+    } else {
       if (homeBtn) homeBtn.classList.remove("hidden");
-      if (memberNav) memberNav.classList.remove("hidden");
-
-      // 該当するタブボタンをアクティブにする
-      const activeBtn = $(`.tab[data-tab="${id}"]`);
-      if (activeBtn) activeBtn.classList.add("active");
-    } 
-    else {
-      // 単独機能 (plans, memo, ai_coach, notify): タブなし、戻るボタンあり、メンバー選択あり
-      if (tabsNav) tabsNav.classList.add("hidden");
-      if (homeBtn) homeBtn.classList.remove("hidden");
-      if (memberNav) memberNav.classList.remove("hidden");
     }
   }
 
-  // 4. データのクリーンアップ（Firestore監視の解除）
+  // 4. クリーンアップ
   if (unsubscribePlans) unsubscribePlans();
   if (unsubscribeMemo) unsubscribeMemo();
   if (unsubscribeMonthChat) unsubscribeMonthChat();
   if (unsubscribeJournal) unsubscribeJournal();
 
-  // 5. 各画面の描画処理実行
+  // 5. 各画面の描画実行 (enforceMyDataでIDが自分に戻っていれば、自分のデータが描画される)
   if (id === "journal") renderJournal();
   if (id === "month") renderMonth();
   if (id === "plans") renderPlans();
   if (id === "dashboard") renderDashboard();
   if (id === "memo") { renderMemo(); markMemoRead(); }
   if (id === "notify") { renderNotify(); }
-  // ai_coachは初期化済みならそのまま利用可能
 }
 function initHome() {
   const grid = document.getElementById('homeMenuGrid');
