@@ -2600,24 +2600,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   updateDistanceSummary(); // 初回
 });
 
-// 任意：当日データが保存されたら更新したい場合、呼び出してください。
-// 例）日誌の保存処理の末尾や onSnapshot の中で：
-//    updateDistanceSummary();
-
-// ===== Global: 端/上部スワイプでタブ移動 =====
-const TAB_ORDER = ['journal','month','plans','dashboard','memo'];
-
-function getActiveTabIndex(){
-  const id = document.querySelector('.tab.active')?.dataset.tab;
-  return TAB_ORDER.indexOf(id);
-}
-function goTabDelta(delta){
-  const n = TAB_ORDER.length;
-  let i = getActiveTabIndex();
-  if (i < 0) return;
-  i = (i + delta + n) % n;
-  switchTab(TAB_ORDER[i], true);
-}
 
 // 入力や編集要素上は無視
 function isInteractive(el){
