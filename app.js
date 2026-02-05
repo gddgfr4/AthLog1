@@ -1433,25 +1433,17 @@ function initJournal(){
       partsArea.appendChild(sp);
     });
   }
-  // app.js の initJournal 関数内 (シェアモード部分)
+  // app.js の initJournal 関数（シェアモード部分）
 
-  // ▼▼▼ シェアモード（最短修正版） ▼▼▼
   $("#shareModeBtn")?.addEventListener("click", (e) => {
     e.stopPropagation();
+    if (document.body.classList.contains("share-mode")) { exitShareMode(); return; }
 
-    if (document.body.classList.contains("share-mode")) {
-       exitShareMode(); return;
-    }
-
-    // モードON
     document.body.classList.add("share-mode");
     const btn = $("#shareModeBtn");
-    btn.textContent = "✖";
-    btn.style.color = "#ef4444";
-    btn.style.background = "#fff";
-    btn.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
+    btn.textContent = "✖"; btn.style.color = "#ef4444"; btn.style.background = "#fff";
 
-    // 1. ヘッダー作成
+    // 1. ヘッダー作成 (変更なし)
     let shareHeader = document.getElementById("shareHeaderOverlay");
     if (!shareHeader) {
       shareHeader = document.createElement("div");
@@ -1459,58 +1451,53 @@ function initJournal(){
       const app = document.getElementById("app");
       app.insertBefore(shareHeader, app.firstChild);
     }
-    
-    const y = selDate.getFullYear();
-    const m = selDate.getMonth() + 1;
-    const d = selDate.getDate();
+    const y = selDate.getFullYear(), m = selDate.getMonth()+1, d = selDate.getDate();
     const w = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][selDate.getDay()];
-    // 日付デザイン
     shareHeader.innerHTML = `
       <div class="share-header-inner">
         <div class="share-date">
-           <span style="font-size:1.4em; font-weight:800; letter-spacing:-1px;">${y}.${m}.${d}</span>
-           <span style="font-size:0.9em; color:#ea580c; font-weight:bold; margin-left:6px;">${w}</span>
+          <span style="font-size:1.4em; font-weight:800; letter-spacing:-1px;">${y}.${m}.${d}</span>
+          <span style="font-size:0.9em; color:#ea580c; font-weight:bold; margin-left:6px;">${w}</span>
         </div>
-        <div class="share-meta">
-           <span class="share-name">${getDisplayName(viewingMemberId)}</span>
-        </div>
+        <div class="share-meta"><span class="share-name">${getDisplayName(viewingMemberId)}</span></div>
       </div>
       <div class="share-brand">AthLog</div>
     `;
     shareHeader.style.display = "flex";
 
-    // 2. 「調子」をStats行に追加
+    // 2. 「調子」を睡眠の横に追加
     const activeCondBtn = document.querySelector('#conditionBtns button.active');
-    // 丸数字変換マップ
     const circled = {"1":"①","2":"②","3":"③","4":"④","5":"⑤"};
     const condVal = circled[activeCondBtn?.dataset.val] || "-";
+
+    // ★修正: 睡眠(#j-sleep)を見つけて、その隣に置く
+    const sleepInput = document.getElementById('j-sleep');
+    // <div class="journal-stats-item"> <label>睡眠</label> <input id="j-sleep"> </div> という構造を想定
+    // そのため、inputの親要素(div)を取得します
+    const sleepWrapper = sleepInput ? sleepInput.closest('div') : null; 
     
-    // 挿入先: 距離などの入力欄がある行
-    const distInput = document.getElementById('distInput');
-    const statsRow = distInput ? distInput.closest('.journal-stats-row') : null;
-    
-    if(statsRow) {
+    if(sleepWrapper && sleepWrapper.parentNode) {
       const condItem = document.createElement("div");
-      condItem.className = "journal-stats-item added-cond-item"; 
+      condItem.className = "added-cond-item"; // スタイル用のクラス
+      
+      // 睡眠などのスタイルを真似る
       condItem.innerHTML = `
         <label>調子</label>
         <div class="share-val">${condVal}</div>
       `;
-      statsRow.appendChild(condItem);
+      // insertBefore(追加要素, 睡眠の次の兄弟要素) -> これで確実に「睡眠」の「次」に入ります
+      sleepWrapper.parentNode.insertBefore(condItem, sleepWrapper.nextSibling);
     }
 
     // 解除関数
     function exitShareMode() {
        document.body.classList.remove("share-mode");
        const b = $("#shareModeBtn");
-       if(b) {
-           b.textContent = "📷"; b.style.color = ""; b.style.background = ""; b.style.boxShadow = "";
-       }
+       if(b) { b.textContent = "📷"; b.style.color = ""; b.style.background = ""; }
        if(shareHeader) shareHeader.style.display = "none";
        document.querySelectorAll(".added-cond-item").forEach(el => el.remove());
        document.removeEventListener("click", exitShareMode);
     }
-    
     setTimeout(() => { document.addEventListener("click", exitShareMode); }, 100);
   });
   
@@ -3219,23 +3206,22 @@ function initMuscleMap(){
   tryLoadImageSequential(MM.IMG_CANDIDATES).then(img=>{
     const fullW=img.naturalWidth, fullH=img.naturalHeight;
     const halfW=Math.floor(fullW/2);
-    // 表示モードに合わせて切り抜き範囲を決定
+    // 表示モード（前後・全体）に合わせて切り抜き範囲を決定
     const crop = (MM.VIEW==='front') ? {sx:0,     sy:0, sw:halfW, sh:fullH}
                : (MM.VIEW==='back')  ? {sx:halfW, sy:0, sw:halfW, sh:fullH}
                :                       {sx:0,     sy:0, sw:fullW, sh:fullH};
 
     const wrap = document.getElementById('mmWrap');
     if(wrap) {
-      // ▼▼▼ 修正: コンテナの縦横比を強制的に画像に合わせる ▼▼▼
-      // これにより、スマホで幅が変わっても高さが自動で追従し、見切れやズレがなくなります
+      // ▼▼▼ 修正: コンテナの縦横比を強制固定（これがズレ防止の鍵） ▼▼▼
       wrap.style.aspectRatio = `${crop.sw} / ${crop.sh}`;
       
-      // 他のスタイル干渉を防ぐ
       wrap.style.position = 'relative'; 
-      wrap.style.width = '100%';    // 親要素に合わせて横幅いっぱい
-      wrap.style.height = 'auto';   // 高さはアスペクト比任せ
-      wrap.style.maxWidth = '300px'; // カード内での最大幅制限（適宜調整）
-      wrap.style.margin = '0 auto';
+      wrap.style.width = '100%';     // 横幅は親に合わせる
+      wrap.style.height = 'auto';    // 高さはアスペクト比で自動決定
+      wrap.style.maxWidth = '300px'; // カード内での最大幅（適宜調整）
+      wrap.style.margin = '0 auto';  // 中央寄せ
+      wrap.style.overflow = 'hidden'; // はみ出し防止
     }
 
     [mm.base, mm.overlay, mm.barrier].forEach(c=>{ 
@@ -3248,6 +3234,7 @@ function initMuscleMap(){
       c.style.width = '100%';
       c.style.height = '100%';
       c.style.display = 'block';
+      c.style.objectFit = 'contain';
     });
 
     // ベースへ描画
@@ -3261,14 +3248,12 @@ function initMuscleMap(){
     console.error(err);
   });
 
-  // (以下、タッチイベント処理は変更なしですが、念のため記載)
+  // (タッチイベント処理は変更なし。省略せずに既存のコードを残してください)
   const activePointers = new Set();
   const ov = mm.overlay;
   ov.style.touchAction = 'pan-x pan-y pinch-zoom';
 
   function onPointerDown(e){
-    // ... (既存のコードそのまま) ...
-    // 省略せずに既存のロジックを使ってください
     ov.setPointerCapture?.(e.pointerId);
     activePointers.add(e.pointerId);
     if(e.pointerType==='touch' && activePointers.size>=2){
@@ -3279,17 +3264,14 @@ function initMuscleMap(){
     const p=mmPixPos(ov,e);
     if (barrierAlphaAt(p.x,p.y) > 10) return;
     
-    // 塗る処理
     const targetColor = MM.LEVELS[brush.lvl||1];
     if(brush.erase) floodErase(mm.octx, mm.wctx, p.x, p.y);
     else {
-      // 単純化: クリックした位置の色判定などは既存通り
       floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, targetColor);
     }
     saveMuscleLayerToDoc();
   }
   
-  // ポインター終了処理も既存通り
   function onPointerEnd(e){
     ov.releasePointerCapture?.(e.pointerId);
     activePointers.delete(e.pointerId);
@@ -4344,79 +4326,6 @@ async function loadAiProfileToForm() {
   }
 }
 
-// ★追加: スタイル定義をJSから注入（CSSファイル編集の手間を省くため）
-const style = document.createElement('style');
-style.innerHTML = `
-  .journal-stats-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 4px;
-    margin-bottom: 10px;
-  }
-  .journal-stats-item {
-    flex: 1;
-    min-width: 0; /* これ重要: 幅あふれ防止 */
-    display: flex;
-    flex-direction: column;
-  }
-  .journal-stats-item label {
-    font-size: 10px;
-    color: #666;
-    margin-bottom: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .journal-stats-item input, .journal-stats-item select {
-    width: 100%;
-    padding: 4px 2px;
-    font-size: 14px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box;
-    text-align: center;
-  }
-  .date-nav-btn {
-    padding: 4px 8px;
-    background: #f0f0f0;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-  }
-  .fav-btn {
-    background: none; border: none; font-size: 20px; cursor: pointer; color: #ccc;
-  }
-  .fav-btn.active { color: #f59e0b; } /* 金色 */
-`;
-document.head.appendChild(style);
-
-async function recent7Km(d){
-    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-    let s = 0;
-    for (let i = 6; i >= 0; i--) {
-      const dt  = addDays(d, -i);
-      const doc = await getJournalRef(srcTeam, viewingMemberId, dt).get();
-      if (doc.exists) s += Number(doc.data().dist || 0);
-    }
-    return s;
-  }
-
-// ★追加: お気に入りボタンの見た目を変える関数
-function updateFavBtnUI(isFav) {
-  const btn = document.getElementById("favBtn");
-  if(!btn) return;
-  if(isFav) {
-    btn.textContent = "★";
-    btn.classList.add("active");
-    btn.style.color = "#f59e0b"; // 金色
-  } else {
-    btn.textContent = "☆";
-    btn.classList.remove("active");
-    btn.style.color = "#ccc";    // 灰色
-  }
-}
-
 // app.js の一番最後
 
 const shareStyle = document.createElement('style');
@@ -4427,18 +4336,17 @@ shareStyle.innerHTML = `
     overflow: hidden !important;
     height: 100vh !important; width: 100vw !important;
     display: flex; 
-    /* ▼▼▼ 修正: 中央揃えをやめ、上寄せにしてpaddingで位置調整 ▼▼▼ */
+    /* ▼▼▼ 修正: 上寄せにしてpaddingで位置調整（少し上に配置） ▼▼▼ */
     align-items: flex-start !important; 
     justify-content: center;
-    padding-top: 60px !important; /* スマホで少し上に配置 */
+    padding-top: 60px !important; 
   }
 
   /* カード本体 (9:16) */
   body.share-mode #app {
     width: 88vw !important; max-width: 400px !important;
     aspect-ratio: 9 / 16 !important;
-    /* max-height指定を緩めて、縦長比率を優先 */
-    max-height: none !important;
+    max-height: none !important; /* 高さ制限を解除してアスペクト比優先 */
     
     background: #fff !important;
     border-radius: 24px !important;
@@ -4485,6 +4393,7 @@ shareStyle.innerHTML = `
     display: flex; justify-content: space-between !important;
     gap: 4px; flex-shrink: 0; margin-top: -4px;
     width: 100% !important;
+    flex-wrap: nowrap !important; /* 折り返し禁止 */
   }
   
   /* 各アイテムのスタイル統一 */
@@ -4493,8 +4402,7 @@ shareStyle.innerHTML = `
     background: transparent !important;
     padding: 0 !important; 
     text-align: center !important; 
-    width: 25% !important; /* 4つ並ぶので25% */
-    flex: none !important;
+    flex: 1 !important; /* 全員等幅で広がる */
     display: flex !important; flex-direction: column !important;
     align-items: center !important;
   }
@@ -4530,24 +4438,25 @@ shareStyle.innerHTML = `
 
   /* ▼▼▼ 筋肉マップ修正: 正方形維持・見切れ防止 ▼▼▼ */
   body.share-mode #mmWrap {
-    /* 1. 絶対に正方形 */
-    aspect-ratio: 1 / 1 !important;
+    /* 1. アスペクト比はJSで設定されるが、CSSでも念のため指定 */
+    aspect-ratio: auto !important; 
+    
     /* 2. カード下部に配置 */
     margin: auto auto 0 auto !important; 
-    /* 3. 縮小を許可しないと flexコンテナにはみ出したり潰されたりする */
+    
+    /* 3. 縮小禁止（見切れるくらいならテキストエリアを縮めるべきだが、今回は固定長なのでマップを優先） */
     flex-shrink: 0 !important; 
     
-    /* 4. サイズ制限（カードの横幅か、残り高さの小さい方に合わせる） */
+    /* 4. サイズ制限（スマホ画面幅に収まるように） */
     width: 100% !important;
-    max-width: 280px !important; /* スマホで見切れにくくするサイズ制限 */
+    max-width: 280px !important; 
     height: auto !important;
     
     position: relative !important;
     display: block !important;
-    overflow: hidden !important; /* はみ出し防止 */
+    /* overflowはJSでhiddenにしてあるのでここでは触らない */
   }
   
-  /* キャンバス */
   body.share-mode canvas {
     position: absolute !important;
     top: 0 !important; left: 0 !important;
