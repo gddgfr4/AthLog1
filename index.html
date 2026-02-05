@@ -110,14 +110,15 @@
             </div>
 
             <div class="panel right">
-                <div class="weekbar">
+              <div class="weekbar">
                 <button id="weekPrev" class="ghost">&larr;</button>
                 <div id="weekChips" class="chips"></div>
                 <button id="weekNext" class="ghost">&rarr;</button>
                 <input type="date" id="datePicker" />
                 <button id="gotoToday" class="ghost">今日</button>
                 <button id="shareModeBtn" class="ghost">📷</button>
-                </div>
+                <button id="favBtn" class="ghost" style="font-size:1.4rem; color:#ccc; line-height:1;">☆</button>
+              </div>
 
                 <div class="quick" style="justify-content:center;">
                 <button class="qbtn jog">ジョグ</button>
@@ -186,6 +187,7 @@
         <button id="mPrev" class="ghost">&larr;</button>
         <input type="month" id="monthPick" />
         <button id="mNext" class="ghost">&rarr;</button>
+        <button id="monthFavFilterBtn" class="ghost" style="color:#ccc; border:1px solid #eee; font-size:12px; margin-left:8px;">★のみ</button>
         <div id="monthSum" class="muted"></div>
       </div>
       <div class="panel" style="margin-bottom:12px;">
@@ -516,6 +518,7 @@
   </script>
 </body>
 </html>
+
 
 
 
