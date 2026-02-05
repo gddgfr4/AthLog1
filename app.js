@@ -1433,27 +1433,56 @@ function initJournal(){
       partsArea.appendChild(sp);
     });
   }
-  // app.js の initJournal 関数内（場所は下の方、initMuscleMap() の手前あたり）
+  // app.js の initJournal 関数内
 
-  // ▼▼▼ 追加: シェアモード（スクショ撮影用）の処理 ▼▼▼
+  // ▼▼▼ シェアモード（スクショ撮影用）修正版 ▼▼▼
   $("#shareModeBtn")?.addEventListener("click", (e) => {
-    e.stopPropagation(); // ボタン自体のクリックが画面クリックとして誤検知されないようにする
+    e.stopPropagation();
 
-    // 既にモードONなら、このボタン操作で解除
+    // 既にONなら解除
     if (document.body.classList.contains("share-mode")) {
        exitShareMode();
        return;
     }
 
-    // モードをONにする
+    // モードON
     document.body.classList.add("share-mode");
     const btn = $("#shareModeBtn");
-    // アイコンを「×」に変えて、色は赤にする
     btn.textContent = "✖";
-    btn.style.color = "red";
+    btn.style.color = "#ef4444";
     btn.style.background = "#fff";
+    btn.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
+
+    // 1. シェア用ヘッダー（日付・名前）の作成
+    let shareHeader = document.getElementById("shareHeaderOverlay");
+    if (!shareHeader) {
+      shareHeader = document.createElement("div");
+      shareHeader.id = "shareHeaderOverlay";
+      const app = document.getElementById("app");
+      app.insertBefore(shareHeader, app.firstChild);
+    }
     
-    // ★機能: 画面のどこかをクリックしたら元に戻す関数
+    // 日付と名前の表示
+    const y = selDate.getFullYear();
+    const m = selDate.getMonth() + 1;
+    const d = selDate.getDate();
+    const w = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][selDate.getDay()];
+    const dateStr = `<span style="font-size:1.4em; font-weight:800; letter-spacing:-1px;">${y}.${m}.${d}</span> <span style="font-size:0.9em; color:#ea580c; font-weight:bold; margin-left:6px;">${w}</span>`;
+    const nameStr = getDisplayName(viewingMemberId);
+    
+    shareHeader.innerHTML = `
+      <div class="share-header-inner">
+        <div class="share-date">${dateStr}</div>
+        <div class="share-meta">
+           <span class="share-name">${nameStr}</span>
+           <span class="share-team" style="color:#9ca3af; margin-left:8px; font-size:0.8em;">@${teamId}</span>
+        </div>
+      </div>
+      <div class="share-brand">AthLog</div>
+    `;
+    shareHeader.style.display = "flex";
+
+    // 解除関数
     function exitShareMode() {
        document.body.classList.remove("share-mode");
        const b = $("#shareModeBtn");
@@ -1461,20 +1490,18 @@ function initJournal(){
            b.textContent = "📷";
            b.style.color = "";
            b.style.background = "";
+           b.style.boxShadow = "";
        }
-       // 監視を終了
+       if(shareHeader) shareHeader.style.display = "none";
        document.removeEventListener("click", exitShareMode);
     }
     
-    // 即座に反応して閉じてしまわないよう、ほんの少し待ってから「画面クリック」の監視を始める
+    // 即座に閉じないよう少し待つ
     setTimeout(() => {
        document.addEventListener("click", exitShareMode);
     }, 100);
   });
-  // ▲▲▲ 追加ここまで ▲▲▲
-
-  // 初期化
-  initMuscleMap();
+  // ▲▲▲ 修正ここまで ▲▲▲
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
   $("#weekNext")?.addEventListener("click",()=>{ selDate=addDays(selDate, 7); renderJournal(); });
   // ★追加: 日移動ボタンの処理
@@ -4397,33 +4424,141 @@ function updateFavBtnUI(isFav) {
   }
 }
 
-// app.js の一番最後に追加
+// app.js の一番最後（shareStyle の定義を書き換え）
 
-// ★追加: シェアモード時に余計なものを消すスタイル
 const shareStyle = document.createElement('style');
 shareStyle.innerHTML = `
-  /* シェアモード時は、以下の要素を非表示にする */
+  /* === 全体をひと画面に固定 === */
+  body.share-mode {
+    background-color: #f3f4f6 !important;
+    overflow: hidden !important; /* スクロール禁止 */
+    height: 100vh !important;
+    width: 100vw !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* カード本体 */
+  body.share-mode #app {
+    width: 90% !important;
+    max-width: 600px !important;
+    height: 92vh !important; /* 画面の92%の高さに収める */
+    background: #fff !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1) !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+    
+    display: flex !important;
+    flex-direction: column !important;
+    margin: 0 !important;
+    position: relative;
+  }
+
+  /* 不要な要素を非表示 */
   body.share-mode header,
-  body.share-mode #journalTabs,        /* タブ */
-  body.share-mode .weekbar > *:not(#shareModeBtn), /* カメラボタン以外のナビ */
-  body.share-mode .palette,            /* お絵かきパレット */
-  body.share-mode #saveBtn,            /* 保存ボタン */
-  body.share-mode #mergeBtn,           /* 反映ボタン */
-  body.share-mode #teamSwitchWrap,     /* チーム切替 */
-  body.share-mode #memberNavWrap,      /* メンバー切替 */
-  body.share-mode .qbtn-area,          /* クイックボタン */
-  body.share-mode .parts-tag-area      /* 部位タグエリア */
+  body.share-mode #journalTabs,
+  body.share-mode .weekbar > *:not(#shareModeBtn),
+  body.share-mode .palette,
+  body.share-mode #saveBtn,
+  body.share-mode #mergeBtn,
+  body.share-mode #teamSwitchWrap,
+  body.share-mode #memberNavWrap,
+  body.share-mode .qbtn-area,
+  body.share-mode .parts-tag-area,
+  body.share-mode .login-note,
+  body.share-mode #goHomeBtn,
+  body.share-mode h2,
+  body.share-mode #partsTagArea,
+  body.share-mode #mergeScopeWrapper
   {
     display: none !important;
   }
 
-  /* シェアモード時の微調整 */
-  body.share-mode .weekbar {
-    justify-content: flex-start; /* ボタン位置調整 */
+  /* ヘッダー */
+  #shareHeaderOverlay {
+    display: none;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #f3f4f6;
+    flex-shrink: 0; /* ヘッダーは縮ませない */
   }
-  body.share-mode #app {
-    padding-top: 10px;
-    background: #fff;
+  .share-header-inner { display: flex; flex-direction: column; }
+  .share-date { color: #111; line-height: 1.2; }
+  .share-meta { margin-top: 4px; font-weight: 500; color: #4b5563; }
+  .share-brand { font-size: 10px; color: #d1d5db; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; align-self: flex-end; }
+
+  /* 日誌エリア（ここを伸縮させる） */
+  body.share-mode #journal {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important; /* 余った高さを全部使う */
+    min-height: 0 !important;
+    gap: 8px;
+    overflow: hidden; /* 中身があふれても切り捨てる */
+  }
+
+  /* 数値データ（距離・体重など） */
+  body.share-mode .journal-stats-row {
+    display: flex; gap: 8px; flex-shrink: 0; /* 縮ませない */
+  }
+  body.share-mode .journal-stats-item {
+    background: #fffbeb; border-radius: 6px; padding: 4px; text-align: center; flex: 1;
+  }
+  body.share-mode .journal-stats-item input {
+    font-size: 16px !important; padding: 0 !important; height: auto !important; background: transparent !important; color: #ea580c !important; text-align: center; border: none !important;
+  }
+  body.share-mode .journal-stats-item label { 
+    display: block !important; font-size: 9px; color: #666; margin-bottom: 2px;
+  }
+
+  /* テキストエリア（練習内容・感想） */
+  body.share-mode label {
+    font-size: 10px; font-weight: bold; color: #ea580c; display: block !important; margin-bottom: 2px;
+  }
+  body.share-mode textarea {
+    border: none !important;
+    background: #f9fafb !important;
+    border-radius: 8px !important;
+    padding: 10px !important;
+    font-size: 13px !important;
+    color: #1f2937 !important;
+    width: 100% !important;
+    resize: none !important;
+    box-sizing: border-box !important;
+    
+    flex-grow: 1 !important; /* ★ここが重要：可能な限り縦に伸びる */
+    min-height: 40px !important;
+  }
+  
+  /* 筋肉マップ */
+  body.share-mode #mmWrap {
+    margin: 0 auto !important;
+    flex-shrink: 1 !important; /* 狭くなったら縮む */
+    max-height: 25vh !important; /* 画面の1/4以上は占領させない */
+    width: auto !important;
+    display: flex; justify-content: center;
+  }
+  body.share-mode canvas {
+    max-height: 100% !important; width: auto !important; height: auto !important;
+  }
+
+  /* コンディション */
+  body.share-mode #conditionBtns {
+    display: flex; justify-content: center; margin-top: 4px; flex-shrink: 0;
+  }
+  body.share-mode #conditionBtns button { display: none; }
+  body.share-mode #conditionBtns button.active {
+    display: inline-block; transform: scale(1.2); margin: 0; border: none !important;
+  }
+
+  /* 閉じるボタン */
+  body.share-mode #shareModeBtn {
+    position: absolute; top: 10px; right: 10px;
+    z-index: 10001; 
   }
 `;
 document.head.appendChild(shareStyle);
