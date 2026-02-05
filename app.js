@@ -1479,24 +1479,35 @@ function initJournal(){
     `;
     shareHeader.style.display = "flex";
 
-    // 2. 「調子」をStats行（体重などの並び）に移動
+    // 2. 「調子」を睡眠の横に移動
     const activeCondBtn = document.querySelector('#conditionBtns button.active');
     const condVal = activeCondBtn ? activeCondBtn.dataset.val : "-";
     
-    // 挿入先：weightInputの親(div)の親(div.journal-stats-row)を探す
-    const weightInput = document.getElementById('weightInput');
-    // input -> div -> div.journal-stats-row
-    const statsRow = weightInput ? weightInput.closest('.journal-stats-row') || weightInput.parentElement.parentElement : null;
+    // 睡眠の入力欄を探す
+    const sleepInput = document.getElementById('j-sleep');
+    // その親要素（<div><label>睡眠</label><input...></div> のはず）
+    const sleepWrapper = sleepInput ? sleepInput.parentElement : null;
     
-    if(statsRow) {
-      // 既存の入力欄と同じ構造のdivを作成
-      const condItem = document.createElement("div");
-      condItem.className = "journal-stats-item added-cond-item"; // シェアモード専用クラス
-      condItem.innerHTML = `
-        <label>調子</label>
-        <input type="text" value="${condVal}" readonly style="color:#ea580c !important; font-weight:bold;">
-      `;
-      statsRow.appendChild(condItem);
+    // 既存の入力欄と同じデザインで「調子」を作る
+    const condItem = document.createElement("div");
+    condItem.className = "journal-stats-item added-cond-item"; // シェアモード専用クラス
+    // 親要素のスタイルをコピーして幅などを合わせる
+    if(sleepWrapper) condItem.style.cssText = sleepWrapper.style.cssText;
+    
+    condItem.innerHTML = `
+      <label>調子</label>
+      <input type="text" value="${condVal}" readonly style="color:#ea580c !important; font-weight:bold;">
+    `;
+
+    // 睡眠の横（後ろ）に挿入
+    if(sleepWrapper && sleepWrapper.parentElement) {
+      // insertBefore(追加するやつ, 睡眠の次のやつ) = 睡眠の後ろに追加
+      sleepWrapper.parentElement.insertBefore(condItem, sleepWrapper.nextSibling);
+    } else {
+      // 万が一見つからなければ体重の親などの後ろ、あるいはStats行の最後へ
+      const weightInput = document.getElementById('weightInput');
+      const row = weightInput ? weightInput.closest('.journal-stats-row') : null;
+      if(row) row.appendChild(condItem);
     }
 
     // 解除関数
@@ -3220,11 +3231,14 @@ function initMuscleMap(){
     // single: 全体 / front/back: 左右半分
     const fullW=img.naturalWidth, fullH=img.naturalHeight;
     const halfW=Math.floor(fullW/2);
+    // app.js の initMuscleMap 関数内
+
+    // ... (前略)
     const crop = (MM.VIEW==='front') ? {sx:0,     sy:0, sw:halfW, sh:fullH}
                : (MM.VIEW==='back')  ? {sx:halfW, sy:0, sw:halfW, sh:fullH}
                :                       {sx:0,     sy:0, sw:fullW, sh:fullH};
 
-    // ▼▼▼ 修正箇所: ラッパーとキャンバスの配置を絶対固定してズレを防ぐ ▼▼▼
+    // ▼▼▼ 修正: ラッパーとキャンバスの配置を絶対固定してズレを防ぐ ▼▼▼
     const wrap = document.getElementById('mmWrap') || document.querySelector('.canvas-wrap');
     if(wrap) {
       // 縦横比を固定し、はみ出しを防ぐ
@@ -3248,7 +3262,9 @@ function initMuscleMap(){
     });
     // ▲▲▲ 修正ここまで ▲▲▲
 
-    // ベースへ描画（解析用）
+    // ベースへ描画
+    mm.bctx.clearRect(0,0,crop.sw,crop.sh);
+    // ... (後略)
     mm.bctx.clearRect(0,0,crop.sw,crop.sh);
     mm.bctx.drawImage(img, crop.sx,crop.sy,crop.sw,crop.sh, 0,0,crop.sw,crop.sh);
 
