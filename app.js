@@ -1576,6 +1576,7 @@ async function renderJournal(){
   }
 
   $("#datePicker").value = ymd(selDate);
+  renderWeek();
 }
 
 let renderWeekRequestId = 0;
