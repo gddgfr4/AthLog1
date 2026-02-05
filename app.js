@@ -1870,13 +1870,11 @@ function initMonth(){
      });
    }                                                
 }
+// ■ renderMonth関数（月一覧の表示）
 async function renderMonth(){
   const editableHere = isEditableHere(teamId,memberId,viewingMemberId);
-// monthGoalInput が存在する時だけ触る（存在しないページ構成でも安全）
   const goalInputEl = document.getElementById("monthGoalInput");
   if (goalInputEl) goalInputEl.disabled = !editableHere;
-  // 保存ボタンはUIから削除したので、参照もしない
-  
 
   const box=$("#monthList"); if(!box) return;
   box.innerHTML="";
@@ -1892,45 +1890,44 @@ async function renderMonth(){
   let sum=0;
   for (let d = 1; d <= lastDay; d++) {
     const dt = new Date(yy, mm - 1, d);
-    const dayKey = ymd(dt); // ← 追加：この日のキー
+    const dayKey = ymd(dt);
     const dow = ["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()];
   
     const row = document.createElement("div");
     row.className = "row";
     row.innerHTML = `
-      <div class="dow" id="dow_${dayKey}"> <span>${dow}${d}</span>
-      </div>
+      <div class="dow" id="dow_${dayKey}"> <span>${dow}${d}</span></div>
       <div class="txt"><div>—</div></div>
     `;
     row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
     box.appendChild(row);
   
-    // ← 以降は同じ非同期読み込みだが、dayKey をキャプチャして使う
+    // 非同期で詳細データを読み込み
     (async (dtLocal, key) => {
       try {
         const snap = await getJournalRef(srcTeam, viewingMemberId, dtLocal).get();
         const j = snap.data() || {};
-        if (monthFavOnly && !j.favorite) {
+  
+        // ▼ フィルター機能: 「★のみ」モードで、お気に入りがなければ隠す
+        if (typeof monthFavOnly !== 'undefined' && monthFavOnly && !j.favorite) {
           row.style.display = 'none';
-          return; // これ以降の描画処理をスキップ
-        } else {
-          row.style.display = 'flex'; // 再表示用
+          // 合計距離には含めない場合はここで return もありですが、
+          // 通常は「表示フィルタ」だけなので計算は続けることが多いです。
+          // 今回は表示だけ消して計算は続けます。
         }
-        // 合計距離の更新（既存処理をそのまま）
+
+        // 合計距離の更新
         const add = Number(j.dist || 0);
         if (!Number.isNaN(add)) {
           sum += add;
           const sumEl = document.getElementById("monthSum");
           if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
         }
-        if(dowEl && j.favorite) {
-           // 日付の下や横に小さな★をつける（HTML構造によるが、単純に文字色を変えるか、要素追加）
-           dowEl.innerHTML += `<span style="color:#f59e0b; font-size:10px; position:absolute; top:0; right:2px;">★</span>`;
-           dowEl.style.position = 'relative';
-        }
 
-       // ── 縦色ラベル（typebar）の色反映（文字タグは出さない） ──
-        const dowEl = document.getElementById(`dow_${key}`); // typebar -> dowEl
+        // ▼▼▼ 変数の宣言は必ずここ（使う前）で行う ▼▼▼
+        const dowEl = document.getElementById(`dow_${key}`);
+        
+        // 1. 縦色ラベル（typebar）の色反映
         const tags = Array.isArray(j.tags) ? j.tags.slice(0, 2) : [];
         const colorMap = {
           ジョグ:   'var(--q-jog)',
@@ -1939,32 +1936,43 @@ async function renderMonth(){
           オフ:     'var(--q-off)',
           その他:   'var(--q-other)'
         };
-        if (dowEl) { // typebar -> dowEl
+        if (dowEl) {
           if (tags.length === 0) {
-            dowEl.style.background = 'var(--panel)'; // デフォルト色（背景色と同じ）
+            dowEl.style.background = 'var(--panel)';
           } else if (tags.length === 1) {
             dowEl.style.background = colorMap[tags[0]] || 'var(--panel)';
-            dowEl.style.color = '#1f2937'; // 色がついたら文字を濃くする
+            dowEl.style.color = '#1f2937';
           } else {
             const c1 = colorMap[tags[0]] || 'var(--panel)';
             const c2 = colorMap[tags[1]] || 'var(--panel)';
-            dowEl.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`; // 上下分割
-            dowEl.style.color = '#1f2937'; // 色がついたら文字を濃くする
+            dowEl.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`;
+            dowEl.style.color = '#1f2937';
           }
         }
   
-        // コンディション表示と本文（タグ文字は出さない）
+        // 2. お気に入りマーク（★）の表示
+        if(dowEl && j.favorite) {
+           dowEl.innerHTML += `<span style="color:#f59e0b; font-size:10px; position:absolute; top:0; right:2px;">★</span>`;
+           dowEl.style.position = 'relative';
+        }
+
+        // コンディション表示と本文
         const cond = (j.condition != null) ? Number(j.condition) : null;
         const condHtml = (cond && cond >= 1 && cond <= 5)
           ? `<span class="cond-pill cond-${cond}">${cond}</span>`
           : `<span class="cond-pill cond-3" style="opacity:.4">–</span>`;
   
-        // コンディション表示と本文
         const txt = row.querySelector(".txt");
         if (txt) {
+          // 検索キーワードがあればハイライト（簡易実装）
+          let trainTxt = j.train || "—";
+          let feelTxt = j.feel || "";
+          // もし検索中ならここでハイライト処理を入れても良いですが、
+          // 今回は検索は別リスト表示なので標準表示に戻します。
+          
           txt.innerHTML = `
             <div class="month-one-line">
-              <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span><span class="month-train-ellipsis">${(j.train || "—")}</span>
+              <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span><span class="month-train-ellipsis">${trainTxt}</span>
               ${condHtml}
             </div>`;
         }
@@ -1976,13 +1984,11 @@ async function renderMonth(){
     })(dt, dayKey);
   }
 
-
   try{
     const goalDoc=await getGoalsRef(srcTeam,viewingMemberId,monStr).get();
     $("#monthGoalInput").value=goalDoc.data()?.goal || "";
   }catch(e){ console.error("read goal error:", e); }
 }
-
 // ===== Team Memo =====
 function renderMemoItem(m){
   const div=document.createElement("div");
