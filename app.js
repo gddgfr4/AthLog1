@@ -4481,7 +4481,7 @@ shareStyle.innerHTML = `
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px 0; /* 上下に少し余白 */
+    padding: 20px 0;
   }
 
   /* === カード本体（ストーリー比率） === */
@@ -4489,10 +4489,10 @@ shareStyle.innerHTML = `
     width: 88vw !important;         /* 横幅 */
     max-width: 400px !important;    /* 大きくなりすぎないように */
     aspect-ratio: 9 / 16 !important; /* ★ストーリーの縦横比 */
-    max-height: 95vh !important;    /* 画面からはみ出さない */
+    max-height: 95vh !important;
     
     background: #fff !important;
-    border-radius: 24px !important; /* 角丸を強めに */
+    border-radius: 24px !important;
     box-shadow: 0 20px 50px rgba(0,0,0,0.15) !important;
     padding: 24px !important;
     box-sizing: border-box !important;
@@ -4543,37 +4543,46 @@ shareStyle.innerHTML = `
   body.share-mode #journal {
     display: flex !important;
     flex-direction: column !important;
-    flex: 1 !important;
+    flex: 1 !important; /* 残りの高さを全部使う */
     min-height: 0 !important;
     gap: 8px;
     overflow: hidden;
   }
 
-  /* 数値データ（体重・睡眠・調子）横並び */
+  /* 数値データの行（距離・体重・睡眠・調子） */
   body.share-mode .journal-stats-row {
     display: flex; 
     gap: 8px; 
     flex-shrink: 0;
-    justify-content: space-between; /* 均等配置 */
+    /* justify-content: space-between; */ 
+    flex-wrap: nowrap !important; /* 折り返し禁止 */
   }
-  body.share-mode .journal-stats-item {
-    background: #fffbeb; 
-    border-radius: 8px; 
-    padding: 6px; 
-    text-align: center; 
-    flex: 1; /* 横幅を均等に */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+  
+  /* 各アイテム（元のもの＋追加した調子） */
+  body.share-mode .journal-stats-row > div,
+  body.share-mode .added-cond-item {
+    background: #fffbeb !important; 
+    border-radius: 8px !important; 
+    padding: 6px !important; 
+    text-align: center !important; 
+    flex: 1 !important; /* 全員等幅で広がる */
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    min-width: 0 !important; /* 縮小許容 */
+    width: auto !important; /* 幅指定解除 */
   }
-  body.share-mode .journal-stats-item input {
+  
+  body.share-mode .journal-stats-row input,
+  body.share-mode .added-cond-item input {
     font-size: 16px !important; padding: 0 !important; height: auto !important; background: transparent !important; color: #ea580c !important; text-align: center; border: none !important; width: 100% !important;
   }
-  body.share-mode .journal-stats-item label { 
-    display: block !important; font-size: 9px; color: #666; margin-bottom: 2px;
+  body.share-mode .journal-stats-row label,
+  body.share-mode .added-cond-item label { 
+    display: block !important; font-size: 9px; color: #666; margin-bottom: 2px; white-space: nowrap;
   }
 
-  /* テキストエリア */
+  /* テキストエリア（練習内容・感想） */
   body.share-mode label {
     font-size: 10px; font-weight: bold; color: #ea580c; display: block !important; margin-bottom: 2px;
   }
@@ -4587,15 +4596,15 @@ shareStyle.innerHTML = `
     width: 100% !important;
     resize: none !important;
     box-sizing: border-box !important;
-    flex-grow: 1 !important;
+    flex-grow: 1 !important; /* ★可能な限り縦に伸びる */
     min-height: 40px !important;
   }
   
   /* 筋肉マップ */
   body.share-mode #mmWrap {
     margin: 4px auto !important;
-    flex-shrink: 1 !important;
-    max-height: 25vh !important; /* 縦幅の1/4程度に抑える */
+    flex-shrink: 1 !important; /* 狭くなったら縮む */
+    max-height: 20vh !important; /* 画面の20%までに抑える */
     width: auto !important;
     display: flex; justify-content: center;
   }
