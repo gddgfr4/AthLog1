@@ -1461,7 +1461,8 @@ function initJournal(){
     const btn = $("#shareModeBtn");
     btn.textContent = "✖"; btn.style.color = "#ef4444"; btn.style.background = "#fff";
 
-    // 1. ヘッダー作成 (変更なし)
+    // ... (前略)
+    // 1. ヘッダー作成 (チーム名を追加)
     let shareHeader = document.getElementById("shareHeaderOverlay");
     if (!shareHeader) {
       shareHeader = document.createElement("div");
@@ -1471,17 +1472,23 @@ function initJournal(){
     }
     const y = selDate.getFullYear(), m = selDate.getMonth()+1, d = selDate.getDate();
     const w = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][selDate.getDay()];
+    
+    // ★修正: チーム名を表示に追加
     shareHeader.innerHTML = `
       <div class="share-header-inner">
         <div class="share-date">
           <span style="font-size:1.4em; font-weight:800; letter-spacing:-1px;">${y}.${m}.${d}</span>
           <span style="font-size:0.9em; color:#ea580c; font-weight:bold; margin-left:6px;">${w}</span>
         </div>
-        <div class="share-meta"><span class="share-name">${getDisplayName(viewingMemberId)}</span></div>
+        <div class="share-meta">
+          <span style="display:block; font-size:0.75rem; color:#9ca3af; line-height:1;">${teamId}</span>
+          <span class="share-name" style="font-size:1.1rem; color:#1f2937;">${getDisplayName(viewingMemberId)}</span>
+        </div>
       </div>
       <div class="share-brand">AthLog</div>
     `;
     shareHeader.style.display = "flex";
+    // ... (後略)
 
     // 2. 「調子」を睡眠の横に追加
     const activeCondBtn = document.querySelector('#conditionBtns button.active');
@@ -4351,28 +4358,34 @@ async function loadAiProfileToForm() {
 
 const shareStyle = document.createElement('style');
 shareStyle.innerHTML = `
-  /* === 全体設定 === */
+  /* === 全体設定 (PC/スマホ共通) === */
   body.share-mode {
-    background-color: #333 !important;
+    background-color: #222 !important; /* 背景を暗くしてカードを際立たせる */
     overflow: hidden !important;
     height: 100vh !important; width: 100vw !important;
-    display: flex; 
+    margin: 0 !important;
+    
+    /* 画面中央に配置 */
+    display: flex !important; 
     align-items: center !important; 
     justify-content: center !important;
-    padding: 0 !important; 
   }
 
-  /* カード本体 (9:16) */
+  /* カード本体 (9:16 縦横比固定) */
   body.share-mode #app {
-    height: 92vh !important;
+    /* 画面内に収まる最大のサイズを計算 */
+    height: 90vh !important;
     width: auto !important;
     aspect-ratio: 9 / 16 !important;
-    max-width: 95vw !important;
+    
+    /* スマホで幅がはみ出さないためのガード */
+    max-width: 90vw !important;
     
     background: #fff !important;
-    border-radius: 20px !important;
-    box-shadow: 0 0 50px rgba(0,0,0,0.5) !important;
-    padding: 24px !important; box-sizing: border-box !important;
+    border-radius: 24px !important;
+    box-shadow: 0 0 60px rgba(0,0,0,0.6) !important;
+    padding: 24px !important; 
+    box-sizing: border-box !important;
     
     display: flex !important; flex-direction: column !important;
     position: relative; 
@@ -4395,13 +4408,13 @@ shareStyle.innerHTML = `
   /* ヘッダー */
   #shareHeaderOverlay {
     display: flex; justify-content: space-between; align-items: flex-start;
-    margin-bottom: 8px; padding-bottom: 6px;
+    margin-bottom: 12px; padding-bottom: 8px;
     border-bottom: 2px solid #f3f4f6; flex-shrink: 0;
   }
   .share-header-inner { display: flex; flex-direction: column; }
   .share-date { color: #111; line-height: 1.2; }
-  .share-meta { margin-top: 2px; font-weight: 500; color: #6b7280; font-size: 0.8rem; }
-  .share-brand { font-size: 10px; color: #d1d5db; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; align-self: flex-end; }
+  .share-meta { margin-top: 4px; font-weight: bold; }
+  .share-brand { font-size: 10px; color: #d1d5db; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; align-self: center; }
 
   /* 日誌エリア */
   body.share-mode #journal {
@@ -4413,7 +4426,7 @@ shareStyle.innerHTML = `
   /* 数値データ行 */
   body.share-mode .journal-stats-row {
     display: flex; justify-content: space-between !important;
-    gap: 4px; flex-shrink: 0; margin-top: -2px;
+    gap: 4px; flex-shrink: 0; margin-top: 0;
     width: 100% !important;
   }
   
@@ -4429,21 +4442,21 @@ shareStyle.innerHTML = `
 
   body.share-mode .journal-stats-row input,
   body.share-mode .share-val {
-    font-size: 18px !important; font-weight: 800 !important;
-    color: #ea580c !important; /* デフォルトはオレンジ */
+    font-size: 20px !important; font-weight: 800 !important;
+    color: #ea580c !important; /* オレンジ */
     text-align: center;
     background: transparent !important; border: none !important;
     width: 100% !important; margin:0 !important; padding:0 !important;
     font-family: sans-serif;
   }
   
-  /* ★修正: 「調子」(④など)だけ黒文字にする */
+  /* 調子の値だけ黒文字 */
   body.share-mode .added-cond-item .share-val {
     color: #000 !important;
   }
 
   body.share-mode label {
-    font-size: 9px !important; color: #ea580c !important; font-weight:bold;
+    font-size: 10px !important; color: #ea580c !important; font-weight:bold;
     display: block !important; margin-bottom: 0px;
     text-align: center; white-space: nowrap; width: 100% !important;
   }
@@ -4452,27 +4465,27 @@ shareStyle.innerHTML = `
   body.share-mode textarea {
     border: 1px solid #f3f4f6 !important;
     background: #f9fafb !important;
-    border-radius: 10px !important;
-    padding: 10px !important;
-    font-size: 12px !important; color: #374151 !important;
+    border-radius: 12px !important;
+    padding: 12px !important;
+    font-size: 13px !important; color: #374151 !important;
     width: 100% !important; resize: none !important;
     box-sizing: border-box !important;
-    height: 75px !important; flex-shrink: 0 !important;
+    height: 80px !important; flex-shrink: 0 !important;
   }
 
-  /* 筋肉マップ修正: 最下部配置 & 重なりズレ防止 */
+  /* 筋肉マップ修正: 最下部配置 & 画像全体表示 */
   body.share-mode #mmWrap {
-    margin-top: auto !important;   /* ★これで最下部に押しやります */
-    margin-bottom: 0 !important;
+    margin-top: auto !important;   /* これで強制的に最下部へ */
+    margin-bottom: 0 !important;   /* 下の余白なし */
     
     width: 100% !important;
-    /* 高さはJSで設定された aspect-ratio に従うが、画面からはみ出さないように制限 */
-    flex-shrink: 1 !important; 
-    max-height: 50% !important;
+    /* 画面の残りスペースを使い切るが、大きくなりすぎないように制限 */
+    flex-grow: 1 !important;       
+    max-height: 55% !important;    /* カードの半分強まで許可 */
+    min-height: 200px !important;  /* 最低限の高さを確保 */
     
     position: relative !important; 
     display: block !important;
-    /* アスペクト比の設定(JS)を維持するため、CSSでの aspect-ratio指定は削除 */
   }
   
   body.share-mode canvas {
@@ -4480,14 +4493,13 @@ shareStyle.innerHTML = `
     top: 0 !important; left: 0 !important;
     width: 100% !important; height: 100% !important;
     
-    /* ★全キャンバスを同じルールで配置してズレを防止 */
+    /* 全体（足元まで）が収まるようにする */
     object-fit: contain !important; 
-    object-position: center bottom !important; 
+    object-position: center bottom !important; /* 下基準で配置 */
   }
 
   body.share-mode #shareModeBtn {
-    position: absolute; top: 12px; right: 12px; z-index: 10001; 
+    position: absolute; top: 16px; right: 16px; z-index: 10001; 
   }
 `;
 document.head.appendChild(shareStyle);
-
