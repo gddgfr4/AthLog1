@@ -1553,140 +1553,31 @@ function initJournalSwipeNav(){
 }
 
 
-// 日誌画面の描画（修正版：ターゲットIDを修正）
 async function renderJournal(){
-  // ★修正: "journal-container" が無くても、タブパネル "journal" 自体に描画する
-  let container = document.getElementById("journal-container");
-  if(!container) {
-      const tabPanel = document.getElementById("journal");
-      if(!tabPanel) return;
-      // コンテナを動的に作成して確保
-      tabPanel.innerHTML = '<div id="journal-container"></div>';
-      container = document.getElementById("journal-container");
-  }
+  if (unsubscribeJournal) unsubscribeJournal();
+  if (!viewingMemberId) viewingMemberId = memberId;
 
-  // 1. チームIDと権限
-  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-  const isEditable = isEditableHere(teamId, memberId, viewingMemberId);
-  
-  // 2. データ取得
-  let data = {};
-  try {
-    const doc = await getJournalRef(srcTeam, viewingMemberId, selDate).get();
-    if(doc.exists) data = doc.data();
-  } catch(e) { console.error(e); }
+  dirty = { dist:false, train:false, feel:false };
 
-  // 3. 値の準備
-  const distVal = data.dist || '';
-  const weightVal = data.weight || '';
-  const sleepVal = data.sleep || '';
-  const condVal = data.condition || '3';
-  const trainVal = data.train || '';
-  const feelVal = data.feel || '';
-  const isFav = !!data.isFav;
-
-  // 4. 週チップ更新
-  if(typeof renderWeek === 'function') await renderWeek(); 
-
-  // 5. HTML生成
-  container.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-       <div style="display:flex; gap:2px;">
-         <button class="date-nav-btn" onclick="moveWeek(-1)">≪週</button>
-         <button class="date-nav-btn" onclick="moveDay(-1)">＜日</button>
-       </div>
-       <div style="font-weight:bold; text-align:center;">
-         ${ymd(selDate)}<br>
-         <span style="font-size:12px; color:#666;">${['日','月','火','水','木','金','土'][selDate.getDay()]}曜日</span>
-       </div>
-       <div style="display:flex; gap:2px;">
-         <button class="date-nav-btn" onclick="moveDay(1)">日＞</button>
-         <button class="date-nav-btn" onclick="moveWeek(1)">週≫</button>
-       </div>
-    </div>
-
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-       <button id="favBtn" class="fav-btn ${isFav?'active':''}">${isFav?'★':'☆'}</button>
-       <div style="display:flex; gap:8px;">
-         <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImageUpload(this)">
-         <button class="btn-sm" onclick="document.getElementById('imageInput').click()">📷 写真追加</button>
-       </div>
-    </div>
-    
-    <div class="journal-stats-row">
-      <div class="journal-stats-item">
-        <label>距離(km)</label>
-        <input type="number" id="j-dist" step="0.01" value="${distVal}" placeholder="0" ${!isEditable?'disabled':''}>
-      </div>
-      <div class="journal-stats-item">
-        <label>体重(kg)</label>
-        <input type="number" id="j-weight" step="0.1" value="${weightVal}" placeholder="kg" ${!isEditable?'disabled':''}>
-      </div>
-      <div class="journal-stats-item">
-        <label>睡眠(h)</label>
-        <input type="number" id="j-sleep" step="0.1" value="${sleepVal}" placeholder="h" ${!isEditable?'disabled':''}>
-      </div>
-      <div class="journal-stats-item">
-        <label>調子</label>
-        <select id="j-condition" ${!isEditable?'disabled':''}>
-           <option value="5" ${condVal=='5'?'selected':''}>5:絶好調</option>
-           <option value="4" ${condVal=='4'?'selected':''}>4:良い</option>
-           <option value="3" ${condVal=='3'?'selected':''}>3:普通</option>
-           <option value="2" ${condVal=='2'?'selected':''}>2:悪い</option>
-           <option value="1" ${condVal=='1'?'selected':''}>1:絶不調</option>
-        </select>
-      </div>
-    </div>
-
-    <div style="margin-bottom:10px;">
-      <label class="lt-label">練習メニュー</label>
-      <textarea id="j-train" class="lt-input" rows="4" ${!isEditable?'disabled':''}>${trainVal}</textarea>
-    </div>
-
-    <div style="margin-bottom:10px;">
-      <label class="lt-label">振り返り</label>
-      <textarea id="j-feel" class="lt-input" rows="3" ${!isEditable?'disabled':''}>${feelVal}</textarea>
-    </div>
-
-    <div style="margin-bottom:10px;">
-       <label class="lt-label">筋疲労マップ</label>
-       <div style="position:relative; width:100%; max-width:300px; margin:0 auto;">
-         <img src="human.webp" id="mm-bg" style="width:100%; display:block; user-select:none;">
-         <canvas id="mm-overlay" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
-       </div>
-       <div style="text-align:center; margin-top:4px;">
-         <button class="btn-sm" onclick="setBrushColor(1)" style="background:#93C5FD;">張り</button>
-         <button class="btn-sm" onclick="setBrushColor(2)" style="background:#FDBA74;">痛み</button>
-         <button class="btn-sm" onclick="setBrushColor(3)" style="background:#EF4444; color:white;">激痛</button>
-         <button class="btn-sm" onclick="setBrushEraser()">消しゴム</button>
-         <button class="btn-sm" onclick="clearMuscleMap()">クリア</button>
-       </div>
-    </div>
-
-    <div id="journal-images" style="display:flex; flex-wrap:wrap; gap:4px;"></div>
-  `;
-
-  // 6. イベント設定
-  if(isEditable){
-    const save = () => saveJournalDebounced(srcTeam);
-    ['j-dist','j-weight','j-sleep','j-condition','j-train','j-feel'].forEach(id => {
-       document.getElementById(id)?.addEventListener('input', save);
+  const editableHere = isEditableHere(teamId, memberId, viewingMemberId);
+  $$('#journal input, #journal textarea, #journal .qbtn, #saveBtn, #mergeBtn, #conditionBtns button, .palette button')
+    .forEach(el=>{
+      const isNavControl = ['weekPrev','weekNext','gotoToday','datePicker'].includes(el.id);
+      if (!isNavControl) el.disabled = !editableHere;
     });
+  $("#teamSharedComment")?.removeAttribute("disabled");
+  refreshBadges();
 
-    const favBtn = document.getElementById('favBtn');
-    if(favBtn) {
-      favBtn.onclick = async () => {
-         const newVal = !favBtn.classList.contains('active');
-         favBtn.classList.toggle('active');
-         favBtn.textContent = newVal ? '★' : '☆';
-         await getJournalRef(srcTeam, viewingMemberId, selDate).set({ isFav: newVal }, { merge: true });
-      };
-    }
+  const mergeScopeSelect = $("#mergeScope");
+  if (mergeScopeSelect){
+    mergeScopeSelect.innerHTML =
+      `<option value="auto">予定から追加(自動)</option>
+       <option value="${memberId}">${getDisplayName(memberId)}の予定</option>
+       <option value="team">全員の予定</option>`;
   }
 
-  initMuscleMapCanvas(data.mmImage);
-  renderJournalImages(data.images);
-}
+  $("#datePicker").value = ymd(selDate);
+
 let renderWeekRequestId = 0;
 
 async function renderWeek(){
@@ -1798,97 +1689,109 @@ function initMonth(){
      });
    }                                                
 }
-// 月一覧の描画（修正版: 練習タグによる色分けを復元）
 async function renderMonth(){
-  const list = document.getElementById("month-list");
-  if(!list) return;
+  const editableHere = isEditableHere(teamId,memberId,viewingMemberId);
+// monthGoalInput が存在する時だけ触る（存在しないページ構成でも安全）
+  const goalInputEl = document.getElementById("monthGoalInput");
+  if (goalInputEl) goalInputEl.disabled = !editableHere;
+  // 保存ボタンはUIから削除したので、参照もしない
   
-  const mPicker = document.getElementById("monthPick");
-  const ym = mPicker ? mPicker.value : getMonthStr(new Date());
+
+  const box=$("#monthList"); if(!box) return;
+  box.innerHTML="";
+
+  const mp=$("#monthPick");
+  const monStr=(mp && mp.value) ? mp.value : getMonthStr(new Date());
+  if(mp && !mp.value) mp.value=monStr;
+
+  const [yy,mm]=monStr.split("-").map(Number);
+  const lastDay=endOfMonth(new Date(yy, mm-1, 1)).getDate();
+  const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
+
+  let sum=0;
+  for (let d = 1; d <= lastDay; d++) {
+    const dt = new Date(yy, mm - 1, d);
+    const dayKey = ymd(dt); // ← 追加：この日のキー
+    const dow = ["SU","MO","TU","WE","TH","FR","SA"][dt.getDay()];
   
-  // フィルタUI
-  let filterCheck = document.getElementById("favFilter");
-  if(!filterCheck) {
-      const header = document.querySelector("#lt-month .lt-card-header");
-      if(header) {
-          const div = document.createElement("div");
-          div.style.fontSize = "12px";
-          div.style.marginTop = "4px";
-          div.innerHTML = `<label><input type="checkbox" id="favFilter"> ★のみ表示</label>`;
-          header.appendChild(div);
-          document.getElementById("favFilter").addEventListener('change', renderMonth);
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <div class="dow" id="dow_${dayKey}"> <span>${dow}${d}</span>
+      </div>
+      <div class="txt"><div>—</div></div>
+    `;
+    row.addEventListener("click", () => { selDate = dt; switchTab("journal"); });
+    box.appendChild(row);
+  
+    // ← 以降は同じ非同期読み込みだが、dayKey をキャプチャして使う
+    (async (dtLocal, key) => {
+      try {
+        const snap = await getJournalRef(srcTeam, viewingMemberId, dtLocal).get();
+        const j = snap.data() || {};
+  
+        // 合計距離の更新（既存処理をそのまま）
+        const add = Number(j.dist || 0);
+        if (!Number.isNaN(add)) {
+          sum += add;
+          const sumEl = document.getElementById("monthSum");
+          if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
+        }
+
+       // ── 縦色ラベル（typebar）の色反映（文字タグは出さない） ──
+        const dowEl = document.getElementById(`dow_${key}`); // typebar -> dowEl
+        const tags = Array.isArray(j.tags) ? j.tags.slice(0, 2) : [];
+        const colorMap = {
+          ジョグ:   'var(--q-jog)',
+          ポイント: 'var(--q-point)',
+          補強:     'var(--q-sup)',
+          オフ:     'var(--q-off)',
+          その他:   'var(--q-other)'
+        };
+        if (dowEl) { // typebar -> dowEl
+          if (tags.length === 0) {
+            dowEl.style.background = 'var(--panel)'; // デフォルト色（背景色と同じ）
+          } else if (tags.length === 1) {
+            dowEl.style.background = colorMap[tags[0]] || 'var(--panel)';
+            dowEl.style.color = '#1f2937'; // 色がついたら文字を濃くする
+          } else {
+            const c1 = colorMap[tags[0]] || 'var(--panel)';
+            const c2 = colorMap[tags[1]] || 'var(--panel)';
+            dowEl.style.background = `linear-gradient(${c1} 0 50%, ${c2} 50% 100%)`; // 上下分割
+            dowEl.style.color = '#1f2937'; // 色がついたら文字を濃くする
+          }
+        }
+  
+        // コンディション表示と本文（タグ文字は出さない）
+        const cond = (j.condition != null) ? Number(j.condition) : null;
+        const condHtml = (cond && cond >= 1 && cond <= 5)
+          ? `<span class="cond-pill cond-${cond}">${cond}</span>`
+          : `<span class="cond-pill cond-3" style="opacity:.4">–</span>`;
+  
+        // コンディション表示と本文
+        const txt = row.querySelector(".txt");
+        if (txt) {
+          txt.innerHTML = `
+            <div class="month-one-line">
+              <span class="km">${j.dist ? ` / ${j.dist}km` : ""}</span><span class="month-train-ellipsis">${(j.train || "—")}</span>
+              ${condHtml}
+            </div>`;
+        }
+      } catch (err) {
+        console.error("renderMonth day read error:", yy, mm, d, err);
+        const txt = row.querySelector(".txt");
+        if (txt) txt.textContent = "—";
       }
-      filterCheck = { checked: false };
+    })(dt, dayKey);
   }
-  const onlyFav = document.getElementById("favFilter")?.checked || false;
 
-  list.innerHTML = '<div style="text-align:center; padding:20px;">読込中...</div>';
 
-  const [y, m] = ym.split("-").map(Number);
-  const start = new Date(y, m-1, 1);
-  const end = new Date(y, m, 0);
-  
-  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-  const snaps = await getJournalRef(srcTeam, viewingMemberId, start).parent
-                  .where(firebase.firestore.FieldPath.documentId(), '>=', ymd(start))
-                  .where(firebase.firestore.FieldPath.documentId(), '<=', ymd(end))
-                  .get();
-
-  let html = '';
-  let rows = [];
-  
-  snaps.forEach(doc => {
-      const d = doc.data();
-      if(onlyFav && !d.isFav) return;
-      rows.push({ id: doc.id, ...d });
-  });
-
-  rows.sort((a,b) => b.id.localeCompare(a.id));
-
-  // ★カテゴリー（タグ）ごとの色判定関数
-  const getCategoryColor = (tags) => {
-      if(!tags || tags.length === 0) return '#ccc'; // タグなし
-      const t = tags.join(' ');
-      if(t.match(/試合|レース|Race|大会|記録会/)) return '#ef4444'; // 赤 (試合)
-      if(t.match(/ポイント|Point|インターバル|レペ|TT|閾値|ペース走/)) return '#f97316'; // オレンジ (強負荷)
-      if(t.match(/ビルドアップ|距離走|ロング|LSD|PR/)) return '#eab308'; // 黄 (中負荷・持久)
-      if(t.match(/ジョグ|jog|Jog|つなぎ/)) return '#3b82f6'; // 青 (基本)
-      if(t.match(/休養|rest|Rest|オフ|OFF/)) return '#9ca3af'; // グレー (休み)
-      if(t.match(/ウエイト|補強|ドリル/)) return '#8b5cf6'; // 紫 (フィジカル)
-      return '#3b82f6'; // その他は青
-  };
-
-  rows.forEach(d => {
-      const weekDay = ['日','月','火','水','木','金','土'][parseDateInput(d.id).getDay()];
-      const dateColor = (weekDay==='日')?'red':(weekDay==='土'?'blue':'#333');
-      const star = d.isFav ? '<span style="color:#f59e0b;">★</span>' : '';
-      
-      // ★修正: ここでタグに基づいた色を取得
-      const sideColor = getCategoryColor(d.tags);
-
-      html += `
-      <div onclick="selDate=parseDateInput('${d.id}'); switchTab('journal');" 
-           style="border-bottom:1px solid #eee; padding:8px 8px 8px 12px; cursor:pointer; background:${d.isFav?'#fffbeb':'#fff'}; border-left:6px solid ${sideColor};">
-        
-        <div style="display:flex; justify-content:space-between;">
-           <span style="font-weight:bold; color:${dateColor};">${d.id.slice(5)} (${weekDay}) ${star}</span>
-           <span style="font-weight:bold;">${d.dist||'-'} km</span>
-        </div>
-        
-        <div style="font-size:12px; color:#666; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">
-           ${d.train || '(記録なし)'}
-        </div>
-        
-        <div style="display:flex; gap:4px; font-size:11px; color:#888; margin-top:4px;">
-           ${d.weight ? `<span>${d.weight}kg</span>` : ''}
-           ${d.sleep ? `<span>${d.sleep}h</span>` : ''}
-           ${d.tags ? d.tags.map(t=>`<span style="background:#eee; padding:0 2px; border-radius:2px;">${t}</span>`).join('') : ''}
-        </div>
-      </div>`;
-  });
-
-  list.innerHTML = html || '<div style="text-align:center; padding:20px; color:#999;">データがありません</div>';
+  try{
+    const goalDoc=await getGoalsRef(srcTeam,viewingMemberId,monStr).get();
+    $("#monthGoalInput").value=goalDoc.data()?.goal || "";
+  }catch(e){ console.error("read goal error:", e); }
 }
+
 // ===== Team Memo =====
 function renderMemoItem(m){
   const div=document.createElement("div");
@@ -2241,86 +2144,71 @@ function initDashboard(){
   $("#weightPrev")?.addEventListener('click', ()=>{ weightOffset--; renderWeightChart(); });
   $("#weightNext")?.addEventListener('click', ()=>{ weightOffset++; renderWeightChart(); });
 }
-// グラフ画面の描画（修正版）
-async function renderDashboard() {
-  const ctx = document.getElementById("distChart")?.getContext("2d");
-  if(!ctx) return;
+function renderDashboard(){ renderAllDistanceCharts(); renderConditionChart(); renderWeightChart(); renderTypePieChart();}
+async function renderDistanceChart(){
+  const cvs=document.getElementById('distanceChart'); if(!cvs) return;
+  const ctx=cvs.getContext('2d');
+  const toggleBtn=$("#distChartToggle");
+  if(toggleBtn) toggleBtn.textContent = (dashboardMode==='month') ? '週に切替' : (dashboardMode==='week') ? '日に切替' : '月に切替';
 
-  // データ集計（過去30日分）
-  const labels = [];
-  const dists = [];
-  const weights = [];
-  const sleeps = []; // ★追加
-  const conds = [];
+  const labels=[], chartData=[];
+  const journalSnaps=await db.collection('teams').doc(teamId).collection('members').doc(viewingMemberId).collection('journal').get();
+  const journal={}; journalSnaps.forEach(doc=>journal[doc.id]=doc.data());
 
-  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-  const endD = new Date(); 
-  const startD = addDays(endD, -29);
-
-  for(let d = new Date(startD); d <= endD; d.setDate(d.getDate()+1)) {
-    const snap = await getJournalRef(srcTeam, viewingMemberId, d).get();
-    const v = snap.exists ? snap.data() : {};
-    
-    labels.push(ymd(d).slice(5)); // MM-DD
-    dists.push(v.dist || 0);
-    weights.push(v.weight || null);
-    sleeps.push(v.sleep || null); // ★追加
-    conds.push(v.condition || null);
+  if(dashboardMode==='month'){
+    $("#distChartTitle").textContent="月間走行距離グラフ";
+    const monthlyTotals={};
+    for(const ymdStr in journal){
+      const monthStr=ymdStr.substring(0,7);
+      monthlyTotals[monthStr]=(monthlyTotals[monthStr]||0)+Number(journal[ymdStr].dist||0);
+    }
+    const targetMonth=new Date(); targetMonth.setMonth(targetMonth.getMonth()+dashboardOffset);
+    for(let i=5;i>=0;i--){
+      const d=new Date(targetMonth); d.setMonth(d.getMonth()-i);
+      const month=getMonthStr(d);
+      labels.push(month);
+      chartData.push(Number(monthlyTotals[month]||0).toFixed(1));
+    }
+  }else if(dashboardMode==='week'){
+    $("#distChartTitle").textContent="週間走行距離グラフ";
+    const today=new Date();
+    const currentWeekStart=startOfWeek(today);
+    const targetWeekStart=addDays(currentWeekStart, dashboardOffset*7);
+    for(let i=5;i>=0;i--){
+      const weekStart=addDays(targetWeekStart, -i*7);
+      labels.push(`${ymd(weekStart).slice(5)}~`);
+      let weeklyTotal=0;
+      for(let j=0;j<7;j++){
+        const day=addDays(weekStart,j);
+        const dayData=journal[ymd(day)];
+        if(dayData) weeklyTotal+=Number(dayData.dist||0);
+      }
+      chartData.push(weeklyTotal.toFixed(1));
+    }
+  }else{
+    $("#distChartTitle").textContent="日別走行距離グラフ";
+    const windowLen=14;
+    const today=new Date();
+    const end=addDays(today, dashboardOffset*windowLen);
+    const start=addDays(end, -windowLen+1);
+    for(let i=0;i<windowLen;i++){
+      const d=addDays(start,i);
+      labels.push(`${d.getMonth()+1}/${d.getDate()}`);
+      const dayData=journal[ymd(d)];
+      chartData.push(Number(dayData?.dist||0).toFixed(1));
+    }
   }
 
   if(distanceChart) distanceChart.destroy();
-
-  distanceChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: '距離(km)',
-          data: dists,
-          backgroundColor: 'rgba(59, 130, 246, 0.5)',
-          yAxisID: 'y',
-          order: 2
-        },
-        {
-          label: '体重(kg)',
-          data: weights,
-          type: 'line',
-          borderColor: 'rgba(16, 185, 129, 0.8)',
-          tension: 0.1,
-          yAxisID: 'y1',
-          order: 1
-        },
-        { // ★追加: 睡眠時間
-          label: '睡眠(h)',
-          data: sleeps,
-          type: 'line',
-          borderColor: 'rgba(139, 92, 246, 0.8)', // 紫色
-          borderDash: [5, 5], // 点線にする
-          tension: 0.1,
-          yAxisID: 'y', // 距離と同じ軸で表示（スケールが近いため）
-          order: 0
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: { 
-          beginAtZero: true, 
-          position: 'left',
-          title: { display: true, text: '距離(km) / 睡眠(h)' } 
-        },
-        y1: { 
-          position: 'right', 
-          grid: { drawOnChartArea: false },
-          title: { display: true, text: '体重(kg)' }
-        }
-      }
-    }
+  distanceChart=new Chart(ctx,{
+    type:'bar',
+    data:{ labels, datasets:[{ label:'走行距離 (km)', data:chartData, backgroundColor:'rgba(79,70,229,0.5)', borderColor:'rgba(79,70,229,1)', borderWidth:1 }] },
+    options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
   });
+
+  renderDashboardInsight();
 }
+
 async function renderConditionChart(){
   const ctx=$('#conditionChart')?.getContext('2d'); if(!ctx) return;
   const labels=[], chartData=[];
