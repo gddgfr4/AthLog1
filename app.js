@@ -1524,34 +1524,42 @@ function initJournalSwipeNav(){
 }
 
 
-// 日誌画面の描画（修正版）
+// 日誌画面の描画（完全修正版）
 async function renderJournal(){
   const container = document.getElementById("journal-container");
   if(!container) return;
 
+  // 1. チームIDと権限の取得
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   const isEditable = isEditableHere(teamId, memberId, viewingMemberId);
   
-  // データ取得
+  // 2. データ取得 (onSnapshotではなくgetを使用)
   let data = {};
   try {
     const doc = await getJournalRef(srcTeam, viewingMemberId, selDate).get();
     if(doc.exists) data = doc.data();
   } catch(e) { console.error(e); }
 
+  // 3. 値の準備
   const distVal = data.dist || '';
   const weightVal = data.weight || '';
-  const sleepVal = data.sleep || ''; // ★追加: 睡眠
+  const sleepVal = data.sleep || '';
   const condVal = data.condition || '3';
   const trainVal = data.train || '';
   const feelVal = data.feel || '';
-  const isFav = !!data.isFav; // ★追加: お気に入り
+  const isFav = !!data.isFav;
 
-  // お気に入りボタンの★マーク
+  // 4. 週チップ（週間合計）の更新
+  // ※関数の中で実行するので await が使えます
+  if(typeof renderWeek === 'function') {
+      await renderWeek(); 
+  }
+
+  // お気に入りボタンの表示切り替え
   const starIcon = isFav ? '★' : '☆';
   const starClass = isFav ? 'active' : '';
 
-  // HTML生成
+  // 5. HTML生成
   container.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
        <div style="display:flex; gap:2px;">
@@ -1630,74 +1638,28 @@ async function renderJournal(){
     <div id="journal-images" style="display:flex; flex-wrap:wrap; gap:4px;"></div>
   `;
 
-  // イベント設定
+  // 6. イベント設定
   if(isEditable){
     const save = () => saveJournalDebounced(srcTeam);
     ['j-dist','j-weight','j-sleep','j-condition','j-train','j-feel'].forEach(id => {
        document.getElementById(id)?.addEventListener('input', save);
     });
 
-    // お気に入りボタン動作
     const favBtn = document.getElementById('favBtn');
     if(favBtn) {
       favBtn.onclick = async () => {
          const newVal = !favBtn.classList.contains('active');
-         // UI反転
          favBtn.classList.toggle('active');
          favBtn.textContent = newVal ? '★' : '☆';
-         // 保存
          await getJournalRef(srcTeam, viewingMemberId, selDate).set({ isFav: newVal }, { merge: true });
       };
     }
   }
 
-  // マップと画像の初期化
+  // 7. マップと画像の初期化
   initMuscleMapCanvas(data.mmImage);
   renderJournalImages(data.images);
 }
-
-async function recent7Km(d){
-    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-    let s = 0;
-    for (let i = 6; i >= 0; i--) {
-      const dt  = addDays(d, -i);
-      const doc = await getJournalRef(srcTeam, viewingMemberId, dt).get();
-      if (doc.exists) s += Number(doc.data().dist || 0);
-    }
-    return s;
-  }
-
-
-  await renderWeek();           // 週チップ描画（内部でも週合計を更新するが）
-
-  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-  unsubsUncaught SyntaxError: await is only valid in async functions and the top level bodies of modulescribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc=>{
-    const j = doc.data() || { dist:0, train:"", feel:"", tags:[], condition:null, regions:{} };
-    lastJournal = j;
-    drawMuscleFromDoc(j);
-    renderPartsTags(j);
-
-    if (!dirty.dist)  $("#distInput").value  = j.dist ?? "";
-    if (!dirty.weight) $("#weightInput").value = j.weight ?? "";
-    if (!dirty.train) $("#trainInput").value = j.train ?? "";
-    if (!dirty.feel)  $("#feelInput").value  = j.feel ?? "";
-
-    $$('#conditionBtns button').forEach(b=>b.classList.remove('active'));
-    if (j.condition) $(`#conditionBtns button[data-val="${j.condition}"]`)?.classList.add('active');
-
-    renderRegions(j.regions || {});
-    renderQuickButtons(j);
-    tscInitOnce();
-    tscRefresh();
-
-    // 日誌の変更が入ったら下の距離表示も更新
-    updateDistanceSummary();
-  });
-}
-
-// app.js (renderWeek 関数周辺を修正)
-
-// ★★★ 追加: 週カレンダーの描画リクエストID（競合防止用） ★★★
 let renderWeekRequestId = 0;
 
 async function renderWeek(){
@@ -4264,3 +4226,14 @@ style.innerHTML = `
   .fav-btn.active { color: #f59e0b; } /* 金色 */
 `;
 document.head.appendChild(style);
+
+async function recent7Km(d){
+    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+    let s = 0;
+    for (let i = 6; i >= 0; i--) {
+      const dt  = addDays(d, -i);
+      const doc = await getJournalRef(srcTeam, viewingMemberId, dt).get();
+      if (doc.exists) s += Number(doc.data().dist || 0);
+    }
+    return s;
+  }
