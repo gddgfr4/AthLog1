@@ -1435,14 +1435,12 @@ function initJournal(){
   }
   // app.js の initJournal 関数内
 
-  // ▼▼▼ シェアモード（スクショ撮影用）修正版 ▼▼▼
+  // ▼▼▼ シェアモード（スクショ撮影用）最新版 ▼▼▼
   $("#shareModeBtn")?.addEventListener("click", (e) => {
     e.stopPropagation();
 
-    // 既にONなら解除
     if (document.body.classList.contains("share-mode")) {
-       exitShareMode();
-       return;
+       exitShareMode(); return;
     }
 
     // モードON
@@ -1453,7 +1451,7 @@ function initJournal(){
     btn.style.background = "#fff";
     btn.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
 
-    // 1. シェア用ヘッダー（日付・名前）の作成
+    // 1. ヘッダー作成
     let shareHeader = document.getElementById("shareHeaderOverlay");
     if (!shareHeader) {
       shareHeader = document.createElement("div");
@@ -1462,7 +1460,6 @@ function initJournal(){
       app.insertBefore(shareHeader, app.firstChild);
     }
     
-    // 日付と名前の表示
     const y = selDate.getFullYear();
     const m = selDate.getMonth() + 1;
     const d = selDate.getDate();
@@ -1482,24 +1479,40 @@ function initJournal(){
     `;
     shareHeader.style.display = "flex";
 
+    // 2. 「調子」をStats行（体重などの並び）に移動
+    const activeCondBtn = document.querySelector('#conditionBtns button.active');
+    const condVal = activeCondBtn ? activeCondBtn.dataset.val : "-";
+    
+    // 挿入先：weightInputの親(div)の親(div.journal-stats-row)を探す
+    const weightInput = document.getElementById('weightInput');
+    // input -> div -> div.journal-stats-row
+    const statsRow = weightInput ? weightInput.closest('.journal-stats-row') || weightInput.parentElement.parentElement : null;
+    
+    if(statsRow) {
+      // 既存の入力欄と同じ構造のdivを作成
+      const condItem = document.createElement("div");
+      condItem.className = "journal-stats-item added-cond-item"; // シェアモード専用クラス
+      condItem.innerHTML = `
+        <label>調子</label>
+        <input type="text" value="${condVal}" readonly style="color:#ea580c !important; font-weight:bold;">
+      `;
+      statsRow.appendChild(condItem);
+    }
+
     // 解除関数
     function exitShareMode() {
        document.body.classList.remove("share-mode");
        const b = $("#shareModeBtn");
        if(b) {
-           b.textContent = "📷";
-           b.style.color = "";
-           b.style.background = "";
-           b.style.boxShadow = "";
+           b.textContent = "📷"; b.style.color = ""; b.style.background = ""; b.style.boxShadow = "";
        }
        if(shareHeader) shareHeader.style.display = "none";
+       // 追加した調子項目を削除
+       document.querySelectorAll(".added-cond-item").forEach(el => el.remove());
        document.removeEventListener("click", exitShareMode);
     }
     
-    // 即座に閉じないよう少し待つ
-    setTimeout(() => {
-       document.addEventListener("click", exitShareMode);
-    }, 100);
+    setTimeout(() => { document.addEventListener("click", exitShareMode); }, 100);
   });
   // ▲▲▲ 修正ここまで ▲▲▲
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
@@ -3211,16 +3224,33 @@ function initMuscleMap(){
                : (MM.VIEW==='back')  ? {sx:halfW, sy:0, sw:halfW, sh:fullH}
                :                       {sx:0,     sy:0, sw:fullW, sh:fullH};
 
-    // 実キャンバスサイズ
-    [mm.base, mm.overlay, mm.barrier].forEach(c=>{ c.width=crop.sw; c.height=crop.sh; });
+    // ▼▼▼ 修正箇所: ラッパーとキャンバスの配置を絶対固定してズレを防ぐ ▼▼▼
+    const wrap = document.getElementById('mmWrap') || document.querySelector('.canvas-wrap');
+    if(wrap) {
+      // 縦横比を固定し、はみ出しを防ぐ
+      wrap.style.aspectRatio = `${crop.sw} / ${crop.sh}`;
+      wrap.style.position = 'relative'; 
+      wrap.style.overflow = 'hidden'; 
+      wrap.style.margin = '0 auto';
+    }
 
-    // ベースへ描画（表示は<img>任せ／これは解析用）
+    [mm.base, mm.overlay, mm.barrier].forEach(c=>{ 
+      c.width=crop.sw; 
+      c.height=crop.sh;
+      // CSSで強制的に位置合わせ（絶対配置で重ねる）
+      c.style.position = 'absolute';
+      c.style.top = '0';
+      c.style.left = '0';
+      c.style.width = '100%';
+      c.style.height = '100%';
+      c.style.display = 'block';
+      c.style.objectFit = 'contain';
+    });
+    // ▲▲▲ 修正ここまで ▲▲▲
+
+    // ベースへ描画（解析用）
     mm.bctx.clearRect(0,0,crop.sw,crop.sh);
     mm.bctx.drawImage(img, crop.sx,crop.sy,crop.sw,crop.sh, 0,0,crop.sw,crop.sh);
-
-    // ラッパのアスペクト比を画像に合わせる（ズレ防止）
-    const wrap = document.getElementById('mmWrap') || document.querySelector('.canvas-wrap');
-    if(wrap) wrap.style.aspectRatio = `${crop.sw} / ${crop.sh}`;
 
     // 壁生成
     makeBarrierFromBase();
@@ -3230,6 +3260,7 @@ function initMuscleMap(){
     drawMuscleFromDoc(lastJournal);
   }).catch(err=>{
     console.error(err);
+    // エラー時はグレーに塗りつぶし
     mm.bctx.fillStyle='#f1f5f9';
     mm.bctx.fillRect(0,0,mm.base.width, mm.base.height);
   });
@@ -3238,11 +3269,11 @@ function initMuscleMap(){
   const activePointers = new Set();
   const ov = mm.overlay;
 
-  // 既定はピンチOKにしておく。単指描画時だけ 'none' へ。
+  // 既定はピンチOKにしておく
   ov.style.touchAction = 'pan-x pan-y pinch-zoom';
 
   function setOverlayTouchAction(mode){
-    ov.style.touchAction = mode; // 'none' | 'pan-x pan-y pinch-zoom' | 'auto'
+    ov.style.touchAction = mode; 
   }
 
   function onPointerDown(e){
@@ -3268,25 +3299,23 @@ function initMuscleMap(){
     }else{
       const targetColor = MM.LEVELS[brush.lvl||1];
       const pixel = mm.octx.getImageData(p.x, p.y, 1, 1).data;
-      // アルファ値を見て「既に塗られている場所か」を判定
       const isPainted = pixel[3] > 50; 
 
       if(isPainted){
-        // 既に塗られている場合、色が同じか判定 (RGB差分の合計で比較)
         const dist = Math.abs(pixel[0]-targetColor[0]) +
                      Math.abs(pixel[1]-targetColor[1]) +
                      Math.abs(pixel[2]-targetColor[2]);
 
-        if(dist < 15) { // 許容誤差
-          // 【同じ色】なら消す (トグル動作)
+        if(dist < 15) { 
+          // 同じ色なら消す
           floodErase(mm.octx, mm.wctx, p.x, p.y);
         } else {
-          // 【違う色】なら上書き (一度消してから新しい色で塗る)
+          // 違う色なら上書き
           floodErase(mm.octx, mm.wctx, p.x, p.y);
           floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, targetColor);
         }
       } else {
-        // 塗られていない場所 → 普通に塗る
+        // 新規塗り
         floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, targetColor);   
       }
     }
@@ -3308,7 +3337,6 @@ function initMuscleMap(){
   // リサイズで再描画
   window.addEventListener('resize', ()=> drawMuscleFromDoc(lastJournal));
 }
-
 /* ===========================
  * ログイン注意文（ログイン画面に1回だけ表示）
  * =========================== */
@@ -4428,31 +4456,34 @@ function updateFavBtnUI(isFav) {
 
 const shareStyle = document.createElement('style');
 shareStyle.innerHTML = `
-  /* === 全体をひと画面に固定 === */
+  /* === 全体の背景 === */
   body.share-mode {
-    background-color: #f3f4f6 !important;
-    overflow: hidden !important; /* スクロール禁止 */
+    background-color: #e5e7eb !important; /* 背景色 */
+    overflow: hidden !important;
     height: 100vh !important;
     width: 100vw !important;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 20px 0; /* 上下に少し余白 */
   }
 
-  /* カード本体 */
+  /* === カード本体（ストーリー比率） === */
   body.share-mode #app {
-    width: 90% !important;
-    max-width: 600px !important;
-    height: 92vh !important; /* 画面の92%の高さに収める */
+    width: 88vw !important;         /* 横幅 */
+    max-width: 400px !important;    /* 大きくなりすぎないように */
+    aspect-ratio: 9 / 16 !important; /* ★ストーリーの縦横比 */
+    max-height: 95vh !important;    /* 画面からはみ出さない */
+    
     background: #fff !important;
-    border-radius: 16px !important;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.1) !important;
-    padding: 20px !important;
+    border-radius: 24px !important; /* 角丸を強めに */
+    box-shadow: 0 20px 50px rgba(0,0,0,0.15) !important;
+    padding: 24px !important;
     box-sizing: border-box !important;
     
     display: flex !important;
     flex-direction: column !important;
-    margin: 0 !important;
+    margin: auto !important;
     position: relative;
   }
 
@@ -4471,7 +4502,8 @@ shareStyle.innerHTML = `
   body.share-mode #goHomeBtn,
   body.share-mode h2,
   body.share-mode #partsTagArea,
-  body.share-mode #mergeScopeWrapper
+  body.share-mode #mergeScopeWrapper,
+  body.share-mode #conditionBtns /* 元の調子ボタンは消す */
   {
     display: none !important;
   }
@@ -4481,41 +4513,51 @@ shareStyle.innerHTML = `
     display: none;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     padding-bottom: 8px;
     border-bottom: 2px solid #f3f4f6;
-    flex-shrink: 0; /* ヘッダーは縮ませない */
+    flex-shrink: 0;
   }
   .share-header-inner { display: flex; flex-direction: column; }
   .share-date { color: #111; line-height: 1.2; }
   .share-meta { margin-top: 4px; font-weight: 500; color: #4b5563; }
   .share-brand { font-size: 10px; color: #d1d5db; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; align-self: flex-end; }
 
-  /* 日誌エリア（ここを伸縮させる） */
+  /* 日誌エリア */
   body.share-mode #journal {
     display: flex !important;
     flex-direction: column !important;
-    flex: 1 !important; /* 余った高さを全部使う */
+    flex: 1 !important;
     min-height: 0 !important;
     gap: 8px;
-    overflow: hidden; /* 中身があふれても切り捨てる */
+    overflow: hidden;
   }
 
-  /* 数値データ（距離・体重など） */
+  /* 数値データ（体重・睡眠・調子）横並び */
   body.share-mode .journal-stats-row {
-    display: flex; gap: 8px; flex-shrink: 0; /* 縮ませない */
+    display: flex; 
+    gap: 8px; 
+    flex-shrink: 0;
+    justify-content: space-between; /* 均等配置 */
   }
   body.share-mode .journal-stats-item {
-    background: #fffbeb; border-radius: 6px; padding: 4px; text-align: center; flex: 1;
+    background: #fffbeb; 
+    border-radius: 8px; 
+    padding: 6px; 
+    text-align: center; 
+    flex: 1; /* 横幅を均等に */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
   body.share-mode .journal-stats-item input {
-    font-size: 16px !important; padding: 0 !important; height: auto !important; background: transparent !important; color: #ea580c !important; text-align: center; border: none !important;
+    font-size: 16px !important; padding: 0 !important; height: auto !important; background: transparent !important; color: #ea580c !important; text-align: center; border: none !important; width: 100% !important;
   }
   body.share-mode .journal-stats-item label { 
     display: block !important; font-size: 9px; color: #666; margin-bottom: 2px;
   }
 
-  /* テキストエリア（練習内容・感想） */
+  /* テキストエリア */
   body.share-mode label {
     font-size: 10px; font-weight: bold; color: #ea580c; display: block !important; margin-bottom: 2px;
   }
@@ -4529,36 +4571,22 @@ shareStyle.innerHTML = `
     width: 100% !important;
     resize: none !important;
     box-sizing: border-box !important;
-    
-    flex-grow: 1 !important; /* ★ここが重要：可能な限り縦に伸びる */
+    flex-grow: 1 !important;
     min-height: 40px !important;
   }
   
   /* 筋肉マップ */
   body.share-mode #mmWrap {
-    margin: 0 auto !important;
-    flex-shrink: 1 !important; /* 狭くなったら縮む */
-    max-height: 25vh !important; /* 画面の1/4以上は占領させない */
+    margin: 4px auto !important;
+    flex-shrink: 1 !important;
+    max-height: 25vh !important; /* 縦幅の1/4程度に抑える */
     width: auto !important;
     display: flex; justify-content: center;
-  }
-  body.share-mode canvas {
-    max-height: 100% !important; width: auto !important; height: auto !important;
-  }
-
-  /* コンディション */
-  body.share-mode #conditionBtns {
-    display: flex; justify-content: center; margin-top: 4px; flex-shrink: 0;
-  }
-  body.share-mode #conditionBtns button { display: none; }
-  body.share-mode #conditionBtns button.active {
-    display: inline-block; transform: scale(1.2); margin: 0; border: none !important;
   }
 
   /* 閉じるボタン */
   body.share-mode #shareModeBtn {
-    position: absolute; top: 10px; right: 10px;
-    z-index: 10001; 
+    position: absolute; top: 12px; right: 12px; z-index: 10001; 
   }
 `;
 document.head.appendChild(shareStyle);
