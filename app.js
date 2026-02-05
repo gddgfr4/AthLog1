@@ -1518,7 +1518,7 @@ function initJournal(){
           // カード(#app)の最後尾に移動（これで確実に下に来ます）
           appBox.appendChild(mmWrap);
       }
-
+    }
     // 解除関数
     function exitShareMode() {
        document.body.classList.remove("share-mode");
