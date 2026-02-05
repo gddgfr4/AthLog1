@@ -291,9 +291,6 @@ async function showApp(){
   
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId = $("#memberSelect").value;
-    // ★削除
-    $("#memberLabel").textContent = getDisplayName(viewingMemberId);
-    
     selDate = new Date();
     const dp = $("#datePicker"); if(dp) dp.value = ymd(selDate);
     refreshBadges();
@@ -352,7 +349,9 @@ function initTeamSwitcher(){
 
   sel.onchange = async (e)=>{
     teamId = e.target.value;
-    $("#teamLabel").textContent = teamId;
+    const tl = $("#teamLabel");     // 要素を取得
+    if(tl) tl.textContent = teamId; // ★存在する場合のみ書き込む
+    
     await populateMemberSelect();   // チームのメンバー一覧を更新
     refreshBadges();
     switchTab($(".tab.active")?.dataset.tab, true);
