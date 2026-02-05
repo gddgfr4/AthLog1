@@ -1822,7 +1822,6 @@ async function renderMonth(){
           const sumEl = document.getElementById("monthSum");
           if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
         }
-        const dowEl = document.getElementById(`dow_${key}`);
         if(dowEl && j.favorite) {
            // 日付の下や横に小さな★をつける（HTML構造によるが、単純に文字色を変えるか、要素追加）
            dowEl.innerHTML += `<span style="color:#f59e0b; font-size:10px; position:absolute; top:0; right:2px;">★</span>`;
