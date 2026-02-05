@@ -1577,6 +1577,7 @@ async function renderJournal(){
   }
 
   $("#datePicker").value = ymd(selDate);
+}
 
 let renderWeekRequestId = 0;
 
@@ -4144,4 +4145,4 @@ async function recent7Km(d){
     }
     return s;
   }
-
+}
