@@ -1751,13 +1751,21 @@ async function renderWeek(){
   });
 }
 
-function moveDay(n) {
+// 1日移動ボタン用（修正版: async を追加）
+async function moveDay(n) {
   selDate.setDate(selDate.getDate() + n);
-  // 日誌画面更新
-  renderJournal();
-  // 日付ピッカーの表示も更新
+  
+  // 日付ピッカーの表示更新
   const dp = document.getElementById("datePicker");
   if(dp) dp.value = ymd(selDate);
+
+  // 日誌画面更新
+  await renderJournal();
+  
+  // もし週表示（renderWeek）も使っている場合はここも更新
+  if(typeof renderWeek === 'function') {
+      await renderWeek(); 
+  }
 }
 
 async function rolling7Km(d){
