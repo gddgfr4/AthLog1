@@ -1655,7 +1655,8 @@ async function renderJournal(){
   initMuscleMapCanvas(data.mmImage);
   renderJournalImages(data.images);
 }
-  async function recent7Km(d){
+
+async function recent7Km(d){
     const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
     let s = 0;
     for (let i = 6; i >= 0; i--) {
@@ -1670,7 +1671,7 @@ async function renderJournal(){
   await renderWeek();           // 週チップ描画（内部でも週合計を更新するが）
 
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-  unsubscribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc=>{
+  unsubsUncaught SyntaxError: await is only valid in async functions and the top level bodies of modulescribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc=>{
     const j = doc.data() || { dist:0, train:"", feel:"", tags:[], condition:null, regions:{} };
     lastJournal = j;
     drawMuscleFromDoc(j);
