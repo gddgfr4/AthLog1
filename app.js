@@ -4347,14 +4347,13 @@ async function loadAiProfileToForm() {
   }
 }
 
-
 // app.js の一番最後
 
 const shareStyle = document.createElement('style');
 shareStyle.innerHTML = `
   /* === 全体設定 === */
   body.share-mode {
-    background-color: #333 !important; /* PC背景を暗くしてカードを強調 */
+    background-color: #333 !important;
     overflow: hidden !important;
     height: 100vh !important; width: 100vw !important;
     display: flex; 
@@ -4363,17 +4362,17 @@ shareStyle.innerHTML = `
     padding: 0 !important; 
   }
 
-  /* カード本体 (9:16) - 画面に収まるように自動調整 */
+  /* カード本体 (9:16) */
   body.share-mode #app {
-    height: 92vh !important;      /* 高さを画面の92%に固定 */
-    width: auto !important;       /* 幅はアスペクト比任せ */
+    height: 92vh !important;
+    width: auto !important;
     aspect-ratio: 9 / 16 !important;
-    max-width: 95vw !important;   /* スマホなどで幅が溢れないように */
+    max-width: 95vw !important;
     
     background: #fff !important;
     border-radius: 20px !important;
     box-shadow: 0 0 50px rgba(0,0,0,0.5) !important;
-    padding: 20px !important; box-sizing: border-box !important;
+    padding: 24px !important; box-sizing: border-box !important;
     
     display: flex !important; flex-direction: column !important;
     position: relative; 
@@ -4390,7 +4389,7 @@ shareStyle.innerHTML = `
   body.share-mode #goHomeBtn, body.share-mode h2,
   body.share-mode #partsTagArea, body.share-mode #mergeScopeWrapper,
   body.share-mode #conditionBtns,
-  body.share-mode .share-hide /* ← 元の「調子」ラベルを消す */
+  body.share-mode .share-hide
   { display: none !important; }
 
   /* ヘッダー */
@@ -4408,13 +4407,13 @@ shareStyle.innerHTML = `
   body.share-mode #journal {
     display: flex !important; flex-direction: column !important;
     flex: 1 !important; min-height: 0 !important;
-    gap: 6px; overflow: hidden;
+    gap: 8px; overflow: hidden;
   }
 
   /* 数値データ行 */
   body.share-mode .journal-stats-row {
     display: flex; justify-content: space-between !important;
-    gap: 2px; flex-shrink: 0; margin-top: -2px;
+    gap: 4px; flex-shrink: 0; margin-top: -2px;
     width: 100% !important;
   }
   
@@ -4431,14 +4430,14 @@ shareStyle.innerHTML = `
   body.share-mode .journal-stats-row input,
   body.share-mode .share-val {
     font-size: 18px !important; font-weight: 800 !important;
-    color: #ea580c !important; /* 基本はオレンジ */
+    color: #ea580c !important; /* デフォルトはオレンジ */
     text-align: center;
     background: transparent !important; border: none !important;
     width: 100% !important; margin:0 !important; padding:0 !important;
     font-family: sans-serif;
   }
   
-  /* ★修正: 調子の値（④など）だけ黒文字にする */
+  /* ★修正: 「調子」(④など)だけ黒文字にする */
   body.share-mode .added-cond-item .share-val {
     color: #000 !important;
   }
@@ -4454,33 +4453,42 @@ shareStyle.innerHTML = `
     border: 1px solid #f3f4f6 !important;
     background: #f9fafb !important;
     border-radius: 10px !important;
-    padding: 8px !important;
+    padding: 10px !important;
     font-size: 12px !important; color: #374151 !important;
     width: 100% !important; resize: none !important;
     box-sizing: border-box !important;
-    height: 70px !important; flex-shrink: 0 !important;
+    height: 75px !important; flex-shrink: 0 !important;
   }
 
-  /* 筋肉マップ修正: 必ず最下部に配置 */
+  /* 筋肉マップ修正: 最下部配置 & 重なりズレ防止 */
   body.share-mode #mmWrap {
-    aspect-ratio: auto !important; 
-    margin: auto auto 0 auto !important; /* 上の余白を自動にして下に押し付ける */
-    flex-shrink: 0 !important; 
+    margin-top: auto !important;   /* ★これで最下部に押しやります */
+    margin-bottom: 0 !important;
+    
     width: 100% !important;
-    /* 高さはアスペクト比維持で自動縮小 */
-    max-height: 45% !important; /* 画面半分以下に制限してはみ出し防止 */
-    position: relative !important; display: block !important;
+    /* 高さはJSで設定された aspect-ratio に従うが、画面からはみ出さないように制限 */
+    flex-shrink: 1 !important; 
+    max-height: 50% !important;
+    
+    position: relative !important; 
+    display: block !important;
+    /* アスペクト比の設定(JS)を維持するため、CSSでの aspect-ratio指定は削除 */
   }
   
   body.share-mode canvas {
     position: absolute !important;
     top: 0 !important; left: 0 !important;
     width: 100% !important; height: 100% !important;
-    object-fit: contain !important;
+    
+    /* ★全キャンバスを同じルールで配置してズレを防止 */
+    object-fit: contain !important; 
+    object-position: center bottom !important; 
   }
 
   body.share-mode #shareModeBtn {
-    position: absolute; top: 8px; right: 8px; z-index: 10001; 
+    position: absolute; top: 12px; right: 12px; z-index: 10001; 
   }
 `;
 document.head.appendChild(shareStyle);
+
+}
