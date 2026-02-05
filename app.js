@@ -1551,13 +1551,17 @@ function initJournalSwipeNav(){
   }, { passive:false });
 }
 
-
+// ■ renderJournal関数（日誌画面の表示とデータ読み込み）
 async function renderJournal(){
+  // 前回の購読を解除（重複防止）
   if (unsubscribeJournal) unsubscribeJournal();
+  
+  // 表示するメンバーIDの確定
   if (!viewingMemberId) viewingMemberId = memberId;
 
   dirty = { dist:false, train:false, feel:false };
 
+  // 編集権限の確認と入力欄の制御
   const editableHere = isEditableHere(teamId, memberId, viewingMemberId);
   $$('#journal input, #journal textarea, #journal .qbtn, #saveBtn, #mergeBtn, #conditionBtns button, .palette button')
     .forEach(el=>{
@@ -1567,6 +1571,7 @@ async function renderJournal(){
   $("#teamSharedComment")?.removeAttribute("disabled");
   refreshBadges();
 
+  // マージスコープ（予定反映）の選択肢作成
   const mergeScopeSelect = $("#mergeScope");
   if (mergeScopeSelect){
     mergeScopeSelect.innerHTML =
@@ -1575,26 +1580,32 @@ async function renderJournal(){
        <option value="team">全員の予定</option>`;
   }
 
+  // 日付ピッカーの表示更新
   $("#datePicker").value = ymd(selDate);
+
+  // ▼▼▼ データ読み込み処理（ここが重要です！） ▼▼▼
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   
-  // データのリアルタイム監視を開始
+  // リアルタイムでデータを監視してフォームに反映
   unsubscribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc => {
     const data = doc.data() || {};
     lastJournal = data; // 筋肉マップ等のために保持
 
-    // フォームにデータを反映
+    // 各入力欄にデータをセット
     if(document.getElementById("distInput")) document.getElementById("distInput").value = data.dist || "";
     if(document.getElementById("weightInput")) document.getElementById("weightInput").value = data.weight || "";
-    if(document.getElementById("trainInput")) document.getElementById("trainInput").value = data.train || "";
-    if(document.getElementById("feelInput")) document.getElementById("feelInput").value = data.feel || "";
-    // 睡眠時間(あれば)
+    
+    // ★睡眠時間（前回追加した項目）
     if(document.getElementById("j-sleep")) document.getElementById("j-sleep").value = data.sleep || "";
 
-    // コンディションボタンの選択状態
+    if(document.getElementById("trainInput")) document.getElementById("trainInput").value = data.train || "";
+    if(document.getElementById("feelInput")) document.getElementById("feelInput").value = data.feel || "";
+
+    // コンディションボタンの選択状態反映
     const cond = data.condition;
     document.querySelectorAll('#conditionBtns button').forEach(b => {
-      b.classList.toggle('active', Number(b.dataset.val) === cond);
+      if(Number(b.dataset.val) === cond) b.classList.add('active');
+      else b.classList.remove('active');
     });
 
     // その他表示の更新
@@ -1603,13 +1614,16 @@ async function renderJournal(){
     if(typeof renderPartsTags === 'function') renderPartsTags(data);
     
     // 週カレンダーやサマリも更新
-    renderWeek();
+    if(typeof renderWeek === 'function') renderWeek();
     if(typeof updateDistanceSummary === 'function') updateDistanceSummary();
     if(typeof tscRefresh === 'function') tscRefresh();
 
-  }, err => console.error("Journal load error:", err));
-}
+  }, err => {
+    console.error("Journal load error:", err);
+  });
+  // ▲▲▲ データ読み込み処理 ここまで ▲▲▲
 
+} // ★ここで renderJournal 関数を閉じる
 let renderWeekRequestId = 0;
 
 async function renderWeek(){
