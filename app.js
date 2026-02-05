@@ -1757,6 +1757,107 @@ function initMonth(){
     }
     renderMonth(); // 再描画
   });
+  // app.js の initMonth 関数内に追加
+
+  // ... (前略: monthFavFilterBtn の処理など) ...
+
+  // ▼▼▼ 追加: 検索機能 ▼▼▼
+  const searchInput = document.getElementById("monthSearchInput");
+  const searchBtn = document.getElementById("monthSearchBtn");
+
+  // 検索実行関数
+  const doSearch = async () => {
+    const keyword = searchInput.value.trim();
+    
+    // キーワードが空なら通常の月表示に戻す
+    if (!keyword) {
+      renderMonth();
+      return;
+    }
+
+    const box = document.getElementById("monthList");
+    if(!box) return;
+    
+    box.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">検索中...</div>';
+    
+    // 合計距離表示などは隠す
+    const sumEl = document.getElementById("monthSum");
+    if(sumEl) sumEl.textContent = `検索結果: "${keyword}"`;
+
+    try {
+      const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+      
+      // 過去365日分などの制限を設けて取得（全データ取得は重いため）
+      // ここでは簡易的に「journalコレクション全体」から取得してクライアント側でフィルタリングします
+      // ※データ量が数千件レベルならこれでも動きますが、多すぎる場合は limit を検討してください
+      const snapshot = await db.collection('teams').doc(srcTeam)
+                               .collection('members').doc(viewingMemberId)
+                               .collection('journal')
+                               .orderBy(firebase.firestore.FieldPath.documentId(), 'desc') // 日付(ID)の降順
+                               .limit(300) // 安全のため直近300件に制限
+                               .get();
+
+      box.innerHTML = "";
+      let count = 0;
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const train = data.train || "";
+        const feel = data.feel || "";
+        
+        // キーワードが含まれるかチェック (大文字小文字無視なしの単純部分一致)
+        if (train.includes(keyword) || feel.includes(keyword)) {
+          count++;
+          const dateKey = doc.id; // "YYYY-MM-DD"
+          
+          // リストアイテム生成（月一覧と似たデザインだが日付をフル表示）
+          const row = document.createElement("div");
+          row.className = "row";
+          // 日付部分
+          const dObj = parseDateInput(dateKey);
+          const dowStr = ["日","月","火","水","木","金","土"][dObj.getDay()];
+          
+          row.innerHTML = `
+            <div class="dow" style="width:auto; padding:0 8px; font-size:11px;">
+               ${dateKey}<br>(${dowStr})
+            </div>
+            <div class="txt">
+               <div class="month-one-line">
+                 <span class="km">${data.dist ? data.dist+"km" : ""}</span>
+                 <span class="month-train-ellipsis" style="color:#333;">${train.replace(keyword, `<b style="color:red;background:#ff0;">${keyword}</b>`)}</span>
+               </div>
+               <div style="font-size:10px; color:#666; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+                 ${feel.replace(keyword, `<b style="color:red;background:#ff0;">${keyword}</b>`)}
+               </div>
+            </div>
+          `;
+          
+          // クリックでその日の日誌へ
+          row.addEventListener("click", () => { 
+            selDate = dObj; 
+            switchTab("journal"); 
+          });
+          
+          box.appendChild(row);
+        }
+      });
+
+      if (count === 0) {
+        box.innerHTML = '<div style="padding:20px; text-align:center; color:#999;">見つかりませんでした</div>';
+      } else {
+        if(sumEl) sumEl.textContent = `"${keyword}" の検索結果: ${count}件`;
+      }
+
+    } catch(e) {
+      console.error(e);
+      box.innerHTML = '<div style="padding:20px; text-align:center; color:red;">エラーが発生しました</div>';
+    }
+  };
+
+  if(searchBtn) searchBtn.addEventListener("click", doSearch);
+  if(searchInput) searchInput.addEventListener("keydown", (e) => { if(e.key === "Enter") doSearch(); });
+  
+  // ▲▲▲ 追加ここまで ▲▲▲
    const goalInput=$("#monthGoalInput");
    if(goalInput){
      let t=null;
