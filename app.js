@@ -1435,6 +1435,8 @@ function initJournal(){
   }
   // app.js の initJournal 関数内
 
+  // app.js の initJournal 関数内
+
   // ▼▼▼ シェアモード（スクショ撮影用）最新版 ▼▼▼
   $("#shareModeBtn")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -1479,35 +1481,29 @@ function initJournal(){
     `;
     shareHeader.style.display = "flex";
 
-    // 2. 「調子」を睡眠の横に移動
+    // 2. 「調子」をStats行（距離・体重・睡眠の列）に追加
     const activeCondBtn = document.querySelector('#conditionBtns button.active');
-    const condVal = activeCondBtn ? activeCondBtn.dataset.val : "-";
+    const rawVal = activeCondBtn ? activeCondBtn.dataset.val : "";
+    // 丸数字に変換（お好みで）
+    const circledMap = {"1":"①", "2":"②", "3":"③", "4":"④", "5":"⑤"};
+    const condVal = circledMap[rawVal] || rawVal || "-";
     
-    // 睡眠の入力欄を探す
-    const sleepInput = document.getElementById('j-sleep');
-    // その親要素（<div><label>睡眠</label><input...></div> のはず）
-    const sleepWrapper = sleepInput ? sleepInput.parentElement : null;
+    // 挿入先：距離や体重が入っている .journal-stats-row を探す
+    // distInput か weightInput の親の親あたり
+    const distInput = document.getElementById('distInput');
+    const statsRow = distInput ? distInput.closest('.journal-stats-row') : null;
     
-    // 既存の入力欄と同じデザインで「調子」を作る
-    const condItem = document.createElement("div");
-    condItem.className = "journal-stats-item added-cond-item"; // シェアモード専用クラス
-    // 親要素のスタイルをコピーして幅などを合わせる
-    if(sleepWrapper) condItem.style.cssText = sleepWrapper.style.cssText;
-    
-    condItem.innerHTML = `
-      <label>調子</label>
-      <input type="text" value="${condVal}" readonly style="color:#ea580c !important; font-weight:bold;">
-    `;
-
-    // 睡眠の横（後ろ）に挿入
-    if(sleepWrapper && sleepWrapper.parentElement) {
-      // insertBefore(追加するやつ, 睡眠の次のやつ) = 睡眠の後ろに追加
-      sleepWrapper.parentElement.insertBefore(condItem, sleepWrapper.nextSibling);
-    } else {
-      // 万が一見つからなければ体重の親などの後ろ、あるいはStats行の最後へ
-      const weightInput = document.getElementById('weightInput');
-      const row = weightInput ? weightInput.closest('.journal-stats-row') : null;
-      if(row) row.appendChild(condItem);
+    if(statsRow) {
+      // 既存の入力欄と同じ構造のdivを作成
+      const condItem = document.createElement("div");
+      condItem.className = "journal-stats-item added-cond-item"; // シェアモード専用クラス
+      
+      condItem.innerHTML = `
+        <label>調子</label>
+        <input type="text" value="${condVal}" readonly style="color:#ea580c !important; font-weight:bold;">
+      `;
+      // 行の最後に追加
+      statsRow.appendChild(condItem);
     }
 
     // 解除関数
@@ -1526,6 +1522,7 @@ function initJournal(){
     setTimeout(() => { document.addEventListener("click", exitShareMode); }, 100);
   });
   // ▲▲▲ 修正ここまで ▲▲▲
+  
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
   $("#weekNext")?.addEventListener("click",()=>{ selDate=addDays(selDate, 7); renderJournal(); });
   // ★追加: 日移動ボタンの処理
@@ -4474,7 +4471,7 @@ const shareStyle = document.createElement('style');
 shareStyle.innerHTML = `
   /* === 全体の背景 === */
   body.share-mode {
-    background-color: #e5e7eb !important; /* 背景色 */
+    background-color: #e5e7eb !important;
     overflow: hidden !important;
     height: 100vh !important;
     width: 100vw !important;
@@ -4484,11 +4481,11 @@ shareStyle.innerHTML = `
     padding: 20px 0;
   }
 
-  /* === カード本体（ストーリー比率） === */
+  /* === カード本体（ストーリー比率 9:16） === */
   body.share-mode #app {
-    width: 88vw !important;         /* 横幅 */
-    max-width: 400px !important;    /* 大きくなりすぎないように */
-    aspect-ratio: 9 / 16 !important; /* ★ストーリーの縦横比 */
+    width: 88vw !important;
+    max-width: 400px !important;
+    aspect-ratio: 9 / 16 !important;
     max-height: 95vh !important;
     
     background: #fff !important;
@@ -4539,47 +4536,60 @@ shareStyle.innerHTML = `
   .share-meta { margin-top: 4px; font-weight: 500; color: #4b5563; }
   .share-brand { font-size: 10px; color: #d1d5db; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; align-self: flex-end; }
 
-  /* 日誌エリア */
+  /* 日誌エリア全体 */
   body.share-mode #journal {
     display: flex !important;
     flex-direction: column !important;
-    flex: 1 !important; /* 残りの高さを全部使う */
-    min-height: 0 !important;
-    gap: 8px;
+    flex: 1 !important; /* カードの残りの高さを目一杯使う */
+    min-height: 0 !important; /* 縮小可能にする */
+    gap: 12px;
     overflow: hidden;
   }
 
-  /* 数値データの行（距離・体重・睡眠・調子） */
+  /* 数値データ行（距離・体重・睡眠・調子） */
   body.share-mode .journal-stats-row {
     display: flex; 
     gap: 8px; 
-    flex-shrink: 0;
-    /* justify-content: space-between; */ 
-    flex-wrap: nowrap !important; /* 折り返し禁止 */
+    flex-shrink: 0; /* この行は縮めない */
+    width: 100% !important;
   }
   
-  /* 各アイテム（元のもの＋追加した調子） */
+  /* 各数値アイテム */
   body.share-mode .journal-stats-row > div,
   body.share-mode .added-cond-item {
     background: #fffbeb !important; 
     border-radius: 8px !important; 
-    padding: 6px !important; 
+    padding: 8px 4px !important; 
     text-align: center !important; 
-    flex: 1 !important; /* 全員等幅で広がる */
+    flex: 1 !important; /* 4等分 */
     display: flex !important;
     flex-direction: column !important;
     justify-content: center !important;
-    min-width: 0 !important; /* 縮小許容 */
-    width: auto !important; /* 幅指定解除 */
+    min-width: 0 !important;
   }
   
   body.share-mode .journal-stats-row input,
   body.share-mode .added-cond-item input {
-    font-size: 16px !important; padding: 0 !important; height: auto !important; background: transparent !important; color: #ea580c !important; text-align: center; border: none !important; width: 100% !important;
+    font-size: 18px !important; 
+    padding: 0 !important; 
+    height: auto !important; 
+    background: transparent !important; 
+    color: #ea580c !important; 
+    text-align: center; 
+    border: none !important; 
+    width: 100% !important;
+    font-weight: 800 !important;
   }
+  
   body.share-mode .journal-stats-row label,
   body.share-mode .added-cond-item label { 
-    display: block !important; font-size: 9px; color: #666; margin-bottom: 2px; white-space: nowrap;
+    display: block !important; 
+    font-size: 9px; 
+    color: #666; 
+    margin-bottom: 2px; 
+    white-space: nowrap;
+    width: 100%;
+    text-align: center;
   }
 
   /* テキストエリア（練習内容・感想） */
@@ -4596,17 +4606,33 @@ shareStyle.innerHTML = `
     width: 100% !important;
     resize: none !important;
     box-sizing: border-box !important;
-    flex-grow: 1 !important; /* ★可能な限り縦に伸びる */
-    min-height: 40px !important;
+    
+    flex-grow: 1 !important; /* 余ったスペースに応じて伸び縮み */
+    min-height: 2.5em !important; /* 最低限の高さ */
   }
   
   /* 筋肉マップ */
   body.share-mode #mmWrap {
-    margin: 4px auto !important;
-    flex-shrink: 1 !important; /* 狭くなったら縮む */
-    max-height: 20vh !important; /* 画面の20%までに抑える */
+    margin: 0 auto !important;
+    /* 重要: テキストが長くてもマップは最低限確保しつつ、大きすぎないように */
+    flex-shrink: 0 !important; 
+    height: auto !important;
+    max-height: 25% !important; /* カード高さの1/4以内に制限 */
+    aspect-ratio: auto !important; /* 縦横比は維持されるはず */
     width: auto !important;
-    display: flex; justify-content: center;
+    max-width: 100% !important;
+    
+    display: flex; 
+    justify-content: center;
+    position: relative;
+  }
+  /* キャンバス画像を枠内に収める */
+  body.share-mode canvas {
+    max-height: 100% !important;
+    max-width: 100% !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain !important;
   }
 
   /* 閉じるボタン */
