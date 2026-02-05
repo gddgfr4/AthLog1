@@ -4363,9 +4363,9 @@ shareStyle.innerHTML = `
     background-color: #222 !important;
     overflow: hidden !important;
     height: 100vh !important; width: 100vw !important;
-    margin: 0 !important; 
+    margin: 0 !important; padding: 0 !important;
     
-    /* ★重要: 画面端にカードがくっつかないようにパディング確保 */
+    /* 画面端の余白確保 */
     padding: 20px !important; 
     box-sizing: border-box !important;
     
@@ -4376,7 +4376,7 @@ shareStyle.innerHTML = `
 
   /* === カード本体 (9:16 固定) === */
   body.share-mode #app {
-    /* ★重要: 画面高さいっぱい(100vh)ではなく、少し小さく(85vh)して確実に収める */
+    /* 確実に画面内に収める */
     height: 85vh !important; 
     width: auto !important;
     aspect-ratio: 9 / 16 !important;
@@ -4384,12 +4384,14 @@ shareStyle.innerHTML = `
     background: #fff !important;
     border-radius: 20px !important;
     box-shadow: 0 0 50px rgba(0,0,0,0.5) !important;
-    
-    /* ★内部パディングを削減 (16px -> 14px) */
     padding: 14px !important; 
     box-sizing: border-box !important;
     
-    display: flex !important; flex-direction: column !important;
+    /* ★重要: 強制的に縦並びにする */
+    display: flex !important; 
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    
     position: relative !important; margin: 0 !important;
   }
 
@@ -4409,27 +4411,24 @@ shareStyle.innerHTML = `
   /* ヘッダー */
   #shareHeaderOverlay {
     display: flex; justify-content: space-between; align-items: flex-start;
-    /* ★下マージンを極小に (8px -> 4px) */
     margin-bottom: 4px; padding-bottom: 4px;
     border-bottom: 1px solid #f3f4f6; flex-shrink: 0;
+    /* 順序指定: 最初 */
+    order: -1 !important;
   }
   .share-header-inner { display: flex; flex-direction: column; }
-  
-  /* 日付フォントサイズ微調整 */
   .share-date { color: #111; line-height: 1.0; font-size: 0.95em; }
-  
-  /* チーム名・選手名 */
   .share-meta { display: flex !important; align-items: baseline !important; gap: 6px; margin-top: 2px; }
-  .share-meta span { font-size: 0.85rem !important; } /* 文字サイズ微調整 */
+  .share-meta span { font-size: 0.85rem !important; }
   .share-meta .share-name { font-size: 1.1rem !important; }
-  
   .share-brand { font-size: 8px; color: #d1d5db; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; align-self: center; }
 
   /* 日誌エリア */
   body.share-mode #journal {
-    display: flex !important; flex-direction: column !important;
+    /* ★重要: 日誌エリア内も強制縦並び */
+    display: flex !important; 
+    flex-direction: column !important;
     flex: 1 !important; min-height: 0 !important;
-    /* ★要素間の隙間を極限まで詰める (4px -> 2px) */
     gap: 2px; 
     overflow: hidden;
   }
@@ -4438,8 +4437,8 @@ shareStyle.innerHTML = `
   body.share-mode .journal-stats-row {
     display: flex; justify-content: space-between !important;
     width: 100% !important; flex-shrink: 0;
-    margin-top: 0 !important;
-    padding-bottom: 2px; /* 下にわずかな隙間 */
+    margin-top: 0 !important; padding-bottom: 2px;
+    order: 0 !important;
   }
   
   body.share-mode .journal-stats-row > div,
@@ -4451,7 +4450,6 @@ shareStyle.innerHTML = `
 
   body.share-mode .journal-stats-row input,
   body.share-mode .share-val {
-    /* ★数値フォントサイズを少し小さく (20px -> 18px) して高さを稼ぐ */
     font-size: 18px !important; font-weight: 800 !important;
     color: #ea580c !important; 
     text-align: center; border: none !important; background: transparent !important;
@@ -4470,18 +4468,19 @@ shareStyle.innerHTML = `
   /* テキストエリア */
   body.share-mode textarea {
     border: 1px solid #f3f4f6 !important; background: #f9fafb !important;
-    border-radius: 8px !important; 
-    padding: 6px !important;
+    border-radius: 8px !important; padding: 6px !important;
     font-size: 11px !important; color: #374151 !important;
     width: 100% !important; box-sizing: border-box !important;
-    /* ★高さをさらに圧縮 (60px -> 48px) */
-    height: 48px !important; 
-    flex-shrink: 0 !important; resize: none !important;
+    height: 48px !important; flex-shrink: 0 !important; resize: none !important;
     line-height: 1.3;
+    order: 1 !important;
   }
 
   /* === 筋肉マップ (最下部 & ズレ防止) === */
   body.share-mode #mmWrap {
+    /* ★重要: 順序を強制的に最後にする */
+    order: 9999 !important;
+    
     margin-top: auto !important;
     margin-bottom: 0 !important;
     width: 100% !important;
@@ -4489,10 +4488,12 @@ shareStyle.innerHTML = `
     
     aspect-ratio: unset !important;
     height: auto !important;
-    /* ★上部の隙間を消す */
     top: -4px; 
     
+    /* 位置リセット（横画面CSSでのabsolute配置対策） */
     position: relative !important; 
+    left: auto !important; right: auto !important;
+    
     display: block !important;
     overflow: hidden !important;
   }
