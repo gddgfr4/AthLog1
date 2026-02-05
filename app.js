@@ -1366,7 +1366,10 @@ const BODY_PARTS_LIST = [
   {id:'ankle_l', label:'左足首'}, {id:'ankle_r', label:'右足首'},
   {id:'foot_l', label:'左足裏'}, {id:'foot_r', label:'右足裏'}
 ];
-// ★追加: お気に入りボタンの見た目を更新する関数
+
+// ... (前略)
+
+// ★追加: お気に入りボタンの見た目を更新する関数（これが抜けていました）
 function updateFavBtnUI(isFav) {
   const btn = document.getElementById("favBtn");
   if(!btn) return;
@@ -1381,6 +1384,9 @@ function updateFavBtnUI(isFav) {
   }
 }
 
+// 既存の関数
+function initJournal(){
+  // ...
 // （この下に function initJournal(){ ... が続きます）
 function initJournal(){
   const scheduleAutoSave = makeJournalAutoSaver(700);
@@ -3234,7 +3240,6 @@ function initMuscleMap(){
       wrap.style.position = 'relative'; 
       wrap.style.width = '100%';     // 横幅は親に合わせる
       wrap.style.height = 'auto';    // 高さはアスペクト比で自動決定
-      wrap.style.maxWidth = '300px'; // カード内での最大幅（適宜調整）
       wrap.style.margin = '0 auto';  // 中央寄せ
       wrap.style.overflow = 'hidden'; // はみ出し防止
     }
