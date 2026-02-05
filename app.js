@@ -1433,30 +1433,48 @@ function initJournal(){
       partsArea.appendChild(sp);
     });
   }
-  // app.js の initJournal 関数内に追加
+  // app.js の initJournal 関数内（場所は下の方、initMuscleMap() の手前あたり）
 
-  // ... (前略) ...
-  // スクショボタン（シェアモード）の処理
-  $("#shareModeBtn")?.addEventListener("click", () => {
-    document.body.classList.toggle("share-mode");
-    const btn = $("#shareModeBtn");
-    
+  // ▼▼▼ 追加: シェアモード（スクショ撮影用）の処理 ▼▼▼
+  $("#shareModeBtn")?.addEventListener("click", (e) => {
+    e.stopPropagation(); // ボタン自体のクリックが画面クリックとして誤検知されないようにする
+
+    // 既にモードONなら、このボタン操作で解除
     if (document.body.classList.contains("share-mode")) {
-      btn.textContent = "✖"; // アイコンを「閉じる」に変更
-      btn.style.color = "red";
-      btn.style.background = "#fff";
-      alert("表示をシンプルにしました。\nこの状態で端末の機能を使ってスクショを撮ってください。\n終わったら左上の「✖」で戻ります。");
-    } else {
-      btn.textContent = "📷"; // アイコンを元に戻す
-      btn.style.color = "";
-      btn.style.background = "";
+       exitShareMode();
+       return;
     }
+
+    // モードをONにする
+    document.body.classList.add("share-mode");
+    const btn = $("#shareModeBtn");
+    // アイコンを「×」に変えて、色は赤にする
+    btn.textContent = "✖";
+    btn.style.color = "red";
+    btn.style.background = "#fff";
+    
+    // ★機能: 画面のどこかをクリックしたら元に戻す関数
+    function exitShareMode() {
+       document.body.classList.remove("share-mode");
+       const b = $("#shareModeBtn");
+       if(b) {
+           b.textContent = "📷";
+           b.style.color = "";
+           b.style.background = "";
+       }
+       // 監視を終了
+       document.removeEventListener("click", exitShareMode);
+    }
+    
+    // 即座に反応して閉じてしまわないよう、ほんの少し待ってから「画面クリック」の監視を始める
+    setTimeout(() => {
+       document.addEventListener("click", exitShareMode);
+    }, 100);
   });
+  // ▲▲▲ 追加ここまで ▲▲▲
 
   // 初期化
   initMuscleMap();
-  // ... (後略) ...
-  // ナビゲーション等
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
   $("#weekNext")?.addEventListener("click",()=>{ selDate=addDays(selDate, 7); renderJournal(); });
   // ★追加: 日移動ボタンの処理
@@ -1508,7 +1526,7 @@ function initJournal(){
   // 初期化
   initMuscleMap();       
   initJournalSwipeNav();
-  // ★重要: スクショボタンのリスナーなどは省略しませんが、長くなるので元のコードにある shareModeBtn 処理などはそのまま維持してください
+  // ★重要: スクショボタンのリスナーなどは省略しませんが、長くなるので元のコードにtn 処理などはそのまま維持してください
 }
 
 // 部位タグの状態をDBから読んで反映する関数 (renderJournal内で呼び出される)
@@ -4379,31 +4397,33 @@ function updateFavBtnUI(isFav) {
   }
 }
 
-// ★追加: シェアモード用のスタイル定義を注入
+// app.js の一番最後に追加
+
+// ★追加: シェアモード時に余計なものを消すスタイル
 const shareStyle = document.createElement('style');
 shareStyle.innerHTML = `
   /* シェアモード時は、以下の要素を非表示にする */
   body.share-mode header,
-  body.share-mode #journalTabs,        /* 上部のタブ切り替え */
+  body.share-mode #journalTabs,        /* タブ */
   body.share-mode .weekbar > *:not(#shareModeBtn), /* カメラボタン以外のナビ */
   body.share-mode .palette,            /* お絵かきパレット */
   body.share-mode #saveBtn,            /* 保存ボタン */
   body.share-mode #mergeBtn,           /* 反映ボタン */
-  body.share-mode #teamSwitchWrap,     /* チーム切り替え */
-  body.share-mode #memberNavWrap,      /* メンバー切り替え */
+  body.share-mode #teamSwitchWrap,     /* チーム切替 */
+  body.share-mode #memberNavWrap,      /* メンバー切替 */
   body.share-mode .qbtn-area,          /* クイックボタン */
-  body.share-mode .parts-tag-area      /* 部位タグエリア(必要なら残してもOK) */
+  body.share-mode .parts-tag-area      /* 部位タグエリア */
   {
     display: none !important;
   }
 
   /* シェアモード時の微調整 */
   body.share-mode .weekbar {
-    justify-content: flex-start; /* カメラボタンを左寄せに */
+    justify-content: flex-start; /* ボタン位置調整 */
   }
   body.share-mode #app {
-    padding-top: 10px; /* 余白調整 */
-    background: #fff;  /* 背景を白に */
+    padding-top: 10px;
+    background: #fff;
   }
 `;
 document.head.appendChild(shareStyle);
