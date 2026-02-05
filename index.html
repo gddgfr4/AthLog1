@@ -188,6 +188,11 @@
         <input type="month" id="monthPick" />
         <button id="mNext" class="ghost">&rarr;</button>
         <button id="monthFavFilterBtn" class="ghost" style="color:#ccc; border:1px solid #eee; font-size:12px; margin-left:8px;">★のみ</button>
+  
+        <div style="display:flex; margin-left:8px; border:1px solid #ddd; border-radius:4px; overflow:hidden;">
+          <input type="text" id="monthSearchInput" placeholder="内容検索..." style="border:none; padding:4px; font-size:12px; width:100px; outline:none;">
+          <button id="monthSearchBtn" style="border:none; background:#eee; padding:0 8px; cursor:pointer;">🔍</button>
+        </div>
         <div id="monthSum" class="muted"></div>
       </div>
       <div class="panel" style="margin-bottom:12px;">
@@ -518,6 +523,7 @@
   </script>
 </body>
 </html>
+
 
 
 
