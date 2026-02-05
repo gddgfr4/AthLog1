@@ -4085,7 +4085,7 @@ async function loadAiProfileToForm() {
   } catch(e) {
     console.log('プロフィール読み込み失敗(まだ保存されていないかも)', e);
   }
-}
+}}
 
 // ★追加: スタイル定義をJSから注入（CSSファイル編集の手間を省くため）
 const style = document.createElement('style');
