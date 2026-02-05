@@ -1570,6 +1570,10 @@ function initJournal(){
   // 初期化
   initMuscleMap();       
   initJournalSwipeNav();
+  const condBtns = document.getElementById('conditionBtns');
+  if(condBtns && condBtns.previousElementSibling) {
+      condBtns.previousElementSibling.classList.add('share-hide');
+  }
   // ★重要: スクショボタンのリスナーなどは省略しませんが、長くなるので元のコードにtn 処理などはそのまま維持してください
 }
 
@@ -4343,36 +4347,37 @@ async function loadAiProfileToForm() {
   }
 }
 
+
 // app.js の一番最後
 
 const shareStyle = document.createElement('style');
 shareStyle.innerHTML = `
   /* === 全体設定 === */
   body.share-mode {
-    background-color: #e5e7eb !important;
+    background-color: #333 !important; /* PC背景を暗くしてカードを強調 */
     overflow: hidden !important;
     height: 100vh !important; width: 100vw !important;
     display: flex; 
-    /* ▼▼▼ 修正: 上寄せにしてpaddingで位置調整（少し上に配置） ▼▼▼ */
-    align-items: flex-start !important; 
-    justify-content: center;
-    padding-top: 60px !important; 
+    align-items: center !important; 
+    justify-content: center !important;
+    padding: 0 !important; 
   }
 
-  /* カード本体 (9:16) */
+  /* カード本体 (9:16) - 画面に収まるように自動調整 */
   body.share-mode #app {
-    width: 88vw !important; max-width: 400px !important;
+    height: 92vh !important;      /* 高さを画面の92%に固定 */
+    width: auto !important;       /* 幅はアスペクト比任せ */
     aspect-ratio: 9 / 16 !important;
-    max-height: none !important; /* 高さ制限を解除してアスペクト比優先 */
+    max-width: 95vw !important;   /* スマホなどで幅が溢れないように */
     
     background: #fff !important;
-    border-radius: 24px !important;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.15) !important;
-    padding: 24px !important; box-sizing: border-box !important;
+    border-radius: 20px !important;
+    box-shadow: 0 0 50px rgba(0,0,0,0.5) !important;
+    padding: 20px !important; box-sizing: border-box !important;
     
     display: flex !important; flex-direction: column !important;
     position: relative; 
-    margin: 0 !important; /* マージンリセット */
+    margin: 0 !important;
   }
 
   /* 非表示要素 */
@@ -4384,13 +4389,14 @@ shareStyle.innerHTML = `
   body.share-mode .parts-tag-area, body.share-mode .login-note,
   body.share-mode #goHomeBtn, body.share-mode h2,
   body.share-mode #partsTagArea, body.share-mode #mergeScopeWrapper,
-  body.share-mode #conditionBtns 
+  body.share-mode #conditionBtns,
+  body.share-mode .share-hide /* ← 元の「調子」ラベルを消す */
   { display: none !important; }
 
   /* ヘッダー */
   #shareHeaderOverlay {
-    display: none; justify-content: space-between; align-items: flex-start;
-    margin-bottom: 8px; padding-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 8px; padding-bottom: 6px;
     border-bottom: 2px solid #f3f4f6; flex-shrink: 0;
   }
   .share-header-inner { display: flex; flex-direction: column; }
@@ -4402,76 +4408,68 @@ shareStyle.innerHTML = `
   body.share-mode #journal {
     display: flex !important; flex-direction: column !important;
     flex: 1 !important; min-height: 0 !important;
-    gap: 8px; overflow: hidden;
+    gap: 6px; overflow: hidden;
   }
 
-  /* 数値データ行（距離・体重・睡眠・調子） */
+  /* 数値データ行 */
   body.share-mode .journal-stats-row {
     display: flex; justify-content: space-between !important;
-    gap: 4px; flex-shrink: 0; margin-top: -4px;
+    gap: 2px; flex-shrink: 0; margin-top: -2px;
     width: 100% !important;
-    flex-wrap: nowrap !important; /* 折り返し禁止 */
   }
   
-  /* 各アイテムのスタイル統一 */
-  body.share-mode .journal-stats-row > div, /* 既存の距離・体重・睡眠 */
-  body.share-mode .added-cond-item {         /* 追加した調子 */
+  body.share-mode .journal-stats-row > div,
+  body.share-mode .added-cond-item {
     background: transparent !important;
     padding: 0 !important; 
     text-align: center !important; 
-    flex: 1 !important; /* 全員等幅で広がる */
+    flex: 1 !important;
     display: flex !important; flex-direction: column !important;
     align-items: center !important;
   }
 
   body.share-mode .journal-stats-row input,
   body.share-mode .share-val {
-    font-size: 20px !important; font-weight: 800 !important;
-    color: #ea580c !important; text-align: center;
+    font-size: 18px !important; font-weight: 800 !important;
+    color: #ea580c !important; /* 基本はオレンジ */
+    text-align: center;
     background: transparent !important; border: none !important;
-    padding: 0 !important; margin: 0 !important;
+    width: 100% !important; margin:0 !important; padding:0 !important;
     font-family: sans-serif;
-    width: 100% !important;
   }
   
+  /* ★修正: 調子の値（④など）だけ黒文字にする */
+  body.share-mode .added-cond-item .share-val {
+    color: #000 !important;
+  }
+
   body.share-mode label {
     font-size: 9px !important; color: #ea580c !important; font-weight:bold;
     display: block !important; margin-bottom: 0px;
-    text-align: center; white-space: nowrap;
-    width: 100% !important;
+    text-align: center; white-space: nowrap; width: 100% !important;
   }
 
   /* 練習・感想エリア */
   body.share-mode textarea {
     border: 1px solid #f3f4f6 !important;
     background: #f9fafb !important;
-    border-radius: 12px !important;
-    padding: 12px !important;
-    font-size: 13px !important; color: #374151 !important;
+    border-radius: 10px !important;
+    padding: 8px !important;
+    font-size: 12px !important; color: #374151 !important;
     width: 100% !important; resize: none !important;
     box-sizing: border-box !important;
-    height: 80px !important; flex-shrink: 0 !important;
+    height: 70px !important; flex-shrink: 0 !important;
   }
 
-  /* ▼▼▼ 筋肉マップ修正: 正方形維持・見切れ防止 ▼▼▼ */
+  /* 筋肉マップ修正: 必ず最下部に配置 */
   body.share-mode #mmWrap {
-    /* 1. アスペクト比はJSで設定されるが、CSSでも念のため指定 */
     aspect-ratio: auto !important; 
-    
-    /* 2. カード下部に配置 */
-    margin: auto auto 0 auto !important; 
-    
-    /* 3. 縮小禁止（見切れるくらいならテキストエリアを縮めるべきだが、今回は固定長なのでマップを優先） */
+    margin: auto auto 0 auto !important; /* 上の余白を自動にして下に押し付ける */
     flex-shrink: 0 !important; 
-    
-    /* 4. サイズ制限（スマホ画面幅に収まるように） */
     width: 100% !important;
-    max-width: 280px !important; 
-    height: auto !important;
-    
-    position: relative !important;
-    display: block !important;
-    /* overflowはJSでhiddenにしてあるのでここでは触らない */
+    /* 高さはアスペクト比維持で自動縮小 */
+    max-height: 45% !important; /* 画面半分以下に制限してはみ出し防止 */
+    position: relative !important; display: block !important;
   }
   
   body.share-mode canvas {
@@ -4482,7 +4480,9 @@ shareStyle.innerHTML = `
   }
 
   body.share-mode #shareModeBtn {
-    position: absolute; top: 12px; right: 12px; z-index: 10001; 
+    position: absolute; top: 8px; right: 8px; z-index: 10001; 
   }
 `;
 document.head.appendChild(shareStyle);
+
+}
