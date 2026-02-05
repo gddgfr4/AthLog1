@@ -4489,3 +4489,4 @@ shareStyle.innerHTML = `
   }
 `;
 document.head.appendChild(shareStyle);
+}
