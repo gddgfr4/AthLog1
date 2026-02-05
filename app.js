@@ -1366,7 +1366,22 @@ const BODY_PARTS_LIST = [
   {id:'ankle_l', label:'左足首'}, {id:'ankle_r', label:'右足首'},
   {id:'foot_l', label:'左足裏'}, {id:'foot_r', label:'右足裏'}
 ];
+// ★追加: お気に入りボタンの見た目を更新する関数
+function updateFavBtnUI(isFav) {
+  const btn = document.getElementById("favBtn");
+  if(!btn) return;
+  if(isFav) {
+    btn.textContent = "★";
+    btn.classList.add("active");
+    btn.style.color = "#f59e0b"; // 金色
+  } else {
+    btn.textContent = "☆";
+    btn.classList.remove("active");
+    btn.style.color = "#ccc";    // 灰色
+  }
+}
 
+// （この下に function initJournal(){ ... が続きます）
 function initJournal(){
   const scheduleAutoSave = makeJournalAutoSaver(700);
   $("#distInput")?.addEventListener("input", ()=>{ dirty.dist=true; scheduleAutoSave(); renderWeek(); });
