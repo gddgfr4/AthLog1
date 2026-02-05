@@ -1384,10 +1384,7 @@ function updateFavBtnUI(isFav) {
   }
 }
 
-// 既存の関数
-function initJournal(){
-  // ...
-// （この下に function initJournal(){ ... が続きます）
+
 function initJournal(){
   const scheduleAutoSave = makeJournalAutoSaver(700);
   $("#distInput")?.addEventListener("input", ()=>{ dirty.dist=true; scheduleAutoSave(); renderWeek(); });
