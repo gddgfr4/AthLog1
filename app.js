@@ -178,6 +178,8 @@ async function markMemoRead(){
 
 // ===== App State =====
 let teamId=null, memberId=null, viewingMemberId=null;
+// app.js 145行目付近（変数が並んでいる場所）
+let monthFavOnly = false; // ★追加: 月一覧のフィルター状態
 let selDate=new Date();
 let brush={ lvl:1, erase:false };
 let distanceChart=null, conditionChart=null;
@@ -1435,6 +1437,25 @@ function initJournal(){
   // ナビゲーション等
   $("#weekPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-7); renderJournal(); });
   $("#weekNext")?.addEventListener("click",()=>{ selDate=addDays(selDate, 7); renderJournal(); });
+  // ★追加: 日移動ボタンの処理
+  $("#dayPrev")?.addEventListener("click",()=>{ selDate=addDays(selDate,-1); renderJournal(); });
+  $("#dayNext")?.addEventListener("click",()=>{ selDate=addDays(selDate, 1); renderJournal(); });
+
+  // ★追加: お気に入りボタンの処理
+  $("#favBtn")?.addEventListener("click", async ()=>{
+    const btn = $("#favBtn");
+    const isActive = btn.classList.contains("active");
+    const newState = !isActive;
+    
+    // UIを即時反映（サクサク動くように）
+    updateFavBtnUI(newState);
+
+    // 保存
+    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+    await getJournalRef(srcTeam, viewingMemberId, selDate).set({ favorite: newState }, { merge: true });
+    
+    // 変更があったので月一覧などを更新が必要ならフラグを立てるなど（今回は簡易的に何もしない）
+  });
   $("#gotoToday")?.addEventListener("click",()=>{ selDate=new Date(); renderJournal(); });
   $("#datePicker")?.addEventListener("change",(e)=>{ selDate=parseDateInput(e.target.value); renderJournal(); });
 
@@ -1600,7 +1621,7 @@ async function renderJournal(){
 
     if(document.getElementById("trainInput")) document.getElementById("trainInput").value = data.train || "";
     if(document.getElementById("feelInput")) document.getElementById("feelInput").value = data.feel || "";
-
+    updateFavBtnUI(!!data.favorite);
     // コンディションボタンの選択状態反映
     const cond = data.condition;
     document.querySelectorAll('#conditionBtns button').forEach(b => {
@@ -1722,7 +1743,20 @@ function initMonth(){
   $("#mPrev")?.addEventListener("click",()=>{ const m=$("#monthPick").value.split("-"); const d=new Date(Number(m[0]), Number(m[1])-2, 1); $("#monthPick").value=getMonthStr(d); renderMonth(); });
   $("#mNext")?.addEventListener("click",()=>{ const m=$("#monthPick").value.split("-"); const d=new Date(Number(m[0]), Number(m[1]), 1); $("#monthPick").value=getMonthStr(d); renderMonth(); });
   $("#monthPick")?.addEventListener("change", renderMonth);
-  
+  $("#monthFavFilterBtn")?.addEventListener("click", () => {
+    monthFavOnly = !monthFavOnly; // ON/OFF切り替え
+    const btn = $("#monthFavFilterBtn");
+    if (monthFavOnly) {
+      btn.style.color = "#f59e0b";
+      btn.style.borderColor = "#f59e0b";
+      btn.style.background = "#fffbeb";
+    } else {
+      btn.style.color = "#ccc";
+      btn.style.borderColor = "#eee";
+      btn.style.background = "transparent";
+    }
+    renderMonth(); // 再描画
+  });
    const goalInput=$("#monthGoalInput");
    if(goalInput){
      let t=null;
@@ -1775,13 +1809,24 @@ async function renderMonth(){
       try {
         const snap = await getJournalRef(srcTeam, viewingMemberId, dtLocal).get();
         const j = snap.data() || {};
-  
+        if (monthFavOnly && !j.favorite) {
+          row.style.display = 'none';
+          return; // これ以降の描画処理をスキップ
+        } else {
+          row.style.display = 'flex'; // 再表示用
+        }
         // 合計距離の更新（既存処理をそのまま）
         const add = Number(j.dist || 0);
         if (!Number.isNaN(add)) {
           sum += add;
           const sumEl = document.getElementById("monthSum");
           if (sumEl) sumEl.textContent = `月間走行距離: ${sum.toFixed(1)} km`;
+        }
+        const dowEl = document.getElementById(`dow_${key}`);
+        if(dowEl && j.favorite) {
+           // 日付の下や横に小さな★をつける（HTML構造によるが、単純に文字色を変えるか、要素追加）
+           dowEl.innerHTML += `<span style="color:#f59e0b; font-size:10px; position:absolute; top:0; right:2px;">★</span>`;
+           dowEl.style.position = 'relative';
         }
 
        // ── 縦色ラベル（typebar）の色反映（文字タグは出さない） ──
@@ -4191,3 +4236,17 @@ async function recent7Km(d){
     return s;
   }
 
+// ★追加: お気に入りボタンの見た目を変える関数
+function updateFavBtnUI(isFav) {
+  const btn = document.getElementById("favBtn");
+  if(!btn) return;
+  if(isFav) {
+    btn.textContent = "★";
+    btn.classList.add("active");
+    btn.style.color = "#f59e0b"; // 金色
+  } else {
+    btn.textContent = "☆";
+    btn.classList.remove("active");
+    btn.style.color = "#ccc";    // 灰色
+  }
+}
