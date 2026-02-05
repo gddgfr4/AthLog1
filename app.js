@@ -1576,7 +1576,38 @@ async function renderJournal(){
   }
 
   $("#datePicker").value = ymd(selDate);
-  renderWeek();
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  
+  // データのリアルタイム監視を開始
+  unsubscribeJournal = getJournalRef(srcTeam, viewingMemberId, selDate).onSnapshot(doc => {
+    const data = doc.data() || {};
+    lastJournal = data; // 筋肉マップ等のために保持
+
+    // フォームにデータを反映
+    if(document.getElementById("distInput")) document.getElementById("distInput").value = data.dist || "";
+    if(document.getElementById("weightInput")) document.getElementById("weightInput").value = data.weight || "";
+    if(document.getElementById("trainInput")) document.getElementById("trainInput").value = data.train || "";
+    if(document.getElementById("feelInput")) document.getElementById("feelInput").value = data.feel || "";
+    // 睡眠時間(あれば)
+    if(document.getElementById("j-sleep")) document.getElementById("j-sleep").value = data.sleep || "";
+
+    // コンディションボタンの選択状態
+    const cond = data.condition;
+    document.querySelectorAll('#conditionBtns button').forEach(b => {
+      b.classList.toggle('active', Number(b.dataset.val) === cond);
+    });
+
+    // その他表示の更新
+    renderQuickButtons(data);
+    if(typeof drawMuscleFromDoc === 'function') drawMuscleFromDoc(data);
+    if(typeof renderPartsTags === 'function') renderPartsTags(data);
+    
+    // 週カレンダーやサマリも更新
+    renderWeek();
+    if(typeof updateDistanceSummary === 'function') updateDistanceSummary();
+    if(typeof tscRefresh === 'function') tscRefresh();
+
+  }, err => console.error("Journal load error:", err));
 }
 
 let renderWeekRequestId = 0;
