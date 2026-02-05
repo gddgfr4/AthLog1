@@ -4363,28 +4363,30 @@ shareStyle.innerHTML = `
     background-color: #222 !important;
     overflow: hidden !important;
     height: 100vh !important; width: 100vw !important;
-    margin: 0 !important; padding: 0 !important;
+    margin: 0 !important; 
+    
+    /* ★重要: 画面端にカードがくっつかないようにパディング確保 */
+    padding: 20px !important; 
+    box-sizing: border-box !important;
+    
     display: flex !important; 
     align-items: center !important; 
     justify-content: center !important;
   }
 
-  /* === カード本体 (9:16 完全固定) === */
+  /* === カード本体 (9:16 固定) === */
   body.share-mode #app {
-    /* 画面からはみ出さないよう高さを90vhに制限し、アスペクト比で幅を決定 */
-    height: 90vh !important;
+    /* ★重要: 画面高さいっぱい(100vh)ではなく、少し小さく(85vh)して確実に収める */
+    height: 85vh !important; 
     width: auto !important;
     aspect-ratio: 9 / 16 !important;
     
-    /* 横幅が広がりすぎないための保険 */
-    max-width: 90vw !important;
-
     background: #fff !important;
     border-radius: 20px !important;
     box-shadow: 0 0 50px rgba(0,0,0,0.5) !important;
     
-    /* ★パディングを縮小 (24px -> 16px) して中身を広く使う */
-    padding: 16px !important; 
+    /* ★内部パディングを削減 (16px -> 14px) */
+    padding: 14px !important; 
     box-sizing: border-box !important;
     
     display: flex !important; flex-direction: column !important;
@@ -4407,24 +4409,28 @@ shareStyle.innerHTML = `
   /* ヘッダー */
   #shareHeaderOverlay {
     display: flex; justify-content: space-between; align-items: flex-start;
-    /* ★下マージンを縮小 (12px -> 8px) */
-    margin-bottom: 8px; padding-bottom: 4px;
-    border-bottom: 2px solid #f3f4f6; flex-shrink: 0;
+    /* ★下マージンを極小に (8px -> 4px) */
+    margin-bottom: 4px; padding-bottom: 4px;
+    border-bottom: 1px solid #f3f4f6; flex-shrink: 0;
   }
   .share-header-inner { display: flex; flex-direction: column; }
-  .share-date { color: #111; line-height: 1.1; }
   
-  /* チーム名・選手名 (横並び) */
-  .share-meta { display: flex !important; align-items: baseline !important; gap: 6px; }
+  /* 日付フォントサイズ微調整 */
+  .share-date { color: #111; line-height: 1.0; font-size: 0.95em; }
   
-  .share-brand { font-size: 9px; color: #d1d5db; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; align-self: center; }
+  /* チーム名・選手名 */
+  .share-meta { display: flex !important; align-items: baseline !important; gap: 6px; margin-top: 2px; }
+  .share-meta span { font-size: 0.85rem !important; } /* 文字サイズ微調整 */
+  .share-meta .share-name { font-size: 1.1rem !important; }
+  
+  .share-brand { font-size: 8px; color: #d1d5db; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; align-self: center; }
 
   /* 日誌エリア */
   body.share-mode #journal {
     display: flex !important; flex-direction: column !important;
     flex: 1 !important; min-height: 0 !important;
-    /* ★要素間の隙間を大幅縮小 (12px -> 4px) */
-    gap: 4px; 
+    /* ★要素間の隙間を極限まで詰める (4px -> 2px) */
+    gap: 2px; 
     overflow: hidden;
   }
 
@@ -4433,6 +4439,7 @@ shareStyle.innerHTML = `
     display: flex; justify-content: space-between !important;
     width: 100% !important; flex-shrink: 0;
     margin-top: 0 !important;
+    padding-bottom: 2px; /* 下にわずかな隙間 */
   }
   
   body.share-mode .journal-stats-row > div,
@@ -4444,33 +4451,33 @@ shareStyle.innerHTML = `
 
   body.share-mode .journal-stats-row input,
   body.share-mode .share-val {
-    font-size: 20px !important; font-weight: 800 !important;
-    color: #ea580c !important; /* オレンジ */
+    /* ★数値フォントサイズを少し小さく (20px -> 18px) して高さを稼ぐ */
+    font-size: 18px !important; font-weight: 800 !important;
+    color: #ea580c !important; 
     text-align: center; border: none !important; background: transparent !important;
     width: 100% !important; margin: 0 !important; padding: 0 !important;
     font-family: sans-serif;
-    line-height: 1.2 !important;
+    line-height: 1.1 !important;
   }
   
-  /* 調子(④)だけ黒文字 */
   body.share-mode .added-cond-item .share-val { color: #000 !important; }
 
   body.share-mode label {
-    font-size: 9px !important; color: #ea580c !important; font-weight:bold;
+    font-size: 8px !important; color: #ea580c !important; font-weight:bold;
     display: block !important; margin-bottom: 0px; text-align: center; width: 100% !important;
   }
 
   /* テキストエリア */
   body.share-mode textarea {
     border: 1px solid #f3f4f6 !important; background: #f9fafb !important;
-    border-radius: 10px !important; 
-    /* ★パディング縮小 (12px -> 8px) */
-    padding: 8px !important;
-    font-size: 12px !important; color: #374151 !important;
+    border-radius: 8px !important; 
+    padding: 6px !important;
+    font-size: 11px !important; color: #374151 !important;
     width: 100% !important; box-sizing: border-box !important;
-    /* ★高さ縮小 (85px -> 60px) */
-    height: 60px !important; 
+    /* ★高さをさらに圧縮 (60px -> 48px) */
+    height: 48px !important; 
     flex-shrink: 0 !important; resize: none !important;
+    line-height: 1.3;
   }
 
   /* === 筋肉マップ (最下部 & ズレ防止) === */
@@ -4482,13 +4489,14 @@ shareStyle.innerHTML = `
     
     aspect-ratio: unset !important;
     height: auto !important;
+    /* ★上部の隙間を消す */
+    top: -4px; 
     
     position: relative !important; 
     display: block !important;
     overflow: hidden !important;
   }
   
-  /* 画像描画位置の固定 */
   body.share-mode canvas {
     position: absolute !important;
     top: 0 !important; left: 0 !important;
