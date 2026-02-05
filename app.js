@@ -1512,6 +1512,11 @@ function initJournal(){
       `;
       // insertBefore(追加要素, 睡眠の次の兄弟要素) -> これで確実に「睡眠」の「次」に入ります
       sleepWrapper.parentNode.insertBefore(condItem, sleepWrapper.nextSibling);
+      const appBox = document.getElementById("app");
+      const mmWrap = document.getElementById("mmWrap");
+      if (appBox && mmWrap) {
+          // カード(#app)の最後尾に移動（これで確実に下に来ます）
+          appBox.appendChild(mmWrap);
     }
 
     // 解除関数
@@ -4365,18 +4370,13 @@ shareStyle.innerHTML = `
     height: 100vh !important; width: 100vw !important;
     margin: 0 !important; padding: 0 !important;
     
-    /* 画面端の余白確保 */
-    padding: 20px !important; 
-    box-sizing: border-box !important;
-    
     display: flex !important; 
     align-items: center !important; 
     justify-content: center !important;
   }
 
-  /* === カード本体 (9:16 固定) === */
+  /* === カード本体 === */
   body.share-mode #app {
-    /* 確実に画面内に収める */
     height: 85vh !important; 
     width: auto !important;
     aspect-ratio: 9 / 16 !important;
@@ -4387,10 +4387,11 @@ shareStyle.innerHTML = `
     padding: 14px !important; 
     box-sizing: border-box !important;
     
-    /* ★重要: 強制的に縦並びにする */
+    /* ★重要: 強制的に縦並び & 上詰め配置 */
     display: flex !important; 
     flex-direction: column !important;
-    flex-wrap: nowrap !important;
+    justify-content: flex-start !important; /* 上に詰める */
+    gap: 0 !important; /* 要素間の自動隙間をゼロに */
     
     position: relative !important; margin: 0 !important;
   }
@@ -4411,10 +4412,10 @@ shareStyle.innerHTML = `
   /* ヘッダー */
   #shareHeaderOverlay {
     display: flex; justify-content: space-between; align-items: flex-start;
+    /* ヘッダー下の隙間も最小限に */
     margin-bottom: 4px; padding-bottom: 4px;
     border-bottom: 1px solid #f3f4f6; flex-shrink: 0;
-    /* 順序指定: 最初 */
-    order: -1 !important;
+    width: 100% !important;
   }
   .share-header-inner { display: flex; flex-direction: column; }
   .share-date { color: #111; line-height: 1.0; font-size: 0.95em; }
@@ -4423,22 +4424,25 @@ shareStyle.innerHTML = `
   .share-meta .share-name { font-size: 1.1rem !important; }
   .share-brand { font-size: 8px; color: #d1d5db; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; align-self: center; }
 
-  /* 日誌エリア */
+  /* 日誌エリア（ここが広がりやすいので修正） */
   body.share-mode #journal {
-    /* ★重要: 日誌エリア内も強制縦並び */
     display: flex !important; 
     flex-direction: column !important;
-    flex: 1 !important; min-height: 0 !important;
-    gap: 2px; 
-    overflow: hidden;
+    justify-content: flex-start !important; /* 上詰め */
+    min-height: 0 !important;
+    /* ★ここをゼロにして隙間をなくす */
+    gap: 0 !important; 
+    padding: 0 !important; margin: 0 !important;
+    width: 100% !important;
   }
 
   /* 数値データ行 */
   body.share-mode .journal-stats-row {
     display: flex; justify-content: space-between !important;
     width: 100% !important; flex-shrink: 0;
-    margin-top: 0 !important; padding-bottom: 2px;
-    order: 0 !important;
+    margin: 0 !important; padding: 0 !important;
+    /* 下にわずかな隙間(2px)だけ空ける */
+    margin-bottom: 2px !important;
   }
   
   body.share-mode .journal-stats-row > div,
@@ -4446,6 +4450,7 @@ shareStyle.innerHTML = `
     background: transparent !important; padding: 0 !important; 
     text-align: center !important; flex: 1 !important;
     display: flex !important; flex-direction: column !important; align-items: center !important;
+    margin: 0 !important;
   }
 
   body.share-mode .journal-stats-row input,
@@ -4463,6 +4468,7 @@ shareStyle.innerHTML = `
   body.share-mode label {
     font-size: 8px !important; color: #ea580c !important; font-weight:bold;
     display: block !important; margin-bottom: 0px; text-align: center; width: 100% !important;
+    line-height: 1.0 !important;
   }
 
   /* テキストエリア */
@@ -4473,27 +4479,23 @@ shareStyle.innerHTML = `
     width: 100% !important; box-sizing: border-box !important;
     height: 48px !important; flex-shrink: 0 !important; resize: none !important;
     line-height: 1.3;
-    order: 1 !important;
+    margin: 0 !important; /* マージン除去 */
+    margin-top: 2px !important; /* 数値との間を少しだけ離す */
   }
 
-  /* === 筋肉マップ (最下部 & ズレ防止) === */
+  /* === 筋肉マップ (JSで最後に移動済みだが念のためCSSも) === */
   body.share-mode #mmWrap {
-    /* ★重要: 順序を強制的に最後にする */
-    order: 9999 !important;
-    
-    margin-top: auto !important;
+    /* 残りのスペースを埋める */
+    flex-grow: 1 !important; 
+    margin-top: auto !important; /* 強制的に下へ */
     margin-bottom: 0 !important;
     width: 100% !important;
-    flex-grow: 1 !important;
     
     aspect-ratio: unset !important;
     height: auto !important;
-    top: -4px; 
+    top: 0 !important; 
     
-    /* 位置リセット（横画面CSSでのabsolute配置対策） */
     position: relative !important; 
-    left: auto !important; right: auto !important;
-    
     display: block !important;
     overflow: hidden !important;
   }
