@@ -1285,19 +1285,48 @@ function makeJournalAutoSaver(delayMs=700){
   };
 }
 
-// ===== JOURNAL =====
+// 日誌の保存（修正版：新しいIDと睡眠時間に対応）
 async function saveJournal(){
-  const activeCond=$('#conditionBtns button.active');
-  const docRef=getJournalRef(teamId,memberId,selDate);
-  const journalData={
-    dist: Number($("#distInput").value||0),
-    weight: Number($("#weightInput").value||0),
-    train: $("#trainInput").value,
-    feel:  $("#feelInput").value,
-    condition: activeCond ? Number(activeCond.dataset.val) : null,
+  // 新しい画面ID (j-*) を優先し、無ければ古いID (distInput等) を探す安全策
+  const distEl = document.getElementById("j-dist") || document.getElementById("distInput");
+  const weightEl = document.getElementById("j-weight") || document.getElementById("weightInput");
+  const sleepEl = document.getElementById("j-sleep"); // 新設
+  const trainEl = document.getElementById("j-train") || document.getElementById("trainInput");
+  const feelEl = document.getElementById("j-feel") || document.getElementById("feelInput");
+  const condEl = document.getElementById("j-condition");
+
+  // コンディション取得 (プルダウン優先、なければボタン式)
+  let conditionVal = null;
+  if(condEl) {
+      conditionVal = Number(condEl.value);
+  } else {
+      const activeBtn = document.querySelector('#conditionBtns button.active');
+      if(activeBtn) conditionVal = Number(activeBtn.dataset.val);
+  }
+
+  const docRef = getJournalRef(teamId, memberId, selDate);
+  
+  const journalData = {
+    dist: distEl ? Number(distEl.value||0) : 0,
+    weight: weightEl ? Number(weightEl.value||0) : 0,
+    sleep: sleepEl ? Number(sleepEl.value||0) : 0, // ★追加: 睡眠
+    train: trainEl ? trainEl.value : "",
+    feel: feelEl ? feelEl.value : "",
+    condition: conditionVal,
   };
-  await docRef.set(journalData,{merge:true});
-  dirty={ dist:false, train:false, feel:false, weight:false };
+
+  // マージ保存
+  await docRef.set(journalData, {merge:true});
+  
+  // フラグ解除
+  dirty = { dist:false, train:false, feel:false, weight:false };
+}
+
+// デバウンス処理（連打防止）
+let _saveTimer = null;
+function saveJournalDebounced(srcTeam) {
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(saveJournal, 800);
 }
 
 // ===== Global: 端/上部スワイプでタブ移動 =====
@@ -1524,16 +1553,23 @@ function initJournalSwipeNav(){
 }
 
 
-// 日誌画面の描画（完全修正版）
+// 日誌画面の描画（修正版：ターゲットIDを修正）
 async function renderJournal(){
-  const container = document.getElementById("journal-container");
-  if(!container) return;
+  // ★修正: "journal-container" が無くても、タブパネル "journal" 自体に描画する
+  let container = document.getElementById("journal-container");
+  if(!container) {
+      const tabPanel = document.getElementById("journal");
+      if(!tabPanel) return;
+      // コンテナを動的に作成して確保
+      tabPanel.innerHTML = '<div id="journal-container"></div>';
+      container = document.getElementById("journal-container");
+  }
 
-  // 1. チームIDと権限の取得
+  // 1. チームIDと権限
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   const isEditable = isEditableHere(teamId, memberId, viewingMemberId);
   
-  // 2. データ取得 (onSnapshotではなくgetを使用)
+  // 2. データ取得
   let data = {};
   try {
     const doc = await getJournalRef(srcTeam, viewingMemberId, selDate).get();
@@ -1549,15 +1585,8 @@ async function renderJournal(){
   const feelVal = data.feel || '';
   const isFav = !!data.isFav;
 
-  // 4. 週チップ（週間合計）の更新
-  // ※関数の中で実行するので await が使えます
-  if(typeof renderWeek === 'function') {
-      await renderWeek(); 
-  }
-
-  // お気に入りボタンの表示切り替え
-  const starIcon = isFav ? '★' : '☆';
-  const starClass = isFav ? 'active' : '';
+  // 4. 週チップ更新
+  if(typeof renderWeek === 'function') await renderWeek(); 
 
   // 5. HTML生成
   container.innerHTML = `
@@ -1577,8 +1606,7 @@ async function renderJournal(){
     </div>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-       <button id="favBtn" class="fav-btn ${starClass}">${starIcon}</button>
-       
+       <button id="favBtn" class="fav-btn ${isFav?'active':''}">${isFav?'★':'☆'}</button>
        <div style="display:flex; gap:8px;">
          <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImageUpload(this)">
          <button class="btn-sm" onclick="document.getElementById('imageInput').click()">📷 写真追加</button>
@@ -1656,7 +1684,6 @@ async function renderJournal(){
     }
   }
 
-  // 7. マップと画像の初期化
   initMuscleMapCanvas(data.mmImage);
   renderJournalImages(data.images);
 }
@@ -2440,88 +2467,73 @@ async function renderAllDistanceCharts(){
   }
 }
 
-// app.js (末尾の方、renderAllDistanceChartsの後ろあたりに追加)
-
+// 体重＆睡眠グラフの描画
 async function renderWeightChart(){
   const ctx = document.getElementById('weightChart')?.getContext('2d');
   if(!ctx) return;
 
-  // データの取得
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   const snaps = await db.collection('teams').doc(srcTeam).collection('members').doc(viewingMemberId).collection('journal').get();
   const journal = {}; 
   snaps.forEach(doc => journal[doc.id] = doc.data());
 
   const labels = [];
-  const dataPoints = [];
-  const today = new Date(); today.setHours(0,0,0,0);
-
-  // 期間設定
-  let start, end, stepFunc, labelFunc;
+  const weightData = [];
+  const sleepData = []; // ★追加
   
+  const today = new Date(); today.setHours(0,0,0,0);
+  let start, end;
+  
+  // 期間計算 (Day/Week/Month)
   if(weightMode === 'day'){
-    // 直近14日
     const len = 14;
     end = addDays(today, weightOffset * len);
     start = addDays(end, -len + 1);
-    
     for(let i=0; i<len; i++){
       const d = addDays(start, i);
       labels.push(`${d.getMonth()+1}/${d.getDate()}`);
-      const val = journal[ymd(d)]?.weight;
-      dataPoints.push(val ? Number(val) : null);
+      const j = journal[ymd(d)];
+      weightData.push(j?.weight ? Number(j.weight) : null);
+      sleepData.push(j?.sleep ? Number(j.sleep) : null); // ★睡眠
     }
     $("#weightRangeLabel").textContent = `${ymd(start)}~`;
-
   } else if(weightMode === 'week'){
-    // 直近12週 (平均)
+    // ... (週モードも同様に追加) ...
     const len = 12;
-    const currWeekStart = startOfWeek(today);
-    const baseWeek = addDays(currWeekStart, weightOffset * len * 7); // オフセットはlen週単位で移動
-    
-    // 表示は左(過去)から右(未来)へ
-    // baseWeekを「右端(最新)」とするため、startはそこから戻る
-    const endWeekStart = baseWeek; 
-    
+    const baseWeek = addDays(startOfWeek(today), weightOffset * len * 7);
     for(let i=len-1; i>=0; i--){
-      const ws = addDays(endWeekStart, -i * 7);
+      const ws = addDays(baseWeek, -i * 7);
       labels.push(`${ws.getMonth()+1}/${ws.getDate()}`);
-      
-      // 週平均の計算
-      let sum=0, count=0;
+      let sumW=0, cntW=0, sumS=0, cntS=0;
       for(let j=0; j<7; j++){
         const d = addDays(ws, j);
-        const val = journal[ymd(d)]?.weight;
-        if(val){ sum += Number(val); count++; }
+        const val = journal[ymd(d)];
+        if(val?.weight){ sumW+=Number(val.weight); cntW++; }
+        if(val?.sleep){ sumS+=Number(val.sleep); cntS++; }
       }
-      dataPoints.push(count > 0 ? (sum/count).toFixed(1) : null);
+      weightData.push(cntW>0 ? (sumW/cntW).toFixed(1) : null);
+      sleepData.push(cntS>0 ? (sumS/cntS).toFixed(1) : null);
     }
-    const rangeStart = addDays(endWeekStart, -(len-1)*7);
-    $("#weightRangeLabel").textContent = `${ymd(rangeStart)}~`;
-
+    const rStart = addDays(baseWeek, -(len-1)*7);
+    $("#weightRangeLabel").textContent = `${ymd(rStart)}~`;
   } else {
-    // 直近12ヶ月 (平均)
+    // ... (月モード) ...
     const len = 12;
     const baseMonth = new Date(today); baseMonth.setDate(1);
     baseMonth.setMonth(baseMonth.getMonth() + (weightOffset * len));
-
     for(let i=len-1; i>=0; i--){
-      const d = new Date(baseMonth);
-      d.setMonth(d.getMonth() - i);
-      const mStr = getMonthStr(d); // YYYY-MM
+      const d = new Date(baseMonth); d.setMonth(d.getMonth() - i);
+      const mStr = getMonthStr(d);
       labels.push(`${d.getMonth()+1}月`);
-
-      // 月平均の計算
-      let sum=0, count=0;
-      // その月の日誌データを走査（全データ走査は重いが、クライアント保持データ量なら許容範囲）
-      // 本来はクエリで絞るべきだが、既存構造に合わせてJS側でフィルタ
+      let sumW=0, cntW=0, sumS=0, cntS=0;
       for(const k in journal){
-        if(k.startsWith(mStr) && journal[k].weight){
-          sum += Number(journal[k].weight);
-          count++;
+        if(k.startsWith(mStr)){
+           if(journal[k].weight){ sumW+=Number(journal[k].weight); cntW++; }
+           if(journal[k].sleep){ sumS+=Number(journal[k].sleep); cntS++; }
         }
       }
-      dataPoints.push(count > 0 ? (sum/count).toFixed(1) : null);
+      weightData.push(cntW>0 ? (sumW/cntW).toFixed(1) : null);
+      sleepData.push(cntS>0 ? (sumS/cntS).toFixed(1) : null);
     }
     const sDate = new Date(baseMonth); sDate.setMonth(sDate.getMonth()-(len-1));
     $("#weightRangeLabel").textContent = `${sDate.getFullYear()}/${sDate.getMonth()+1}~`;
@@ -2532,29 +2544,36 @@ async function renderWeightChart(){
     type: 'line',
     data: {
       labels: labels,
-      datasets: [{
-        label: '体重 (kg)',
-        data: dataPoints,
-        borderColor: 'rgba(234, 88, 12, 1)', // オレンジ系
-        backgroundColor: 'rgba(234, 88, 12, 0.1)',
-        borderWidth: 2,
-        tension: 0.1,
-        spanGaps: true // データがない日は線を飛ばしてつなぐ
-      }]
+      datasets: [
+        {
+          label: '体重 (kg)',
+          data: weightData,
+          borderColor: 'rgba(234, 88, 12, 1)', // オレンジ
+          backgroundColor: 'rgba(234, 88, 12, 0.1)',
+          yAxisID: 'y',
+          tension: 0.1, spanGaps: true
+        },
+        {
+          label: '睡眠 (h)',
+          data: sleepData,
+          borderColor: 'rgba(139, 92, 246, 1)', // 紫
+          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          yAxisID: 'y1', // 右軸
+          borderDash: [5, 5],
+          tension: 0.1, spanGaps: true
+        }
+      ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        y: { 
-          beginAtZero: false, 
-          grace: '10%'
-        }
+        y: { position:'left', title:{display:true, text:'体重(kg)'} },
+        y1: { position:'right', title:{display:true, text:'睡眠(h)'}, grid:{drawOnChartArea:false} }
       }
     }
   });
 }
-
 // ===== NEW: Team Memo =====
 function initMemo(){
   const memoInput=$("#memoChatInput");
