@@ -4593,3 +4593,62 @@ body.share-mode textarea + textarea {
 }
 `;
 document.head.appendChild(shareStyle);
+
+// app.js の一番最後に追加してください
+
+// スクショモード時のスケーリング管理
+(function manageShareScale() {
+  const CARD_WIDTH = 400; // style.css で設定した幅と合わせる
+
+  function updateScale() {
+    // シェアモードでないならリセットして終了
+    if (!document.body.classList.contains('share-mode')) {
+      const app = document.getElementById('app');
+      if (app) {
+        app.style.transform = '';
+        app.style.marginBottom = '';
+      }
+      return;
+    }
+
+    // 現在の画面幅を取得
+    const viewportWidth = window.innerWidth;
+    
+    // 倍率を計算（画面幅 / カードの固定幅）
+    // PCなどで画面が広すぎる場合に大きくなりすぎないよう上限(例:1.5倍)を設けても良いです
+    // 今回は「常に画面幅いっぱいにフィット」させます
+    let scale = viewportWidth / CARD_WIDTH;
+    
+    // 少し余白を持たせるなら 0.95倍くらいにする
+    // scale = scale * 0.95; 
+
+    const app = document.getElementById('app');
+    if (app) {
+      app.style.transform = `scale(${scale})`;
+      
+      // scaleを使うと、元のDOM要素が占有する高さと見た目の高さがズレるため補正
+      // (見た目の高さ - 元の高さ) 分の余白調整
+      const rect = app.getBoundingClientRect();
+      // 下部に余白を作る（必要であれば調整）
+      app.style.marginBottom = `${(rect.height - app.offsetHeight)}px`;
+    }
+  }
+
+  // リサイズ時に再計算
+  window.addEventListener('resize', updateScale);
+
+  // スクショボタンのクリックを監視して発火
+  // (既存のイベントリスナーの後で実行されるようにsetTimeoutで遅延)
+  const btn = document.getElementById('shareModeBtn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      // クラス付与などの処理が終わった直後にスケール計算を実行
+      setTimeout(updateScale, 50);
+    });
+  }
+  
+  // 念のため body のクラス変化を監視（ボタン以外でモードが変わった場合用）
+  const observer = new MutationObserver(updateScale);
+  observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+})();
