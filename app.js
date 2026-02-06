@@ -311,7 +311,7 @@ async function showApp(){
   initHeaderEvents();
 
   switchTab("home"); 
-
+  initMemoBadgeCheck();
   checkNewMemo();
   initTeamSwitcher();
   initGlobalTabSwipe();
@@ -2813,6 +2813,45 @@ async function renderWeightChart(){
     }
   });
 }
+
+// ==========================================
+// ========== チームメモ通知 (Badge) Logic ===
+// ==========================================
+
+let memoBadgeUnsub = null;
+
+function initMemoBadgeCheck() {
+  // 既存の監視があれば解除
+  if (memoBadgeUnsub) { try{ memoBadgeUnsub(); }catch{} memoBadgeUnsub=null; }
+  
+  // チームIDが決まっていない場合は何もしない
+  if (!teamId) return;
+
+  const col = getTeamMemoCollectionRef(teamId);
+  const memoTab = document.querySelector('[data-tab="memo"]');
+
+  // 最新の1件だけを監視
+  memoBadgeUnsub = col.orderBy('ts', 'desc').limit(1).onSnapshot(snap => {
+    if (snap.empty) return;
+    
+    const latestDoc = snap.docs[0].data();
+    const latestTs = latestDoc.ts || 0;
+    
+    // 最後に見た時刻を取得
+    const lastViewKey = `athlog:${teamId}:${memberId}:lastMemoView`;
+    const lastViewTs = Number(localStorage.getItem(lastViewKey) || 0);
+
+    // 最新の投稿が、自分が最後に見た時刻より新しい、かつ自分の投稿でない場合
+    // (自分の投稿でもバッジを出したい場合は && 以降を削除)
+    if (latestTs > lastViewTs && latestDoc.mem !== memberId) {
+      if (memoTab) memoTab.classList.add('new-message'); // バッジ点灯
+    } else {
+      if (memoTab) memoTab.classList.remove('new-message'); // バッジ消灯
+    }
+  }, err => {
+    console.log("Memo badge check error", err);
+  });
+}
 // ===== NEW: Team Memo =====
 function initMemo(){
   const memoInput=$("#memoChatInput");
@@ -3596,40 +3635,46 @@ async function tscLoad(){
   }
 }
 
-// app.js (tscSave 関数を修正)
+// ==========================================
+// ========== 共有コメント (TSC) Logic =======
+// ==========================================
 
 async function tscSave(){
   try{
     const ta = document.getElementById('teamSharedComment');
     if(!ta) return;
-    const text = ta.value;
+    const text = ta.value; // 空でも削除として保存する場合はそのまま
 
-    // データの実体があるチーム（メインチーム）を取得
+    // メインチーム（データの実体がある場所）を取得
     const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-    const ref = getJournalRef(srcTeam, viewingMemberId, selDate);
-    
     const dayKey = ymd(selDate); 
 
-    // 1. コメント保存（メインチームへ）
-    await ref.set({ teamComment: text, lastCommentBy: memberId }, { merge:true });
+    // 1. コメントを保存 (日誌データの一部として)
+    // lastCommentBy を記録することで、誰が最後に書いたか分かるようにする
+    await getJournalRef(srcTeam, viewingMemberId, selDate).set({ 
+        teamComment: text, 
+        lastCommentBy: memberId 
+    }, { merge:true });
     
     tscDirty = false;
     tscSetStatus('保存済み');
 
-    // 2. 通知作成（★修正: これもメインチームへ送る）
-    // これにより、通知もデータと同じ場所に集約される
-    await createDayCommentNotifications({
-      teamId: srcTeam,          // ★変更: currentのteamIdではなくsrcTeamを使う
-      from: memberId,           // コメントした人
-      to: viewingMemberId,      // 日誌の持ち主
-      day: dayKey,              
-      text: text                
-    });
+    // 2. 通知を作成 (相手が自分以外の場合のみ)
+    if (text.trim() !== "" && viewingMemberId !== memberId) {
+       await createDayCommentNotifications({
+          teamId: srcTeam,     
+          from: memberId,      // 送信者（自分）
+          to: viewingMemberId, // 受信者（日誌の持ち主）
+          day: dayKey,              
+          text: text                
+       });
+       tscSetStatus('保存＆通知完了');
+    }
+
   }catch(e){
-    console.error('tscSave', e);
-    tscSetStatus('保存失敗（自動再試行）');
-    clearTimeout(tscTimer);
-    tscTimer = setTimeout(tscSave, 1500);
+    console.error('tscSave error', e);
+    tscSetStatus('保存失敗');
+    // 失敗時は再試行タイマーなどはセットせず、ユーザーに再操作を促す方が安全
   }
 }
 function tscScheduleSave(){
@@ -3983,35 +4028,30 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
+// 通知データを作成する関数
 async function createDayCommentNotifications({ teamId, from, to, day, text }){
   try{
+    // 通知コレクションへの参照
     const col = db.collection('teams').doc(teamId).collection('notifications');
-    const batch = db.batch();
-    const ts = Date.now();
-    let notifyCount = 0;
-    // ▼ 修正: to が存在し、from (コメント投稿者) と異なるときのみ通知を作成
-    if (to && to !== from) {
-      const ref = col.doc();
-      batch.set(ref, {
-        type:'dayComment',
+    
+    // 既存の未読通知が重複しないようにチェックしても良いが、
+    // ここではシンプルに「新しい通知」として追加する
+    await col.add({
+        type: 'dayComment',  // タイプ: 日誌コメント
         team: teamId,
-        day, text, from, to, // to は日誌の持ち主
-        ts, read:false
-      });
-      notifyCount++;
-    }
-
-    console.log("DEBUG: Attempting batch commit for notifications, count:", notifyCount);
-
-    await batch.commit(); 
-
-    console.log("DEBUG: Notification batch committed successfully.");
-
+        day: day,            // 対象の日付
+        text: text,          // コメント内容（抜粋）
+        from: from,          // 誰から
+        to: to,              // 誰へ
+        ts: Date.now(),      // タイムスタンプ
+        read: false          // 未読フラグ
+    });
+    
+    console.log(`Notification sent to ${to}`);
   }catch(e){
-    console.error('createDayCommentNotifications error', e);
+    console.error('createNotification error', e);
   }
 }
-    
 
 function openLtimer() {
   if (teamId && memberId) {
