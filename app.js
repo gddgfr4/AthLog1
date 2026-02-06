@@ -4009,9 +4009,63 @@ function initGlobalTabSwipe(){
   bindArea(bar);
 }
 
+// ▼▼▼ 追加: バッジの表示切り替えヘルパー ▼▼▼
+function toggleNotifyBadges(show) {
+  // タブバーのバッジ
+  const notifyTab = document.querySelector('[data-tab="notify"]');
+  if (notifyTab) notifyTab.classList.toggle('new-message', show);
+
+  // ホーム画面カードのバッジ
+  const notifyCard = document.querySelector('.home-card[data-target="notify"]');
+  if (notifyCard) notifyCard.classList.toggle('new-message', show);
+}
+
+// ▼▼▼ 修正: タイムスタンプ比較ロジックに変更 ▼▼▼
+function initNotifyBadgeCheck(){
+  if(notifyBadgeUnsub) { try{ notifyBadgeUnsub(); }catch{} notifyBadgeUnsub=null; }
+  
+  if(!memberId || !teamId) return;
+
+  const col = db.collection('teams').doc(teamId).collection('notifications');
+  
+  // 自分宛ての最新の通知を取得（既読・未読問わず、最新の日時をチェックするため）
+  // ※注意: このクエリ('to' + 'ts')にはFirestoreの複合インデックスが必要です。
+  // エラーが出る場合はコンソールのリンクからインデックスを作成してください。
+  const q = col.where('to','==', memberId)
+               .orderBy('ts', 'desc')
+               .limit(1);
+
+  notifyBadgeUnsub = q.onSnapshot(snap => {
+    if (snap.empty) {
+      toggleNotifyBadges(false);
+      return;
+    }
+
+    const latest = snap.docs[0].data();
+    const latestTs = latest.ts || 0;
+    
+    // 最後に通知画面を開いた時刻を取得
+    const lastViewKey = `athlog:${teamId}:${memberId}:lastNotifyView`;
+    const lastViewTs = Number(localStorage.getItem(lastViewKey) || 0);
+
+    // 最新通知の時刻が、最後に見た時刻より新しければバッジを表示
+    const hasNew = latestTs > lastViewTs;
+    toggleNotifyBadges(hasNew);
+    
+  }, err => {
+    console.error("Notify badge check failed (Index might be missing):", err);
+  });
+}
+
+// ▼▼▼ 修正: 開いた瞬間に「最終閲覧時刻」を更新する処理を追加 ▼▼▼
 async function renderNotify(){
   // 既存の購読解除
   if (unsubscribeNotify) { try{ unsubscribeNotify(); }catch{} unsubscribeNotify=null; }
+
+  // ★追加: 通知画面を開いたので、最終閲覧時刻を「現在」に更新し、バッジを即消去
+  const lastViewKey = `athlog:${teamId}:${memberId}:lastNotifyView`;
+  localStorage.setItem(lastViewKey, Date.now());
+  toggleNotifyBadges(false);
 
   const box = document.getElementById('notifyList');
   const empty = document.getElementById('notifyEmpty');
@@ -4019,7 +4073,8 @@ async function renderNotify(){
   box.innerHTML = '';
   empty.style.display = 'none';
 
-  // 自分宛の未読だけを新しい順に
+  // リスト表示は「未読(read==false)」のものだけを表示する既存ロジックを維持
+  // (バッジは消えますが、リストには未読が残る仕様です)
   const col = db.collection('teams').doc(teamId).collection('notifications');
   const q = col.where('to','==', viewingMemberId || memberId)
                .where('read','==', false)
@@ -4034,22 +4089,16 @@ async function renderNotify(){
     }
     empty.style.display = 'none';
 
-   // const toMark = [];  // 既読化対象
-
-    // app.js (renderNotify 関数内の snap.docs.forEach の部分を置き換え)
-
     snap.docs.forEach(doc=>{
       const n = doc.data();
-      const notifId = doc.id; // ★通知ドキュメントIDを取得
+      const notifId = doc.id;
       const div = document.createElement('div');
-      // ★修正：新しいクラス名に変更し、カードデザインを適用
       div.className = 'notify-card'; 
       
       try {
         const at = new Date(n.ts || Date.now()).toLocaleString('ja-JP');
         const senderName = getDisplayName(n.from || '不明');
         
-        // 通知本文の新しいHTML構造
         const bodyHtml = (n.type === 'dayComment')
           ? (
            `<div class="notify-header">
@@ -4064,23 +4113,20 @@ async function renderNotify(){
               (n.text ? `<div class="notify-comment-text">${escapeHtml(n.text)}</div>` : ``) +
            `</div>`
           )
-          : `<div class="notify-content">システム通知</div>`; // その他のタイプの場合
+          : `<div class="notify-content">システム通知</div>`;
 
         div.innerHTML = bodyHtml;
 
-        // ★★★ 修正: クリック時に既読化と画面遷移を実行 ★★★
         div.querySelector('.notify-day-link')?.addEventListener('click', (e)=>{
           const day = e.currentTarget.getAttribute('data-day');
           const clickedId = e.currentTarget.getAttribute('data-notif-id'); 
 
           if (day && clickedId && /^\d{4}-\d{2}-\d{2}$/.test(day)){
-              // 1. 該当通知を既読にする
               const notifRef = db.collection('teams').doc(teamId).collection('notifications').doc(clickedId);
               notifRef.update({ read: true }).catch(err => {
                   console.error("Failed to mark notification as read:", err);
               });
               
-              // 2. 日誌タブに移動
               selDate = parseDateInput(day);
               switchTab('journal', true);
           }
@@ -4089,9 +4135,8 @@ async function renderNotify(){
         box.appendChild(div);
 
       } catch (e) {
-        // レンダリングエラーのデバッグコードはそのまま維持
-        console.error("RENDERING ERROR: 通知表示に失敗しました", e, "データ:", n);
-        div.innerHTML = `<div style="color:red;">【レンダリングエラー】コンソールを確認してください。</div>`;
+        console.error("RENDERING ERROR", e);
+        div.innerHTML = `<div style="color:red;">描画エラー</div>`;
         box.appendChild(div);
       }
     });
@@ -4195,39 +4240,6 @@ function initMemberNav(){
 
 let notifyBadgeUnsub = null;
 
-function initNotifyBadgeCheck(){
-  if(notifyBadgeUnsub) { try{ notifyBadgeUnsub(); }catch{} notifyBadgeUnsub=null; }
-  
-  // ★修正: 通知タブだけでなくホームカードも対象にするため、条件を緩める
-  // const notifyTab = document.querySelector('[data-tab="notify"]');
-  if(!memberId || !teamId) return;
-
-  const col = db.collection('teams').doc(teamId).collection('notifications');
-  
-  // 自分宛ての未読アイテムを購読
-  const q = col.where('to','==', memberId)
-               .where('read','==', false)
-               .limit(1);
-
-  notifyBadgeUnsub = q.onSnapshot(snap => {
-    const hasUnread = !snap.empty;
-    
-    // タブ（下部/上部ナビ）のバッジ
-    const notifyTab = document.querySelector('[data-tab="notify"]');
-    if(notifyTab) {
-      notifyTab.classList.toggle('new-message', hasUnread);
-    }
-
-    // ★追加: ホーム画面カードのバッジ
-    const notifyCard = document.querySelector('.home-card[data-target="notify"]');
-    if(notifyCard) {
-      notifyCard.classList.toggle('new-message', hasUnread);
-    }
-    
-  }, err => {
-    console.error("Notify badge check failed:", err);
-  });
-}
 
 // AIチャットの履歴
 let aiChatHistory = [];
