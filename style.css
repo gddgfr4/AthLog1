@@ -849,11 +849,24 @@ body.share-mode .notify-day-link {
   pointer-events: none !important;
 }
 
+:root {
+  --share-card-width: 400px;
+}
 /* --- 2. レイアウト調整 --- */
 body.share-mode #app {
   padding: 0;
   height: auto;
   display: block;
+  width: var(--share-card-width) !important; /* 幅を固定 */
+  margin: 0 auto;        /* 中央寄せ */
+  transform-origin: top center; /* 拡大縮小の基準点を上中央に */
+  box-shadow: 0 0 20px rgba(0,0,0,0.1); /* 少し影をつけるとカードっぽくなります */
+  background-color: #fff;
+}
+body.share-mode textarea,
+body.share-mode input,
+body.share-mode .form-control {
+    font-size: 14px !important; /* 固定サイズで指定 */
 }
 
 body.share-mode .tabpanel {
@@ -1456,3 +1469,4 @@ body.share-mode #app {
   background: var(--primary);
   color: white;
 }
+
