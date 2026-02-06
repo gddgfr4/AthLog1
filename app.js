@@ -2113,8 +2113,9 @@ async function renderMonth(){
           // 検索キーワードがあればハイライト（簡易実装）
           let trainTxt = j.train || "—";
           let feelTxt = j.feel || "";
-          // もし検索中ならここでハイライト処理を入れても良いですが、
-          // 今回は検索は別リスト表示なので標準表示に戻します。
+          // trainTxt と feelTxt を定義しているあたりで修正
+          let trainTxt = escapeHtml(j.train || "—");
+          // let feelTxt = escapeHtml(j.feel || ""); // 使っている場合
           
           txt.innerHTML = `
             <div class="month-one-line">
@@ -2140,7 +2141,7 @@ function renderMemoItem(m){
   const div=document.createElement("div");
   div.className="msg";
   const time=new Date(m.ts).toLocaleString("ja-JP");
-  div.innerHTML=`<span class="name">${getDisplayName(m.mem)}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
+  div.innerHTML=`<span class="name">${getDisplayName(m.mem)}</span><span class="txt">${escapeHtml(m.txt)}</span><span class="muted">  ${time}</span>`;
   return div;
 }
 async function renderMemo(){
@@ -2276,7 +2277,7 @@ async function renderPlans(){
           ? arr.map(x=>`
               <span style="display:inline-flex; align-items:center; gap:6px; margin:2px 8px 2px 0;">
                 <span class="cat-tag ${classMap[x.type]||""}">${x.type}</span>
-                <span>${x.content}</span>
+                <span>${escapeHtml(x.content)}</span>
               </span>`).join("")
           : "—";
       }, (err)=>{
@@ -2301,7 +2302,7 @@ function renderChat(){
       const m=doc.data();
       const div=document.createElement("div"); div.className="msg";
       const time=new Date(m.ts).toLocaleString("ja-JP");
-      div.innerHTML=`<span class="name">${getDisplayName(m.mem)}</span><span class="txt">${m.txt}</span><span class="muted">  ${time}</span>`;
+      div.innerHTML=`<span class="name">${getDisplayName(m.mem)}</span><span class="txt">${escapeHtml(m.txt)}</span><span class="muted">  ${time}</span>`;
       box.appendChild(div);
     });
     box.scrollTop=box.scrollHeight;
