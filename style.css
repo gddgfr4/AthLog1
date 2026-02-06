@@ -302,45 +302,6 @@ html,body{
 #helpBody p,#helpBody li{ line-height:1.6; }
 #helpBody ul{ padding-left:1.2em; }
 
-/* ========== Topbar: モバイル最適化 ========== */
-@media (max-width:720px){
-  .topbar{ gap:8px; padding:8px 10px; }
-  .brand{ display:none; }
-  .topbar .teamuser{ 
-    gap:8px; 
-    margin-left:auto; 
-    /* 縦長になる原因のラッピングを解除し、横並びを強制 */
-    flex-wrap: nowrap; 
-    overflow-x: auto; /* 項目が多すぎる場合、横スクロールを許可 */
-    /* min-width: 0; を追加することで、Flexアイテムが幅を占有しすぎるのを防げます */
-    min-width: 0; 
-  }
-  /* テキストを少し減らして詰める */
-  #memberLabel{ display:none; }
-  /* セレクター幅調整 */
-  #memberSelect,#teamSwitchSelect{
-    flex:1 1 140px; min-width:120px; max-width:48%;
-  }
-  /* ヘルプ/ログアウトはアイコン風 */
-  #openHelpBtn,#logoutBtn{
-    width:36px; height:36px; padding:0; font-size:0; line-height:36px;
-    display:inline-flex; align-items:center; justify-content:center;
-  }
-  #openHelpBtn::before{ content:"❓"; font-size:18px; }
-  #logoutBtn::before{ content:"⎋"; font-size:18px; }
-  #setAsMainBtn{ padding:6px 8px; font-size:0; }
-  #setAsMainBtn::before{ content:"★"; font-size:16px; }
-}
-
-#mmWrap{position:relative;max-width:680px;margin:12px auto;}
-#mmWrap canvas{
-  position:absolute; inset:0;
-  display:block; width:100%; height:auto;
-  touch-action:none;
-}
-#mmBase{z-index:0;}
-#mmBarrier{z-index:1; opacity:0; pointer-events:none;} /* 見えない壁 */
-#mmOverlay{z-index:2;}
 
 /* どこかのCSSに追加/上書き */
 #mmOverlay { touch-action: auto; }
@@ -690,8 +651,6 @@ html,body{
   flex-shrink: 0; /* 縮まないように */
 }
 
-/* style.css (末尾の @media (max-width:720px) ブロックをこれに置き換え) */
-
 @media (max-width:720px){
   /* =========================================
      1. トップバー (ヘッダー) のレイアウト
@@ -701,18 +660,19 @@ html,body{
   .brand, #openHelpBtn { display: none !important; }
 
   .topbar {
-    padding: 4px 8px !important;
+    padding: 4px 6px !important;
     gap: 4px !important;
     min-height: 44px !important; /* タップしやすい高さ */
     height: auto !important;
     flex-wrap: nowrap !important;
+    justify-content: space-between !important;
   }
 
-  /* チームユーザーエリア全体 */
+  /* チームユーザーエリア全体（親コンテナ） */
   .topbar .teamuser {
     width: 100% !important;
     margin: 0 !important;
-    gap: 6px !important;
+    gap: 4px !important;
     justify-content: space-between !important; /* 左にチーム、右にメンバー */
     align-items: center !important;
     display: flex !important;
@@ -725,7 +685,7 @@ html,body{
     gap: 2px !important;
     flex: 1 1 auto; /* 伸縮する */
     min-width: 0;   /* 縮小限界を打破 */
-    max-width: 55%; /* 画面の半分強まで使えるように */
+    max-width: 50%; /* 画面の半分まで */
   }
 
   /* チーム選択セレクトボックス */
@@ -735,7 +695,7 @@ html,body{
     height: 30px !important;
     font-size: 12px !important;
     padding: 0 4px !important;
-    text-overflow: ellipsis; /* 文字数オーバー時は「...」 */
+    border-radius: 6px !important;
   }
 
   /* チーム追加・メイン設定ボタン */
@@ -768,21 +728,23 @@ html,body{
     font-size: 9px !important;
     padding: 1px 3px !important;
     white-space: nowrap;
+    transform: scale(0.9);
   }
 
   /* メンバー選択セレクトボックス */
   #memberSelect {
     width: 100% !important;
     min-width: 60px;
-    max-width: 110px;
+    max-width: 110px; /* 名前が長すぎてもレイアウト崩れ防止 */
     height: 30px !important;
     font-size: 12px !important;
     padding: 0 4px !important;
+    border-radius: 6px !important;
   }
 
   /* 前後移動ボタン (< >) */
   .topbar .small-btn {
-    width: 26px !important;
+    width: 28px !important;
     height: 30px !important;
     padding: 0 !important;
     line-height: 28px !important;
@@ -1598,4 +1560,5 @@ body.share-mode #app {
   border: 2px solid #fff;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+
 
