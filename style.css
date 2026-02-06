@@ -655,9 +655,7 @@ html,body{
   /* =========================================
      1. トップバー (ヘッダー) のレイアウト
      ========================================= */
-  
-  /* ロゴとヘルプボタンを非表示にしてスペースを確保 */
-  .brand, #openHelpBtn { display: none !important; }
+  .brand { display: none !important; }
 
   .topbar {
     padding: 4px 6px !important;
@@ -767,7 +765,19 @@ html,body{
     content: "⎋"; /* 出口アイコン */
     font-size: 16px;
   }
-
+  
+  #openHelpBtn {
+    display: flex !important;
+    align-items: center; justify-content: center;
+    width: 30px !important; height: 30px !important;
+    padding: 0 !important;
+    font-size: 0 !important; /* 文字「ヘルプ」を隠す */
+    margin-right: 2px;
+  }
+  #openHelpBtn::before {
+    content: "❓";
+    font-size: 14px;
+  }
 
   /* =========================================
      2. タブメニュー
@@ -1560,5 +1570,6 @@ body.share-mode #app {
   border: 2px solid #fff;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+
 
 
