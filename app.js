@@ -4407,189 +4407,47 @@ async function loadAiProfileToForm() {
 
 const shareStyle = document.createElement('style');
 shareStyle.innerHTML = `
-  /* === 全体設定 === */
-  body.share-mode {
-    background-color: #222 !important;
-    overflow: hidden !important;
-    height: 100vh !important; width: 100vw !important;
-    margin: 0 !important; padding: 16 !important;
-    box-sizing: border-bax !important;
-    display: flex !important; 
-    align-items: center !important; 
-    justify-content: center !important;
-  }
-
-  /* === カード本体 === */
-  body.share-mode #app {
-    aspect-ratio: 9 / 16 !important;
-    height: auto !important; 
-    width: auto !important; 
-    max-width: calc(100vw - 32px) !important;
-    max-height: calc(100vh - 32px) !important;
-    background: #fff !important;
-    border-radius: 20px !important;
-    box-shadow: 0 0 50px rgba(0,0,0,0.5) !important;
-    padding: 14px !important; 
-    box-sizing: border-box !important;
-    
-    /* ★重要: 強制的に縦並び & 上詰め配置 */
-    display: flex !important; 
-    flex-direction: column !important;
-    justify-content: flex-start !important; /* 上に詰める */
-    gap: 0 !important; /* 要素間の自動隙間をゼロに */
-    
-    position: relative !important; margin: 0 !important;
-  }
-
-  /* 非表示要素 */
-  body.share-mode header, body.share-mode #journalTabs,
-  body.share-mode .weekbar > *:not(#shareModeBtn),
-  body.share-mode .palette, body.share-mode #saveBtn,
-  body.share-mode #mergeBtn, body.share-mode #teamSwitchWrap,
-  body.share-mode #memberNavWrap, body.share-mode .qbtn-area,
-  body.share-mode .parts-tag-area, body.share-mode .login-note,
-  body.share-mode #goHomeBtn, body.share-mode h2,
-  body.share-mode #partsTagArea, body.share-mode #mergeScopeWrapper,
-  body.share-mode #conditionBtns,
-  body.share-mode .share-hide
-  { display: none !important; }
-
-  /* ヘッダー */
-  #shareHeaderOverlay {
-    display: flex; justify-content: space-between; align-items: flex-start;
-    /* ヘッダー下の隙間も最小限に */
-    margin-bottom: 4px; padding-bottom: 4px;
-    border-bottom: 1px solid #f3f4f6; flex-shrink: 0;
-    width: 100% !important;
-  }
-  .share-header-inner { display: flex; flex-direction: column; }
-  .share-date { color: #111; line-height: 1.0; font-size: 0.95em; }
-  .share-meta { display: flex !important; align-items: baseline !important; gap: 6px; margin-top: 2px; }
-  .share-meta span { font-size: 0.85rem !important; }
-  .share-meta .share-name { font-size: 1.1rem !important; }
-  .share-brand { font-size: 8px; color: #d1d5db; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; align-self: center; }
-
-  /* 日誌エリア（ここが広がりやすいので修正） */
-  body.share-mode #journal {
-    display: flex !important; 
-    flex-direction: column !important;
-    justify-content: flex-start !important; /* 上詰め */
-    min-height: 0 !important;
-    /* ★ここをゼロにして隙間をなくす */
-    gap: 0 !important; 
-    padding: 0 !important; margin: 0 !important;
-    width: 100% !important;
-  }
-
-  /* 数値データ行 */
-  body.share-mode .journal-stats-row {
-    display: flex; justify-content: space-between !important;
-    width: 100% !important; flex-shrink: 0;
-    margin: 0 !important; padding: 0 !important;
-    /* 下にわずかな隙間(2px)だけ空ける */
-    margin-bottom: 0px !important;
-  }
-  
-  body.share-mode .journal-stats-row > div,
-  body.share-mode .added-cond-item {
-    background: transparent !important; padding: 0 !important; 
-    text-align: center !important; flex: 1 !important;
-    display: flex !important; flex-direction: column !important; align-items: center !important;
-    margin: 0 !important;
-  }
-
-  body.share-mode .journal-stats-row input,
-  body.share-mode .share-val {
-    font-size: 18px !important; font-weight: 800 !important;
-    color: #ea580c !important; 
-    text-align: center; border: none !important; background: transparent !important;
-    width: 100% !important; margin: 0 !important; padding: 0 !important;
-    font-family: sans-serif;
-    line-height: 1.1 !important;
-  }
-  
-  body.share-mode .added-cond-item .share-val { color: #000 !important; }
-
-  body.share-mode label {
-    font-size: 8px !important; color: #ea580c !important; font-weight:bold;
-    display: block !important; margin-bottom: 0px; text-align: center; width: 100% !important;
-    line-height: 1.0 !important;
-  }
-
-  /* テキストエリア */
-  body.share-mode textarea {
-    border: 1px solid #f3f4f6 !important; background: #f9fafb !important;
-    border-radius: 8px !important; padding: 6px !important;
-    font-size: 11px !important; color: #374151 !important;
-    width: 100% !important; box-sizing: border-box !important;
-    height: 48px !important; flex-shrink: 0 !important; resize: none !important;
-    line-height: 1.3;
-    margin: 0 !important; /* マージン除去 */
-    margin-top: 0px !important; /* 数値との間を少しだけ離す */
-  }
-
-  /* === 筋肉マップ (JSで最後に移動済みだが念のためCSSも) === */
-  body.share-mode #mmWrap {
-    /* 残りのスペースを埋める */
-    flex-grow: 1 !important; 
-    margin-top: auto !important; /* 強制的に下へ */
-    margin-bottom: 0 !important;
-    width: 100% !important;
-    
-    aspect-ratio: unset !important;
-    height: auto !important;
-    top: 0 !important; 
-    
-    position: relative !important; 
-    display: block !important;
-    overflow: hidden !important;
-  }
-  
-  body.share-mode canvas {
-    position: absolute !important;
-    top: 0 !important; left: 0 !important;
-    width: 100% !important; 
-    height: 100% !important;
-    object-fit: contain !important; 
-    object-position: bottom center !important;
-  }
-
-  body.share-mode #shareModeBtn {
-    position: absolute; top: 12px; right: 12px; z-index: 10001; 
-  }
-  /* ===== 見出し・ラベルの縦圧縮 ===== */
-body.share-mode label {
-  margin-bottom: 0px !important;
-  line-height: 0.95 !important;
+/* ===== 共有モード土台 ===== */
+body.share-mode {
+  background:#222 !important;
+  margin:0 !important;
+  width:100vw !important;
+  height:100vh !important;
+  overflow:hidden !important;
+  position:relative !important;
 }
 
-/* 「練習内容」「タイム・感想」など見出しが span/label の場合 */
-body.share-mode .journal-section-title,
-body.share-mode .section-title {
-  margin-bottom: 2px !important;
-  line-height: 1.0 !important;
+/* ===== 9:16 固定カード ===== */
+body.share-mode #app {
+  /* 設計サイズ（9:16） */
+  width:900px !important;
+  height:1600px !important;
+
+  /* 中央配置 + 等比スケール（JSで scale 注入） */
+  position:absolute !important;
+  left:50% !important;
+  top:50% !important;
+  transform:
+    translate(-50%, -50%)
+    scale(var(--share-scale, 0.5)) !important;
+  transform-origin:center !important;
+
+  background:#fff !important;
+  border-radius:20px !important;
+  box-shadow:0 0 50px rgba(0,0,0,.5) !important;
+  box-sizing:border-box !important;
+  padding:14px !important;
+
+  display:flex !important;
+  flex-direction:column !important;
+  justify-content:flex-start !important;
+  gap:0 !important;
 }
 
-/* ===== 数値ブロック上下を詰める ===== */
-body.share-mode .journal-stats-row {
-  margin-top: 0px !important;
-  margin-bottom: 2px !important;
-}
-
-body.share-mode .journal-stats-row > div {
-  margin-bottom: 0px !important;
-}
-
-/* ===== textarea 前後の余白を最小化 ===== */
-body.share-mode textarea {
-  margin-top: 2px !important;
-  margin-bottom: 2px !important;
-  line-height: 1.25 !important;
-}
-
-/* textarea 同士の間隔（2つある場合） */
-body.share-mode textarea + textarea {
-  margin-top: 2px !important;
+/* ===== 共有時に消すUI ===== */
+body.share-mode header,
+body.share-mode .share-hide {
+  display:none !important;
 }
 `;
 document.head.appendChild(shareStyle);
