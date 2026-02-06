@@ -739,22 +739,39 @@ const pmPlus = $("#pm-lane-plus");
 
   const btnReset = $("#standalone-controls button[data-action='review-reset']");
   if(btnReset) btnReset.onclick = () => {
-      let html = '<table style="width:100%; text-align:center; border-collapse:collapse;"><tr><th style="border-bottom:1px solid #ddd;">Name</th><th style="border-bottom:1px solid #ddd;">Total</th><th style="border-bottom:1px solid #ddd;">Laps</th></tr>';
+      let html = '<table style="width:100%; text-align:center; border-collapse:collapse; margin-bottom:12px;"><tr><th style="border-bottom:1px solid #ddd;">Name</th><th style="border-bottom:1px solid #ddd;">Total</th><th style="border-bottom:1px solid #ddd;">Laps</th></tr>';
       ltWatches.forEach(w => {
           const dispName = (typeof getDisplayName === 'function' ? getDisplayName(w.name) : w.name) || w.name || '-';
           html += `<tr><td style="padding:4px;">${dispName}</td><td>${fmt(w.elapsed)}</td><td>${(w.laps||[]).length}</td></tr>`;
       });
       html += '</table>';
       
+      // ★追加: アクションボタンエリア
+      html += `
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+           <button id="lt-reflect-btn" class="lt-w-full lt-bg-blue-600 lt-text-white lt-font-bold lt-rounded-lg lt-p-2">日誌に反映</button>
+           <button id="lt-clear-btn" class="lt-w-full lt-bg-red-500 lt-text-white lt-font-bold lt-rounded-lg lt-p-2">リセット</button>
+        </div>
+      `;
+      
       const sumTable = $("#summary-table");
       if(sumTable) sumTable.innerHTML = html;
       
       const sumModal = $("#lt-summary");
       if(sumModal) sumModal.classList.remove('lt-hidden');
-      
-      // リセット
-      ltWatches = ltWatches.map(w => ({...w, running:false, elapsed:0, start:0, lastLap:0, laps:[]}));
-      renderSplit();
+
+      // ★追加: ボタンイベント設定
+      setTimeout(() => {
+          document.getElementById('lt-reflect-btn')?.addEventListener('click', reflectLtimerToJournal);
+          
+          document.getElementById('lt-clear-btn')?.addEventListener('click', () => {
+             if(confirm("計測データをリセットしますか？")) {
+                 ltWatches = ltWatches.map(w => ({...w, running:false, elapsed:0, start:0, lastLap:0, laps:[]}));
+                 renderSplit();
+                 $("#lt-summary").classList.add('lt-hidden');
+             }
+          });
+      }, 50);
   };
 }
 
@@ -4672,3 +4689,106 @@ document.head.appendChild(shareStyle);
   observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
 })();
+
+// ==========================================
+// ========== Ltimer to Journal Logic =======
+// ==========================================
+
+function reflectLtimerToJournal() {
+  const pmScreen = document.getElementById('lt-pm');
+  const splitScreen = document.getElementById('lt-split');
+  
+  let appendText = "";
+  let addDist = 0;
+
+  // --- A. インターバル (PM) モードの場合 ---
+  if (pmScreen && !pmScreen.classList.contains('lt-hidden')) {
+    const distPerRep = Number($("#pm-distance")?.value || 0);
+    const reps = Number($("#pm-reps")?.value || 0);
+    const rest = $("#pm-rest-dist")?.value;
+    
+    // 距離計算 (メートル -> キロメートル)
+    if (distPerRep > 0 && reps > 0) {
+      addDist = (distPerRep * reps) / 1000;
+    }
+
+    // 本文生成
+    appendText += `【Ltimer: インターバル】\n`;
+    appendText += `${distPerRep}m × ${reps}`;
+    if(rest) appendText += ` (r:${rest}m)`;
+    appendText += `\n`;
+
+    // 各レーンの計測結果
+    if (ltPmState && ltPmState.lanes) {
+      ltPmState.lanes.forEach(l => {
+        // 自分または選択中のメンバーの結果のみ、あるいは全員分載せる
+        // ここではシンプルに計測データがあるものを列挙
+        if (l.laps && l.laps.length > 0) {
+          const times = l.laps.map(ms => fmt(ms)).join(", ");
+          appendText += `[${l.name}] ${times}\n`;
+        }
+      });
+    }
+  }
+  // --- B. ペース走/ストップウォッチ (Split) モードの場合 ---
+  else if (splitScreen && !splitScreen.classList.contains('lt-hidden')) {
+    appendText += `【Ltimer: 計測結果】\n`;
+    
+    // 現在表示中のメンバー(viewingMemberId)のウォッチを探す、なければ先頭
+    let targetW = ltWatches.find(w => w.name == viewingMemberId);
+    if (!targetW && ltWatches.length > 0) targetW = ltWatches[0];
+
+    if (targetW) {
+        const totalTime = fmt(targetW.elapsed);
+        appendText += `Total: ${totalTime}\n`;
+        if (targetW.laps && targetW.laps.length > 0) {
+          targetW.laps.forEach((lap, i) => {
+            appendText += `- Lap${i+1}: ${fmt(lap)}\n`;
+          });
+        }
+    } else {
+        // データがない場合
+        ltWatches.forEach(w => {
+            appendText += `${w.name || 'Runner'}: ${fmt(w.elapsed)}\n`;
+        });
+    }
+  }
+
+  // --- 日誌への反映処理 ---
+  if (!appendText) {
+    alert("反映するデータがありません。");
+    return;
+  }
+
+  if (confirm("計測結果を日誌に転記しますか？")) {
+    // 1. 日誌タブへ移動
+    switchTab('journal');
+
+    // 2. 距離の加算
+    const distInput = document.getElementById('distInput');
+    if (distInput && addDist > 0) {
+      const currentDist = Number(distInput.value || 0);
+      distInput.value = (currentDist + addDist).toFixed(2); // 小数点2桁まで
+      // dirtyフラグを立てて保存対象にする
+      if(typeof dirty !== 'undefined') dirty.dist = true; 
+    }
+
+    // 3. 本文の追記
+    const trainInput = document.getElementById('trainInput');
+    if (trainInput) {
+      const currentText = trainInput.value;
+      // 既にテキストがあれば改行して追記
+      trainInput.value = currentText ? (currentText + "\n\n" + appendText) : appendText;
+      
+      // テキストエリアの高さを調整（UX向上）
+      trainInput.scrollTop = trainInput.scrollHeight;
+      if(typeof dirty !== 'undefined') dirty.train = true;
+    }
+
+    // 4. 自動保存をトリガー
+    if(typeof saveJournal === 'function') saveJournal();
+    
+    // モーダルを閉じておく
+    $("#lt-summary")?.classList.add("lt-hidden");
+  }
+}
