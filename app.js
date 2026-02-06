@@ -4537,13 +4537,13 @@ body.share-mode .journal-stats-row > div {
 /* ===== textarea 前後の余白を最小化 ===== */
 body.share-mode textarea {
   margin-top: 2px !important;
-  margin-bottom: 4px !important;
+  margin-bottom: 2px !important;
   line-height: 1.25 !important;
 }
 
 /* textarea 同士の間隔（2つある場合） */
 body.share-mode textarea + textarea {
-  margin-top: 4px !important;
+  margin-top: 2px !important;
 }
 `;
 document.head.appendChild(shareStyle);
