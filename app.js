@@ -373,9 +373,7 @@ function initTeamSwitcher(){
       upsertProfile(t, memberId);
       teamId = t; // 新しいチームIDに切り替え
       localStorage.setItem("athlog:last", JSON.stringify({ team:teamId, member:memberId }));
-      $("#teamLabel").textContent = teamId;
 
-      // ▼▼▼ 修正 ▼▼▼
       const myMainTeam = getMainTeamOf(memberId);
       if (!myMainTeam) {
           alert("メインチームが設定されていません。一度メインチームにログインし直してください。");
