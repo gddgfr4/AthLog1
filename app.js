@@ -169,11 +169,20 @@ async function getPeriodStats({ teamId, memberId, start, end }){
 let memoPageSize=30, memoOldestDoc=null, memoLatestTs=0, memoLiveUnsub=null, memoLoadingOlder=false;
 const memoLastViewKey = () => `athlog:${teamId}:${memberId}:lastMemoView`;
 async function markMemoRead(){
-  const snap=await getTeamMemoCollectionRef(teamId).orderBy('ts','desc').limit(1).get();
+  if (!teamId) return; // 安全策
+  const col = getTeamMemoCollectionRef(teamId);
+  // 最新の投稿時間を取得して既読とする
+  const snap = await col.orderBy('ts','desc').limit(1).get();
   const latestTs = snap.empty ? Date.now() : (snap.docs[0].data().ts || Date.now());
+  
   localStorage.setItem(memoLastViewKey(), String(latestTs));
-  const memoTab=document.querySelector('[data-tab="memo"]');
-  memoTab?.classList.remove('new-message');
+  
+  // ▼▼▼ 修正: タブとホームカードの両方からバッジを削除 ▼▼▼
+  const memoTab = document.querySelector('[data-tab="memo"]');
+  if(memoTab) memoTab.classList.remove('new-message');
+  
+  const memoCard = document.querySelector('.home-card[data-target="memo"]');
+  if(memoCard) memoCard.classList.remove('new-message');
 }
 
 // ===== App State =====
@@ -2860,15 +2869,53 @@ function initMemoBadgeCheck() {
 }
 // ===== NEW: Team Memo =====
 function initMemo(){
-  const memoInput=$("#memoChatInput");
-  const sendBtn=$("#memoSendBtn");
-  const sendMessage=async ()=>{
-    const txt=memoInput.value.trim(); if(!txt) return;
-    await getTeamMemoCollectionRef(teamId).add({ mem:memberId, txt, ts:Date.now() });
-    memoInput.value="";
+  const memoInput = $("#memoChatInput");
+  const sendBtn = $("#memoSendBtn");
+
+  const sendMessage = async ()=>{
+    // チームID等のチェック
+    if(!teamId || !memberId) {
+        console.error("No teamId or memberId");
+        return;
+    }
+
+    const txt = memoInput.value.trim(); 
+    if(!txt) return;
+    
+    // 連打防止：送信中はボタンを無効化
+    if(sendBtn) sendBtn.disabled = true;
+
+    try {
+      await getTeamMemoCollectionRef(teamId).add({ 
+        mem: memberId, 
+        txt: txt, 
+        ts: Date.now() 
+      });
+      memoInput.value = "";
+    } catch(e) {
+      console.error("Memo send error:", e);
+      alert("送信に失敗しました。通信環境を確認してください。");
+    } finally {
+      if(sendBtn) sendBtn.disabled = false;
+      // 送信後、すぐに入力欄にフォーカスを戻す（連続送信しやすくする）
+      memoInput.focus();
+    }
   };
-  if(memoInput) memoInput.addEventListener('keydown',(e)=>{ if(e.key==="Enter") sendMessage(); });
-  if(sendBtn) sendBtn.onclick=sendMessage;
+
+  // ▼▼▼ 修正: addEventListenerではなくプロパティに代入して重複登録を防ぐ ▼▼▼
+  if(memoInput) {
+    memoInput.onkeydown = (e) => { 
+      // 日本語変換の確定エンター（isComposing）を除外して誤送信防止
+      if(e.key === "Enter" && !e.isComposing) {
+        e.preventDefault(); // フォーム送信などを防ぐ
+        sendMessage(); 
+      }
+    };
+  }
+  
+  if(sendBtn) {
+    sendBtn.onclick = sendMessage;
+  }
 }
 async function checkNewMemo(){
   const lastView=Number(localStorage.getItem(memoLastViewKey())||0);
