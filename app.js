@@ -269,8 +269,8 @@ function initHeaderEvents() {
 async function showApp(){
   // 先にUIリセット（タブを消す）
   switchTab("home", true);
-  
-  $("#teamLabel").textContent = teamId;
+  const tl = document.getElementById("teamLabel");
+  if(tl) tl.textContent = teamId;
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
 
