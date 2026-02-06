@@ -2835,7 +2835,7 @@ function initMemoBadgeCheck() {
 
   const col = getTeamMemoCollectionRef(teamId);
   const memoTab = document.querySelector('.tab[data-tab="memo"]'); // セレクタを厳密に
-
+  const memoCard = document.querySelector('.home-card[data-target="memo"]');
   // 最新の1件だけを監視
   memoBadgeUnsub = col.orderBy('ts', 'desc').limit(1).onSnapshot(snap => {
     if (snap.empty) return;
@@ -2847,11 +2847,12 @@ function initMemoBadgeCheck() {
     const lastViewKey = `athlog:${teamId}:${memberId}:lastMemoView`;
     const lastViewTs = Number(localStorage.getItem(lastViewKey) || 0);
 
-    // 「最新の投稿が、最後に見た時より新しい」かつ「自分の投稿ではない」場合
     if (latestTs > lastViewTs && latestDoc.mem !== memberId) {
-      if (memoTab) memoTab.classList.add('new-message'); // バッジ点灯
+      if (memoTab) memoTab.classList.add('new-message');   // タブにバッジ
+      if (memoCard) memoCard.classList.add('new-message'); // ★ホームカードにバッジ
     } else {
-      if (memoTab) memoTab.classList.remove('new-message'); // バッジ消灯
+      if (memoTab) memoTab.classList.remove('new-message');
+      if (memoCard) memoCard.classList.remove('new-message'); // ★バッジ消去
     }
   }, err => {
     console.log("Memo badge check error", err);
@@ -3644,7 +3645,6 @@ async function tscLoad(){
 // ========== 共有コメント (TSC) Logic =======
 // ==========================================
 
-// 既存の tscSave をこれに置き換え
 async function tscSave(){
   try {
     const ta = document.getElementById('teamSharedComment');
@@ -3664,28 +3664,29 @@ async function tscSave(){
     await getJournalRef(srcTeam, viewingMemberId, selDate).set({ 
         teamComment: text, 
         lastCommentBy: memberId,
-        lastCommentAt: Date.now() // ソート用に時刻も入れておく
+        lastCommentAt: Date.now() 
     }, { merge:true });
     
     tscDirty = false;
-    tscSetStatus('保存済み');
+    tscSetStatus('送信完了'); // 保存済み -> 送信完了に変更
 
     // 2. 通知を作成 (コメントがあり、かつ相手が自分以外の場合)
+    // ★修正: 通知作成エラーでも保存自体は成功とするため、ここはtry-catchを分けるか、
+    // ここでエラーが出ても全体が止まらないように注意深く実行します。
     if (text.trim() !== "" && viewingMemberId !== memberId) {
-       await createDayCommentNotifications({
+       createDayCommentNotifications({
           teamId: srcTeam,     
           from: memberId,      
           to: viewingMemberId, 
           day: dayKey,              
           text: text                
-       });
-       console.log("通知を送信しました");
+       }).catch(e => console.error("通知送信エラー(保存は成功):", e));
     }
 
   } catch(e) {
     console.error('tscSave error', e);
-    alert("保存に失敗しました: " + e.message);
-    tscSetStatus('保存失敗');
+    alert("コメントの送信に失敗しました。\n通信環境を確認してください。");
+    tscSetStatus('送信失敗');
   }
 }
 
@@ -4144,32 +4145,37 @@ function initMemberNav(){
 }
 
 
-
-// 通知バッジ用購読解除
 let notifyBadgeUnsub = null;
 
-// 通知バッジの常時監視を開始
 function initNotifyBadgeCheck(){
   if(notifyBadgeUnsub) { try{ notifyBadgeUnsub(); }catch{} notifyBadgeUnsub=null; }
   
-  const notifyTab = document.querySelector('[data-tab="notify"]');
-  if(!notifyTab || !memberId) return;
+  // ★修正: 通知タブだけでなくホームカードも対象にするため、条件を緩める
+  // const notifyTab = document.querySelector('[data-tab="notify"]');
+  if(!memberId || !teamId) return;
 
   const col = db.collection('teams').doc(teamId).collection('notifications');
   
-  // 自分宛ての未読アイテムを購読し、1つでもあればバッジを付ける
+  // 自分宛ての未読アイテムを購読
   const q = col.where('to','==', memberId)
                .where('read','==', false)
-               .limit(1); // 1件でもあればOKなので、効率化のため limit(1)
+               .limit(1);
 
   notifyBadgeUnsub = q.onSnapshot(snap => {
+    const hasUnread = !snap.empty;
+    
+    // タブ（下部/上部ナビ）のバッジ
+    const notifyTab = document.querySelector('[data-tab="notify"]');
     if(notifyTab) {
-      // 未読が1つでもあればtrue
-      const hasUnread = !snap.empty; 
       notifyTab.classList.toggle('new-message', hasUnread);
     }
-    // 通知タブを開くと renderNotify() が実行され read: true になるため、
-    // ここで自動的にバッジが消える（markMemoRead のような個別処理は不要）
+
+    // ★追加: ホーム画面カードのバッジ
+    const notifyCard = document.querySelector('.home-card[data-target="notify"]');
+    if(notifyCard) {
+      notifyCard.classList.toggle('new-message', hasUnread);
+    }
+    
   }, err => {
     console.error("Notify badge check failed:", err);
   });
