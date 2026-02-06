@@ -497,14 +497,19 @@ function switchTab(id, forceRender = false) {
 
   $$(".tab").forEach(btn => btn.classList.remove("active"));
 
-  const isJournalTab = ['journal', 'month', 'dashboard'].includes(id);
+　const isJournalTab = ['journal', 'month', 'dashboard'].includes(id);
 
   if (isJournalTab) {
     // === 日誌系 ===
     configureMemberUI(true); 
     
     // タブを表示
-    if(tabsNav) { tabsNav.classList.remove("hidden"); tabsNav.style.display = 'flex'; }
+    if(tabsNav) { 
+      tabsNav.classList.remove("hidden"); 
+      // ★修正1: 隠す時につけた important 設定を削除してから flex を適用
+      tabsNav.style.removeProperty('display');
+      tabsNav.style.display = 'flex'; 
+    }
     if(homeBtn) homeBtn.classList.remove("hidden");
 
     $(`.tab[data-tab="${id}"]`)?.classList.add("active");
@@ -515,7 +520,11 @@ function switchTab(id, forceRender = false) {
     configureMemberUI(false);
 
     // タブを確実に消す
-    if(tabsNav) { tabsNav.classList.add("hidden"); tabsNav.style.display = 'none'; }
+    if(tabsNav) { 
+      tabsNav.classList.add("hidden"); 
+      // ★修正2: CSSの !important に勝つために、こちらも important を付けて隠す
+      tabsNav.style.setProperty('display', 'none', 'important'); 
+    }
 
     if (id === 'home') {
       if(homeBtn) homeBtn.classList.add("hidden");
@@ -528,7 +537,6 @@ function switchTab(id, forceRender = false) {
   if (unsubscribeMemo) unsubscribeMemo();
   if (unsubscribeMonthChat) unsubscribeMonthChat();
   if (unsubscribeJournal) unsubscribeJournal();
-
   if (id === "journal") renderJournal();
   if (id === "month") renderMonth();
   if (id === "plans") renderPlans();
@@ -536,6 +544,7 @@ function switchTab(id, forceRender = false) {
   if (id === "memo") { renderMemo(); markMemoRead(); }
   if (id === "notify") { renderNotify(); }
 }
+
 function initHome() {
   const grid = document.getElementById('homeMenuGrid');
   if(!grid) return;
