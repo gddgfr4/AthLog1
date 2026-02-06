@@ -4076,14 +4076,19 @@ function initAiAnalysis(){
   if(chatInput) chatInput.onkeydown = (e) => { if(e.key === 'Enter') sendMsg(); };
 }
 
-// チャットログにメッセージを追加
+
 function addAiChatMessage(role, text){
   const box = document.getElementById('aiChatLog');
   const div = document.createElement('div');
   div.className = `msg ${role}`;
   const name = role === 'user' ? 'あなた' : 'AIコーチ';
-  // 改行を反映
-  const htmlText = text.replace(/\n/g, '<br>');
+
+  // 1. Markdownの太字(**)を<b>タグに変換
+  let htmlText = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+  
+  // 2. 改行を<br>に変換
+  htmlText = htmlText.replace(/\n/g, '<br>');
+
   div.innerHTML = `<span class="name">${name}</span><span class="txt">${htmlText}</span>`;
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
@@ -4091,7 +4096,6 @@ function addAiChatMessage(role, text){
   // 履歴に追加
   aiChatHistory.push({ role: role === 'user' ? 'user' : 'model', parts: [{ text: text }] });
 }
-
 
 async function runGeminiAnalysis(apiKey, isInitial, userMessage = "") {
   const runBtn = document.getElementById('runAiBtn');
@@ -4144,10 +4148,11 @@ async function runGeminiAnalysis(apiKey, isInitial, userMessage = "") {
       }
 
       const systemPrompt = `あなたは陸上中長距離のプロコーチです。
+      ユーザーのことは名前で呼ばず、二人称は「あなた」を使ってください。
 【プロフィール】${profileText}
 【直近7日間のログ】
 ${history.join('\n')}
-上記データを分析し、特に筋肉マップから抽出された「疲労部位」と練習メニューの関連性を科学的に分析してアドバイスしてください。また、練習の組み方へも言及すること。`;
+上記データを分析し、特に筋肉マップから抽出された「疲労部位」と練習メニューの関連性を科学的に、そして本質的に分析してアドバイスしてください。また、練習の組み方へも言及すること。回答は見やすく整形してください。``;
 
       aiChatHistory = [{ role: 'user', parts: [{ text: systemPrompt }] }];
     }
