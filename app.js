@@ -286,19 +286,13 @@ async function showApp(){
   viewingMemberId = myMemberId;
   if(memberSelect) memberSelect.value = myMemberId;
 
-  // ★削除: 名前ラベルへの書き込みを削除
-  // $("#memberLabel").textContent = getDisplayName(viewingMemberId);
-  
   refreshBadges();
   
   
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId=$("#memberSelect").value;
-    
-    // 表示名を更新
-    $("#memberLabel").textContent = getDisplayName(viewingMemberId);
-    
-    // ★修正: 日付リセット(selDate=new Date())を削除し、現在の日付を維持する
+    const ml = $("#memberLabel");
+    if(ml) ml.textContent = getDisplayName(viewingMemberId);
     
     refreshBadges();
     switchTab($(".tab.active")?.dataset.tab, true);
