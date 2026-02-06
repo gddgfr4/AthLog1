@@ -694,129 +694,197 @@ html,body{
 
 @media (max-width:720px){
   /* =========================================
-     1. トップバー (極小・1行レイアウト)
+     1. トップバー (ヘッダー) のレイアウト
      ========================================= */
-  #openHelpBtn, .brand, #teamSwitchWrap { display: none !important; }
+  
+  /* ロゴとヘルプボタンを非表示にしてスペースを確保 */
+  .brand, #openHelpBtn { display: none !important; }
 
   .topbar {
-    padding: 2px 4px !important;
-    gap: 2px !important;
-    min-height: 28px !important;
+    padding: 4px 8px !important;
+    gap: 4px !important;
+    min-height: 44px !important; /* タップしやすい高さ */
     height: auto !important;
     flex-wrap: nowrap !important;
-    border-bottom-width: 1px !important;
   }
 
+  /* チームユーザーエリア全体 */
   .topbar .teamuser {
-    margin-left: 0 !important;
-    gap: 4px !important;
     width: 100% !important;
-    justify-content: space-between !important;
+    margin: 0 !important;
+    gap: 6px !important;
+    justify-content: space-between !important; /* 左にチーム、右にメンバー */
     align-items: center !important;
     display: flex !important;
   }
 
-  .topbar #memberNavWrap > span { font-size: 0 !important; display: flex !important; align-items: center !important; gap: 4px; }
-  .topbar #memberNavWrap > span > * { font-size: 12px !important; }
-
-  .topbar .teamuser > span:nth-child(1) {
-    font-size: 11px !important; white-space: nowrap; transform: scale(0.95); transform-origin: left center;
+  /* --- [左側] チーム切り替えリスト --- */
+  #teamSwitchWrap {
+    display: flex !important;
+    align-items: center !important;
+    gap: 2px !important;
+    flex: 1 1 auto; /* 伸縮する */
+    min-width: 0;   /* 縮小限界を打破 */
+    max-width: 55%; /* 画面の半分強まで使えるように */
   }
+
+  /* チーム選択セレクトボックス */
+  #teamSwitchSelect {
+    width: 100% !important;
+    min-width: 60px;
+    height: 30px !important;
+    font-size: 12px !important;
+    padding: 0 4px !important;
+    text-overflow: ellipsis; /* 文字数オーバー時は「...」 */
+  }
+
+  /* チーム追加・メイン設定ボタン */
+  #addTeamBtn, #setAsMainBtn {
+    width: 28px !important;
+    height: 30px !important;
+    padding: 0 !important;
+    font-size: 14px !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* --- [右側] メンバー切り替え --- */
+  #memberNavWrap {
+    display: flex !important;
+    align-items: center !important;
+    gap: 2px !important;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+
+  /* テキストラベルは非表示 (セレクトボックスで代用) */
+  #memberLabel { display: none !important; }
+  
+  /* MAIN / 閲覧のみ バッジ */
+  #mainTeamBadge, #readonlyBadge {
+    font-size: 9px !important;
+    padding: 1px 3px !important;
+    white-space: nowrap;
+  }
+
+  /* メンバー選択セレクトボックス */
   #memberSelect {
-    height: 24px !important; padding: 0 2px !important; font-size: 12px !important; border-radius: 4px !important;
+    width: 100% !important;
+    min-width: 60px;
+    max-width: 110px;
+    height: 30px !important;
+    font-size: 12px !important;
+    padding: 0 4px !important;
   }
-  .topbar .teamuser .small-btn {
-    width: 24px !important; height: 24px !important; line-height: 22px !important; font-size: 12px !important; padding: 0 !important; margin: 0 !important;
-  }
-  #logoutBtn {
-    width: 24px !important; height: 24px !important; padding: 0 !important; font-size: 0 !important; line-height: 24px !important; display: inline-flex !important; align-items: center; justify-content: center;
-  }
-  #logoutBtn::before { content: "⎋"; font-size: 14px !important; }
-  .badge { padding: 1px 3px !important; font-size: 9px !important; border-radius: 3px !important; }
 
+  /* 前後移動ボタン (< >) */
+  .topbar .small-btn {
+    width: 26px !important;
+    height: 30px !important;
+    padding: 0 !important;
+    line-height: 28px !important;
+    font-size: 14px !important;
+    margin: 0 !important;
+  }
+
+  /* ログアウトボタン (アイコン化) */
+  #logoutBtn {
+    width: 30px !important;
+    height: 30px !important;
+    padding: 0 !important;
+    font-size: 0 !important; /* 文字を隠す */
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    margin-left: 2px;
+  }
+  #logoutBtn::before {
+    content: "⎋"; /* 出口アイコン */
+    font-size: 16px;
+  }
 
 
   /* =========================================
-     2. タブメニュー (横幅いっぱい・自動伸縮)
+     2. タブメニュー
      ========================================= */
   .tabs {
-    /* 左右の余白をゼロにして画面幅を最大利用 */
-    padding: 4px 0 !important; 
+    padding: 4px 0 !important;
     gap: 4px !important;
-    border-bottom-width: 1px !important;
-    
-    /* 横スクロールを滑らかに */
-    display: flex;             /* ← ★ !important を削除しました */
-    overflow-x: auto !important;
+    overflow-x: auto !important; /* 横スクロール許可 */
     -webkit-overflow-scrolling: touch;
+    justify-content: flex-start;
+    display: flex;
   }
-  
   .tab {
-    /* 縮まず(0)、必要なら伸びる(1)、ベース幅は自動(auto) */
-    flex: 1 0 auto !important; 
-    
-    padding: 4px 12px !important; /* タップしやすい幅を確保 */
-    font-size: 11px !important;
-    border-radius: 6px !important;
-    text-align: center !important;
+    flex: 1 0 auto !important; /* 縮まない */
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    border-radius: 8px !important;
+    text-align: center;
   }
+  .tab:first-child { margin-left: 4px; }
+  .tab:last-child { margin-right: 4px; }
+
+
+  /* =========================================
+     3. メインコンテンツ・フォーム
+     ========================================= */
+  .tabpanel { padding: 8px !important; }
+  .panel { padding: 10px !important; margin-bottom: 10px !important; border-radius: 8px !important; }
+  .journal-grid { display: flex !important; flex-direction: column !important; gap: 10px !important; }
+
+  /* 入力フォーム周り */
+  .formcol { gap: 8px !important; }
+  .formcol > div[style*="display:flex"] { gap: 8px !important; }
   
-  /* 最初と最後のタブが画面端に張り付きすぎないように微調整 */
-  .tab:first-child { margin-left: 4px !important; }
-  .tab:last-child { margin-right: 4px !important; }
-
-
-  /* =========================================
-     3. 日誌パネル・レイアウト (余白圧縮)
-     ========================================= */
-  .tabpanel { padding: 4px !important; }
-  .panel {
-    padding: 8px !important; margin-bottom: 8px !important; border-radius: 8px !important;
+  label { font-size: 11px !important; margin-bottom: 2px !important; }
+  
+  /* 入力欄（文字サイズ14px未満だとiPhoneでズームしてしまうため対策） */
+  input:not([type="checkbox"]), textarea, select, .form-control {
+    font-size: 14px !important;
+    padding: 6px !important;
+    min-height: 32px !important;
+    height: auto !important;
   }
-  .panel.right { gap: 6px !important; }
-  .journal-grid { display: flex !important; flex-direction: column !important; gap: 8px !important; }
+  textarea { min-height: 4em !important; }
 
+  /* クイックタグボタン */
+  .quick { padding: 6px !important; gap: 4px !important; }
+  .qbtn {
+    padding: 6px 0 !important;
+    font-size: 11px !important;
+    height: auto !important;
+    min-height: 28px !important;
+  }
 
-  /* =========================================
-     4. フォーム要素のコンパクト化
-     ========================================= */
-  .weekbar { margin-bottom: 4px !important; gap: 4px !important; }
-  #weekChips { gap: 3px !important; }
-  #weekChips .chip { padding: 4px 2px !important; border-radius: 6px !important; min-width: 0 !important; }
+  /* 週カレンダー */
+  .weekbar { margin-bottom: 6px !important; gap: 4px !important; }
+  #weekChips { gap: 4px !important; }
+  #weekChips .chip {
+    padding: 4px 2px !important;
+    min-width: 0 !important;
+    border-radius: 8px !important;
+  }
   #weekChips .chip div:first-child { font-size: 10px !important; }
   #weekChips .chip .km { font-size: 9px !important; }
   
-  .quick { padding: 4px !important; gap: 4px !important; margin-bottom: 0 !important; }
-  .qbtn {
-    padding: 4px 0 !important; width: 100%; font-size: 11px !important; border-radius: 4px !important; height: 26px !important; line-height: 18px !important; outline: none !important; border: 2px solid transparent !important;
-  }
-  .qbtn.active {
-    /* 青い線をボタンの縁に密着させる */
-    border-color: var(--primary) !important;
-    
-    /* もし背景色を白抜きにしたい場合は以下を追加（お好みで） */
-    /* background-color: #fff !important; */
-  }
-  .formcol { gap: 6px !important; }
-  label { font-size: 10px !important; margin-bottom: 1px !important; line-height: 1 !important; display: block; }
-  
-  input[type="number"], input[type="text"], input[type="date"], textarea, select, .form-control {
-    padding: 3px 6px !important; font-size: 13px !important; border-radius: 4px !important; min-height: 28px !important; height: auto !important;
-  }
-  
+  /* コンディション評価ボタン */
   .condition-rating button {
-    width: 26px !important; height: 26px !important; font-size: 11px !important; border-width: 1px !important; margin: 0 1px !important;
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 12px !important;
   }
-  
-  .note { margin-top: 2px !important; }
-  textarea { min-height: 4.5em !important; }
-  
-  .formcol > div[style*="display:flex"] { gap: 6px !important; align-items: flex-end !important; }
+
+  /* 筋疲労マップヘッダー */
+  .muscle-header h3 { font-size: 14px !important; }
+  .muscle-header .palette .lvl {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+  }
 }
-
-/* style.css (末尾のスクショモード設定をすべて上書き) */
-
-/* style.css (末尾のスクショモード設定をすべて上書き) */
 
 /* ========== スクショモード (Share Mode) ========== */
 body.share-mode {
@@ -1530,3 +1598,4 @@ body.share-mode #app {
   border: 2px solid #fff;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+
