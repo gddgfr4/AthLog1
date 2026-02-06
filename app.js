@@ -4379,8 +4379,7 @@ shareStyle.innerHTML = `
   body.share-mode #app {
     height: 85vh !important; 
     width: auto !important;
-    aspect-ratio: 9 / 16 !important;
-    
+    aspect-ratio: 9 / 16 !important; 
     background: #fff !important;
     border-radius: 20px !important;
     box-shadow: 0 0 50px rgba(0,0,0,0.5) !important;
@@ -4512,5 +4511,39 @@ shareStyle.innerHTML = `
   body.share-mode #shareModeBtn {
     position: absolute; top: 12px; right: 12px; z-index: 10001; 
   }
+  /* ===== 見出し・ラベルの縦圧縮 ===== */
+body.share-mode label {
+  margin-bottom: 0px !important;
+  line-height: 0.95 !important;
+}
+
+/* 「練習内容」「タイム・感想」など見出しが span/label の場合 */
+body.share-mode .journal-section-title,
+body.share-mode .section-title {
+  margin-bottom: 2px !important;
+  line-height: 1.0 !important;
+}
+
+/* ===== 数値ブロック上下を詰める ===== */
+body.share-mode .journal-stats-row {
+  margin-top: 0px !important;
+  margin-bottom: 2px !important;
+}
+
+body.share-mode .journal-stats-row > div {
+  margin-bottom: 0px !important;
+}
+
+/* ===== textarea 前後の余白を最小化 ===== */
+body.share-mode textarea {
+  margin-top: 2px !important;
+  margin-bottom: 4px !important;
+  line-height: 1.25 !important;
+}
+
+/* textarea 同士の間隔（2つある場合） */
+body.share-mode textarea + textarea {
+  margin-top: 4px !important;
+}
 `;
 document.head.appendChild(shareStyle);
