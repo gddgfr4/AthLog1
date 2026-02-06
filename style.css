@@ -695,17 +695,8 @@ html,body{
     padding: 0 4px !important;
     border-radius: 6px !important;
   }
-
-  /* チーム追加・メイン設定ボタン */
   #addTeamBtn, #setAsMainBtn {
-    width: 28px !important;
-    height: 30px !important;
-    padding: 0 !important;
-    font-size: 14px !important;
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    display: none !important;
   }
 
   /* --- [右側] メンバー切り替え --- */
@@ -749,7 +740,16 @@ html,body{
     font-size: 14px !important;
     margin: 0 !important;
   }
-
+　/* ヘルプボタン（？アイコン化） */
+  #openHelpBtn {
+    display: flex !important;
+    align-items: center; justify-content: center;
+    width: 30px !important; height: 30px !important;
+    padding: 0 !important;
+    font-size: 0 !important;
+    margin-right: 2px;
+  }
+  #openHelpBtn::before { content: "❓"; font-size: 14px; }
   /* ログアウトボタン (アイコン化) */
   #logoutBtn {
     width: 30px !important;
@@ -766,18 +766,7 @@ html,body{
     font-size: 16px;
   }
   
-  #openHelpBtn {
-    display: flex !important;
-    align-items: center; justify-content: center;
-    width: 30px !important; height: 30px !important;
-    padding: 0 !important;
-    font-size: 0 !important; /* 文字「ヘルプ」を隠す */
-    margin-right: 2px;
-  }
-  #openHelpBtn::before {
-    content: "❓";
-    font-size: 14px;
-  }
+
 
   /* =========================================
      2. タブメニュー
@@ -1570,6 +1559,7 @@ body.share-mode #app {
   border: 2px solid #fff;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+
 
 
 
