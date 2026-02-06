@@ -3297,21 +3297,54 @@ function initMuscleMap(){
   const ov = mm.overlay;
   ov.style.touchAction = 'pan-x pan-y pinch-zoom';
 
+// app.js の initMuscleMap 関数内
+
   function onPointerDown(e){
     ov.setPointerCapture?.(e.pointerId);
     activePointers.add(e.pointerId);
+
+    // 2本以上 → ピンチ操作とみなし、描画しない
     if(e.pointerType==='touch' && activePointers.size>=2){
-       ov.style.touchAction = 'pan-x pan-y pinch-zoom'; return;
+      setOverlayTouchAction('pan-x pan-y pinch-zoom');
+      return;
     }
-    ov.style.touchAction = 'none';
+
+    // 単指 → スクロールを抑止して描画処理へ
+    setOverlayTouchAction('none');
     if(!isEditableHere(teamId,memberId,viewingMemberId)) return;
+
     const p=mmPixPos(ov,e);
+    // 壁（外側/輪郭/枠）の上は反応させない
     if (barrierAlphaAt(p.x,p.y) > 10) return;
-    
-    const targetColor = MM.LEVELS[brush.lvl||1];
-    if(brush.erase) floodErase(mm.octx, mm.wctx, p.x, p.y);
-    else {
-      floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, targetColor);
+
+    if(brush.erase){
+      // 消しゴムモードなら無条件で消去
+      floodErase(mm.octx, mm.wctx, p.x, p.y);
+    }else{
+      const targetColor = MM.LEVELS[brush.lvl||1]; // 選択中の色
+      const pixel = mm.octx.getImageData(p.x, p.y, 1, 1).data; // タップ位置の現在の色
+      
+      // アルファ値(pixel[3])を見て「既に塗られている場所か」を判定
+      const isPainted = pixel[3] > 50; 
+
+      if(isPainted){
+        // 既に塗られている場合、色が同じか判定 (RGB差分の合計で比較)
+        const dist = Math.abs(pixel[0]-targetColor[0]) +
+                     Math.abs(pixel[1]-targetColor[1]) +
+                     Math.abs(pixel[2]-targetColor[2]);
+
+        if(dist < 15) { // 許容誤差範囲内なら「同じ色」とみなす
+          // 【同じ色】なら消す (トグル動作: ON -> OFF)
+          floodErase(mm.octx, mm.wctx, p.x, p.y);
+        } else {
+          // 【違う色】なら上書き (一度消してから新しい色で塗る)
+          floodErase(mm.octx, mm.wctx, p.x, p.y);
+          floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, targetColor);
+        }
+      } else {
+        // 塗られていない場所 → 普通に塗る (OFF -> ON)
+        floodFill(mm.octx, mm.wctx, p.x, p.y, MM.TOL, targetColor);   
+      }
     }
     saveMuscleLayerToDoc();
   }
