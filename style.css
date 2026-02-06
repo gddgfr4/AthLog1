@@ -655,23 +655,25 @@ html,body{
   /* =========================================
      1. トップバー (ヘッダー) のレイアウト
      ========================================= */
+  
+  /* ロゴとヘルプボタンを非表示にしてスペースを確保 */
   .brand { display: none !important; }
 
   .topbar {
     padding: 4px 6px !important;
     gap: 4px !important;
-    min-height: 44px !important; /* タップしやすい高さ */
+    min-height: 44px !important;
     height: auto !important;
     flex-wrap: nowrap !important;
     justify-content: space-between !important;
   }
 
-  /* チームユーザーエリア全体（親コンテナ） */
+  /* チームユーザーエリア全体 */
   .topbar .teamuser {
     width: 100% !important;
     margin: 0 !important;
     gap: 4px !important;
-    justify-content: space-between !important; /* 左にチーム、右にメンバー */
+    justify-content: space-between !important;
     align-items: center !important;
     display: flex !important;
   }
@@ -681,9 +683,9 @@ html,body{
     display: flex !important;
     align-items: center !important;
     gap: 2px !important;
-    flex: 1 1 auto; /* 伸縮する */
-    min-width: 0;   /* 縮小限界を打破 */
-    max-width: 50%; /* 画面の半分まで */
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 50%;
   }
 
   /* チーム選択セレクトボックス */
@@ -695,6 +697,8 @@ html,body{
     padding: 0 4px !important;
     border-radius: 6px !important;
   }
+
+  /* 【修正】チーム追加・メイン設定ボタンを非表示にする */
   #addTeamBtn, #setAsMainBtn {
     display: none !important;
   }
@@ -709,7 +713,7 @@ html,body{
     min-width: 0;
   }
 
-  /* テキストラベルは非表示 (セレクトボックスで代用) */
+  /* テキストラベルは非表示 */
   #memberLabel { display: none !important; }
   
   /* MAIN / 閲覧のみ バッジ */
@@ -724,14 +728,14 @@ html,body{
   #memberSelect {
     width: 100% !important;
     min-width: 60px;
-    max-width: 110px; /* 名前が長すぎてもレイアウト崩れ防止 */
+    max-width: 110px;
     height: 30px !important;
     font-size: 12px !important;
     padding: 0 4px !important;
     border-radius: 6px !important;
   }
 
-  /* 前後移動ボタン (< >) */
+  /* 前後移動ボタン */
   .topbar .small-btn {
     width: 28px !important;
     height: 30px !important;
@@ -740,7 +744,8 @@ html,body{
     font-size: 14px !important;
     margin: 0 !important;
   }
-　/* ヘルプボタン（？アイコン化） */
+
+  /* ヘルプボタン（？アイコン化） */
   #openHelpBtn {
     display: flex !important;
     align-items: center; justify-content: center;
@@ -750,22 +755,19 @@ html,body{
     margin-right: 2px;
   }
   #openHelpBtn::before { content: "？"; font-size: 14px; }
+
   /* ログアウトボタン (アイコン化) */
   #logoutBtn {
     width: 30px !important;
     height: 30px !important;
     padding: 0 !important;
-    font-size: 0 !important; /* 文字を隠す */
+    font-size: 0 !important;
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
     margin-left: 2px;
   }
-  #logoutBtn::before {
-    content: "⎋"; /* 出口アイコン */
-    font-size: 16px;
-  }
-  
+  #logoutBtn::before { content: "⎋"; font-size: 16px; }
 
 
   /* =========================================
@@ -774,13 +776,13 @@ html,body{
   .tabs {
     padding: 4px 0 !important;
     gap: 4px !important;
-    overflow-x: auto !important; /* 横スクロール許可 */
+    overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
     justify-content: flex-start;
     display: flex;
   }
   .tab {
-    flex: 1 0 auto !important; /* 縮まない */
+    flex: 1 0 auto !important;
     padding: 6px 12px !important;
     font-size: 12px !important;
     border-radius: 8px !important;
@@ -797,13 +799,11 @@ html,body{
   .panel { padding: 10px !important; margin-bottom: 10px !important; border-radius: 8px !important; }
   .journal-grid { display: flex !important; flex-direction: column !important; gap: 10px !important; }
 
-  /* 入力フォーム周り */
   .formcol { gap: 8px !important; }
   .formcol > div[style*="display:flex"] { gap: 8px !important; }
   
   label { font-size: 11px !important; margin-bottom: 2px !important; }
   
-  /* 入力欄（文字サイズ14px未満だとiPhoneでズームしてしまうため対策） */
   input:not([type="checkbox"]), textarea, select, .form-control {
     font-size: 14px !important;
     padding: 6px !important;
@@ -812,13 +812,20 @@ html,body{
   }
   textarea { min-height: 4em !important; }
 
-  /* クイックタグボタン */
-  .quick { padding: 6px !important; gap: 4px !important; }
+  /* 【修正】クイックタグボタン：窮屈さを解消 */
+  .quick { 
+    padding: 8px !important; 
+    gap: 6px !important; 
+    flex-wrap: wrap !important; /* 折り返しを許可して窮屈さを防ぐ */
+    justify-content: center;    /* 中央揃え */
+  }
   .qbtn {
-    padding: 6px 0 !important;
+    padding: 6px 10px !important; /* 左右の余白を増やして押しやすく */
     font-size: 11px !important;
     height: auto !important;
-    min-height: 28px !important;
+    min-height: 32px !important;
+    flex: 1 1 auto;               /* 均等に広がるようにする */
+    min-width: 50px;              /* 極端に縮まないように */
   }
 
   /* 週カレンダー */
@@ -1559,6 +1566,7 @@ body.share-mode #app {
   border: 2px solid #fff;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+
 
 
 
