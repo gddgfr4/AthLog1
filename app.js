@@ -291,7 +291,7 @@ async function showApp(){
   
   refreshBadges();
   
-  const memberSelect=$("#memberSelect");
+  
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId=$("#memberSelect").value;
     
