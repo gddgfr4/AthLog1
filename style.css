@@ -735,6 +735,7 @@ html,body{
   .badge { padding: 1px 3px !important; font-size: 9px !important; border-radius: 3px !important; }
 
 
+
   /* =========================================
      2. タブメニュー (横幅いっぱい・自動伸縮)
      ========================================= */
@@ -745,7 +746,7 @@ html,body{
     border-bottom-width: 1px !important;
     
     /* 横スクロールを滑らかに */
-    display: flex !important;
+    display: flex;             /* ← ★ !important を削除しました */
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
   }
@@ -1496,5 +1497,6 @@ body.share-mode #app {
   background: var(--primary);
   color: white;
 }
+
 
 
