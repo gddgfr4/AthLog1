@@ -4594,60 +4594,63 @@ body.share-mode textarea + textarea {
 `;
 document.head.appendChild(shareStyle);
 
-// app.js の一番最後に追加してください
+// app.js の一番最後に追加（または前回の部分を上書き）してください
 
 // スクショモード時のスケーリング管理
 (function manageShareScale() {
-  const CARD_WIDTH = 400; // style.css で設定した幅と合わせる
+  const CARD_WIDTH = 400; // CSSの --share-card-width と同じ値にする
+  const MARGIN_X   = 40;  // 左右に確保したい余白の合計 (px)
 
   function updateScale() {
+    const app = document.getElementById('app');
+    if (!app) return;
+
     // シェアモードでないならリセットして終了
     if (!document.body.classList.contains('share-mode')) {
-      const app = document.getElementById('app');
-      if (app) {
-        app.style.transform = '';
-        app.style.marginBottom = '';
-      }
+      app.style.transform = '';
+      app.style.marginBottom = '';
       return;
     }
 
     // 現在の画面幅を取得
     const viewportWidth = window.innerWidth;
     
-    // 倍率を計算（画面幅 / カードの固定幅）
-    // PCなどで画面が広すぎる場合に大きくなりすぎないよう上限(例:1.5倍)を設けても良いです
-    // 今回は「常に画面幅いっぱいにフィット」させます
-    let scale = viewportWidth / CARD_WIDTH;
+    // ■計算ロジック:
+    // (画面幅 - 確保したい余白) ÷ カードの元幅 = 倍率
+    let scale = (viewportWidth - MARGIN_X) / CARD_WIDTH;
     
-    // 少し余白を持たせるなら 0.95倍くらいにする
-    // scale = scale * 0.95; 
+    // (オプション) PCなどで極端に大きくなりすぎないように制限したい場合は以下を有効化
+    // if (scale > 1.2) scale = 1.2;
 
-    const app = document.getElementById('app');
-    if (app) {
-      app.style.transform = `scale(${scale})`;
-      
-      // scaleを使うと、元のDOM要素が占有する高さと見た目の高さがズレるため補正
-      // (見た目の高さ - 元の高さ) 分の余白調整
-      const rect = app.getBoundingClientRect();
-      // 下部に余白を作る（必要であれば調整）
-      app.style.marginBottom = `${(rect.height - app.offsetHeight)}px`;
-    }
+    // 変形を適用
+    app.style.transform = `scale(${scale})`;
+    
+    // ■高さの補正:
+    // transform: scale を使っても、要素が占有する場所（レイアウト上の高さ）は元のままです。
+    // そのため、縮小すると下に大きな空白ができ、拡大すると下の要素と被ります。
+    // これを解消するために、見た目の高さとの差分を margin-bottom で調整します。
+    
+    const originalHeight = app.offsetHeight;
+    const scaledHeight   = originalHeight * scale;
+    const diff           = scaledHeight - originalHeight;
+    
+    // 差分だけマージンを増減させる
+    app.style.marginBottom = `${diff}px`;
   }
 
   // リサイズ時に再計算
   window.addEventListener('resize', updateScale);
 
   // スクショボタンのクリックを監視して発火
-  // (既存のイベントリスナーの後で実行されるようにsetTimeoutで遅延)
   const btn = document.getElementById('shareModeBtn');
   if (btn) {
     btn.addEventListener('click', () => {
-      // クラス付与などの処理が終わった直後にスケール計算を実行
+      // 少し待ってから実行（クラス付与やDOM描画の完了待ち）
       setTimeout(updateScale, 50);
     });
   }
   
-  // 念のため body のクラス変化を監視（ボタン以外でモードが変わった場合用）
+  // bodyのクラス変化も監視（念のため）
   const observer = new MutationObserver(updateScale);
   observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
