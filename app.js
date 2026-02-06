@@ -2110,10 +2110,7 @@ async function renderMonth(){
   
         const txt = row.querySelector(".txt");
         if (txt) {
-          // 検索キーワードがあればハイライト（簡易実装）
-          let trainTxt = j.train || "—";
           let feelTxt = j.feel || "";
-          // trainTxt と feelTxt を定義しているあたりで修正
           let trainTxt = escapeHtml(j.train || "—");
           // let feelTxt = escapeHtml(j.feel || ""); // 使っている場合
           
