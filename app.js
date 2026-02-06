@@ -4694,7 +4694,7 @@ document.head.appendChild(shareStyle);
 // ========== Ltimer to Journal Logic =======
 // ==========================================
 
-function reflectLtimerToJournal() {
+async function reflectLtimerToJournal() {
   const pmScreen = document.getElementById('lt-pm');
   const splitScreen = document.getElementById('lt-split');
   
@@ -4721,8 +4721,6 @@ function reflectLtimerToJournal() {
     // 各レーンの計測結果
     if (ltPmState && ltPmState.lanes) {
       ltPmState.lanes.forEach(l => {
-        // 自分または選択中のメンバーの結果のみ、あるいは全員分載せる
-        // ここではシンプルに計測データがあるものを列挙
         if (l.laps && l.laps.length > 0) {
           const times = l.laps.map(ms => fmt(ms)).join(", ");
           appendText += `[${l.name}] ${times}\n`;
@@ -4734,7 +4732,6 @@ function reflectLtimerToJournal() {
   else if (splitScreen && !splitScreen.classList.contains('lt-hidden')) {
     appendText += `【Ltimer: 計測結果】\n`;
     
-    // 現在表示中のメンバー(viewingMemberId)のウォッチを探す、なければ先頭
     let targetW = ltWatches.find(w => w.name == viewingMemberId);
     if (!targetW && ltWatches.length > 0) targetW = ltWatches[0];
 
@@ -4747,48 +4744,57 @@ function reflectLtimerToJournal() {
           });
         }
     } else {
-        // データがない場合
         ltWatches.forEach(w => {
             appendText += `${w.name || 'Runner'}: ${fmt(w.elapsed)}\n`;
         });
     }
   }
 
-  // --- 日誌への反映処理 ---
+  // データなし
   if (!appendText) {
     alert("反映するデータがありません。");
     return;
   }
 
-  if (confirm("計測結果を日誌に転記しますか？")) {
-    // 1. 日誌タブへ移動
+  // 確認ダイアログ（日付も表示して確認しやすくする）
+  const dateStr = typeof ymd === 'function' ? ymd(selDate) : "選択中の日付";
+  if (!confirm(`計測結果を日誌（タイム・感想欄）に追記しますか？\n日付: ${dateStr}`)) {
+    return;
+  }
+
+  // ★修正ポイント: DBを直接読み書きすることで「データ消失」を防ぐ
+  try {
+    const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+    const docRef = getJournalRef(srcTeam, viewingMemberId, selDate);
+
+    await db.runTransaction(async (transaction) => {
+      const doc = await transaction.get(docRef);
+      const data = doc.exists ? doc.data() : {};
+
+      // 既存のデータを取得（なければ初期値）
+      const currentDist = Number(data.dist || 0);
+      const currentFeel = data.feel || "";
+
+      // 新しい値を計算（既存データ + 今回の計測データ）
+      // 距離は小数点2桁程度に丸める
+      const newDist = parseFloat((currentDist + addDist).toFixed(2));
+      const newFeel = currentFeel ? (currentFeel + "\n\n" + appendText) : appendText;
+
+      // 保存
+      transaction.set(docRef, {
+        dist: newDist,
+        feel: newFeel
+      }, { merge: true });
+    });
+
+    // 保存完了後に画面を日誌タブへ切り替える（これで最新データが読み込まれます）
     switchTab('journal');
-
-    // 2. 距離の加算
-    const distInput = document.getElementById('distInput');
-    if (distInput && addDist > 0) {
-      const currentDist = Number(distInput.value || 0);
-      distInput.value = (currentDist + addDist).toFixed(2); // 小数点2桁まで
-      // dirtyフラグを立てて保存対象にする
-      if(typeof dirty !== 'undefined') dirty.dist = true; 
-    }
-
-    // 3. 本文の追記
-    const trainInput = document.getElementById('trainInput');
-    if (trainInput) {
-      const currentText = trainInput.value;
-      // 既にテキストがあれば改行して追記
-      trainInput.value = currentText ? (currentText + "\n\n" + appendText) : appendText;
-      
-      // テキストエリアの高さを調整（UX向上）
-      trainInput.scrollTop = trainInput.scrollHeight;
-      if(typeof dirty !== 'undefined') dirty.train = true;
-    }
-
-    // 4. 自動保存をトリガー
-    if(typeof saveJournal === 'function') saveJournal();
     
-    // モーダルを閉じておく
+    // Ltimerのモーダルを閉じる
     $("#lt-summary")?.classList.add("lt-hidden");
+    
+  } catch(e) {
+    console.error("Reflect Error:", e);
+    alert("反映に失敗しました。\n" + e.message);
   }
 }
