@@ -1636,6 +1636,7 @@ function initJournal(){
   if(condBtns && condBtns.previousElementSibling) {
       condBtns.previousElementSibling.classList.add('share-hide');
   }
+  tscInitOnce();
   // ★重要: スクショボタンのリスナーなどは省略しませんが、長くなるので元のコードにtn 処理などはそのまま維持してください
 }
 
