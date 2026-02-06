@@ -1455,7 +1455,7 @@ function initJournal(){
 
   $("#shareModeBtn")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (document.body.classList.contains("share-mode")) { exitShareMode(); return; }
+    if (document.body.classList.contains("share-mode")) {}
 
     document.body.classList.add("share-mode");
     const btn = $("#shareModeBtn");
@@ -1515,6 +1515,8 @@ function initJournal(){
       const appBox = document.getElementById("app");
       const mmWrap = document.getElementById("mmWrap");
       if (appBox && mmWrap) {
+          mmOriginalParent = mmWrap.parentNode;
+          mmOriginalNext = mmWrap.nextSibling;
           // カード(#app)の最後尾に移動（これで確実に下に来ます）
           appBox.appendChild(mmWrap);
       }
@@ -1526,6 +1528,15 @@ function initJournal(){
        if(b) { b.textContent = "📷"; b.style.color = ""; b.style.background = ""; }
        if(shareHeader) shareHeader.style.display = "none";
        document.querySelectorAll(".added-cond-item").forEach(el => el.remove());
+       
+       // ▼▼▼ 修正箇所 2: 筋肉図を元の場所に戻す ▼▼▼
+       if (mmWrap && mmOriginalParent) {
+           // 記録しておいた「親」の中の「次の兄弟」の前に戻す
+           // (nextがnullなら末尾に追加されるので安全です)
+           mmOriginalParent.insertBefore(mmWrap, mmOriginalNext);
+       }
+       // ▲▲▲ 修正箇所 2 終わり ▲▲▲
+
        document.removeEventListener("click", exitShareMode);
     }
     setTimeout(() => { document.addEventListener("click", exitShareMode); }, 100);
