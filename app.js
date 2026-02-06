@@ -4412,8 +4412,8 @@ shareStyle.innerHTML = `
     background-color: #222 !important;
     overflow: hidden !important;
     height: 100vh !important; width: 100vw !important;
-    margin: 0 !important; padding: 0 !important;
-    
+    margin: 0 !important; padding: 16 !important;
+    box-sizing: border-bax !important;
     display: flex !important; 
     align-items: center !important; 
     justify-content: center !important;
@@ -4421,9 +4421,11 @@ shareStyle.innerHTML = `
 
   /* === カード本体 === */
   body.share-mode #app {
-    height: 85vh !important; 
-    width: auto !important;
-    aspect-ratio: 9 / 16 !important; 
+    aspect-ratio: 9 / 16 !important;
+    height: auto !important; 
+    width: auto !important; 
+    max-width: calc(100vw - 32px) !important;
+    max-height: calc(100vh - 32px) !important;
     background: #fff !important;
     border-radius: 20px !important;
     box-shadow: 0 0 50px rgba(0,0,0,0.5) !important;
