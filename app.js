@@ -428,7 +428,15 @@ function switchTab(id, forceRender = false) {
       // ★削除: 名前ラベルへの書き込みを削除（重複防止）
       // const ml = document.getElementById("memberLabel");
       // if (ml) ml.textContent = getDisplayName(viewingMemberId);
-      
+      if (id === 'memo') {
+      if(teamId) {
+          const lastViewKey = `athlog:${teamId}:${memberId}:lastMemoView`;
+          localStorage.setItem(lastViewKey, Date.now());
+      }
+      // 見た目上もすぐに消す
+      const memoTab = document.querySelector('.tab[data-tab="memo"]');
+      if(memoTab) memoTab.classList.remove('new-message');
+    }
       refreshBadges();
     }
   };
@@ -2821,14 +2829,12 @@ async function renderWeightChart(){
 let memoBadgeUnsub = null;
 
 function initMemoBadgeCheck() {
-  // 既存の監視があれば解除
   if (memoBadgeUnsub) { try{ memoBadgeUnsub(); }catch{} memoBadgeUnsub=null; }
   
-  // チームIDが決まっていない場合は何もしない
-  if (!teamId) return;
+  if (!teamId) return; // チーム未所属なら何もしない
 
   const col = getTeamMemoCollectionRef(teamId);
-  const memoTab = document.querySelector('[data-tab="memo"]');
+  const memoTab = document.querySelector('.tab[data-tab="memo"]'); // セレクタを厳密に
 
   // 最新の1件だけを監視
   memoBadgeUnsub = col.orderBy('ts', 'desc').limit(1).onSnapshot(snap => {
@@ -2837,12 +2843,11 @@ function initMemoBadgeCheck() {
     const latestDoc = snap.docs[0].data();
     const latestTs = latestDoc.ts || 0;
     
-    // 最後に見た時刻を取得
+    // 最後にメモを見た時刻を取得
     const lastViewKey = `athlog:${teamId}:${memberId}:lastMemoView`;
     const lastViewTs = Number(localStorage.getItem(lastViewKey) || 0);
 
-    // 最新の投稿が、自分が最後に見た時刻より新しい、かつ自分の投稿でない場合
-    // (自分の投稿でもバッジを出したい場合は && 以降を削除)
+    // 「最新の投稿が、最後に見た時より新しい」かつ「自分の投稿ではない」場合
     if (latestTs > lastViewTs && latestDoc.mem !== memberId) {
       if (memoTab) memoTab.classList.add('new-message'); // バッジ点灯
     } else {
@@ -3639,42 +3644,67 @@ async function tscLoad(){
 // ========== 共有コメント (TSC) Logic =======
 // ==========================================
 
+// 既存の tscSave をこれに置き換え
 async function tscSave(){
-  try{
+  try {
     const ta = document.getElementById('teamSharedComment');
     if(!ta) return;
-    const text = ta.value; // 空でも削除として保存する場合はそのまま
+    const text = ta.value;
 
-    // メインチーム（データの実体がある場所）を取得
+    // チームIDと相手のIDを確実に取得
     const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+    if (!srcTeam) {
+        alert("チーム情報が取得できませんでした。");
+        return;
+    }
+
     const dayKey = ymd(selDate); 
 
-    // 1. コメントを保存 (日誌データの一部として)
-    // lastCommentBy を記録することで、誰が最後に書いたか分かるようにする
+    // 1. 日誌データの一部としてコメントを保存
     await getJournalRef(srcTeam, viewingMemberId, selDate).set({ 
         teamComment: text, 
-        lastCommentBy: memberId 
+        lastCommentBy: memberId,
+        lastCommentAt: Date.now() // ソート用に時刻も入れておく
     }, { merge:true });
     
     tscDirty = false;
     tscSetStatus('保存済み');
 
-    // 2. 通知を作成 (相手が自分以外の場合のみ)
+    // 2. 通知を作成 (コメントがあり、かつ相手が自分以外の場合)
     if (text.trim() !== "" && viewingMemberId !== memberId) {
        await createDayCommentNotifications({
           teamId: srcTeam,     
-          from: memberId,      // 送信者（自分）
-          to: viewingMemberId, // 受信者（日誌の持ち主）
+          from: memberId,      
+          to: viewingMemberId, 
           day: dayKey,              
           text: text                
        });
-       tscSetStatus('保存＆通知完了');
+       console.log("通知を送信しました");
     }
 
-  }catch(e){
+  } catch(e) {
     console.error('tscSave error', e);
+    alert("保存に失敗しました: " + e.message);
     tscSetStatus('保存失敗');
-    // 失敗時は再試行タイマーなどはセットせず、ユーザーに再操作を促す方が安全
+  }
+}
+
+// 通知作成関数がない場合は追加（app.jsの末尾など）
+async function createDayCommentNotifications({ teamId, from, to, day, text }){
+  try {
+    // 相手の通知サブコレクションに追加
+    await db.collection('teams').doc(teamId).collection('notifications').add({
+        type: 'dayComment', 
+        team: teamId,
+        day: day,            
+        text: text,          
+        from: from,          
+        to: to,              
+        ts: Date.now(),      
+        read: false          
+    });
+  } catch(e) {
+    console.error('Notification error:', e);
   }
 }
 function tscScheduleSave(){
