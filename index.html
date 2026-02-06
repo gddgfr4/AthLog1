@@ -523,8 +523,18 @@
       window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(console.error); });
     }
   </script>
+  <div id="helpOverlay" class="login hidden" style="z-index:2000;">
+    <div class="login-card" style="max-width:600px; width:90%; max-height:80vh; display:flex; flex-direction:column;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink:0;">
+        <div class="logo" style="font-size:18px;">AthLog 使い方</div>
+        <button id="helpClose" class="ghost" style="padding:4px 10px;">×</button>
+      </div>
+      <div id="helpBody" class="doc" style="overflow-y:auto; flex:1;"></div>
+    </div>
+  </div>
 </body>
 </html>
+
 
 
 
