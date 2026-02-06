@@ -4713,7 +4713,7 @@ async function reflectLtimerToJournal() {
     }
 
     // 本文生成
-    appendText += `【Ltimer: インターバル】\n`;
+    appendText += `【timer: インターバル】\n`;
     appendText += `${distPerRep}m × ${reps}`;
     if(rest) appendText += ` (r:${rest}m)`;
     appendText += `\n`;
@@ -4730,7 +4730,7 @@ async function reflectLtimerToJournal() {
   }
   // --- B. ペース走/ストップウォッチ (Split) モードの場合 ---
   else if (splitScreen && !splitScreen.classList.contains('lt-hidden')) {
-    appendText += `【Ltimer: 計測結果】\n`;
+    appendText += `【timer: 計測結果】\n`;
     
     let targetW = ltWatches.find(w => w.name == viewingMemberId);
     if (!targetW && ltWatches.length > 0) targetW = ltWatches[0];
@@ -4789,8 +4789,7 @@ async function reflectLtimerToJournal() {
 
     // 保存完了後に画面を日誌タブへ切り替える（これで最新データが読み込まれます）
     switchTab('journal');
-    
-    // Ltimerのモーダルを閉じる
+
     $("#lt-summary")?.classList.add("lt-hidden");
     
   } catch(e) {
