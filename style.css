@@ -852,21 +852,48 @@ body.share-mode .notify-day-link {
 :root {
   --share-card-width: 400px;
 }
-/* --- 2. レイアウト調整 --- */
+
+/* スクショモード全体のレイアウト */
+body.share-mode {
+  background-color: #eee !important; /* 背景を薄いグレーに */
+  overflow-y: auto !important;       /* 縦スクロール有効 */
+  
+  /* Flexboxで中央揃えの準備 */
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;       /* 左右中央揃え */
+  min-height: 100vh;         /* 最低でも画面の高さを持つ */
+  
+  /* 上下の余白（パディング）を確保 */
+  padding-top: 30px;
+  padding-bottom: 30px; 
+}
+
+/* カード本体のスタイル */
 body.share-mode #app {
   padding: 0;
-  height: auto;
   display: block;
-  width: var(--share-card-width) !important; /* 幅を固定 */
-  margin: 0 auto;        /* 中央寄せ */
-  transform-origin: top center; /* 拡大縮小の基準点を上中央に */
-  box-shadow: 0 0 20px rgba(0,0,0,0.1); /* 少し影をつけるとカードっぽくなります */
+  
+  /* 固定幅を設定 */
+  width: var(--share-card-width) !important;
+  flex-shrink: 0;            /* 幅が勝手に縮まないようにする */
+  
+  /* カードらしい見た目 */
   background-color: #fff;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15); /* 影をつける */
+  
+  /* 拡大縮小の基準点を「上・中央」に */
+  transform-origin: top center;
+  
+  /* 既定のマージンをリセット */
+  margin: 0 !important;
 }
+
+/* 文字サイズ固定（縮小されても崩れないように） */
 body.share-mode textarea,
 body.share-mode input,
 body.share-mode .form-control {
-    font-size: 14px !important; /* 固定サイズで指定 */
+    font-size: 14px !important;
 }
 
 body.share-mode .tabpanel {
@@ -1469,4 +1496,5 @@ body.share-mode #app {
   background: var(--primary);
   color: white;
 }
+
 
