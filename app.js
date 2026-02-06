@@ -291,15 +291,17 @@ async function showApp(){
   
   refreshBadges();
   
+  const memberSelect=$("#memberSelect");
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
-    viewingMemberId = $("#memberSelect").value;
-    selDate = new Date();
-    const dp = $("#datePicker"); if(dp) dp.value = ymd(selDate);
+    viewingMemberId=$("#memberSelect").value;
+    
+    // 表示名を更新
+    $("#memberLabel").textContent = getDisplayName(viewingMemberId);
+    
+    // ★修正: 日付リセット(selDate=new Date())を削除し、現在の日付を維持する
+    
     refreshBadges();
-    const activePanel = $(".tabpanel.active")?.id;
-    // 日誌系画面ならその画面を維持、それ以外なら日誌('journal')へ
-    const targetTab = ['journal', 'month', 'dashboard'].includes(activePanel) ? activePanel : 'journal';
-    switchTab(currentTab, true);
+    switchTab($(".tab.active")?.dataset.tab, true);
   });
 
   // タブボタンイベント
@@ -1310,7 +1312,7 @@ async function saveJournal(){
   const journalData = {
     dist: distEl ? Number(distEl.value||0) : 0,
     weight: weightEl ? Number(weightEl.value||0) : 0,
-    sleep: sleepEl ? Number(sleepEl.value||0) : 0, // ★追加: 睡眠
+    sleep: $("#j-sleep") ? $("#j-sleep").value : "",
     train: trainEl ? trainEl.value : "",
     feel: feelEl ? feelEl.value : "",
     condition: conditionVal,
@@ -1319,8 +1321,7 @@ async function saveJournal(){
   // マージ保存
   await docRef.set(journalData, {merge:true});
   
-  // フラグ解除
-  dirty = { dist:false, train:false, feel:false, weight:false };
+  dirty={ dist:false, train:false, feel:false, weight:false, sleep:false };
 }
 
 // デバウンス処理（連打防止）
@@ -1389,6 +1390,7 @@ function initJournal(){
   const scheduleAutoSave = makeJournalAutoSaver(700);
   $("#distInput")?.addEventListener("input", ()=>{ dirty.dist=true; scheduleAutoSave(); renderWeek(); });
   $("#weightInput")?.addEventListener("input", ()=>{ dirty.weight=true; scheduleAutoSave(); });
+  $("#j-sleep")?.addEventListener("input", ()=>{ dirty.sleep=true; scheduleAutoSave(); });
   $("#trainInput")?.addEventListener("input", ()=>{ dirty.train=true; scheduleAutoSave(); });
   $("#feelInput")?.addEventListener("input", ()=>{ dirty.feel=true; scheduleAutoSave(); });
 
