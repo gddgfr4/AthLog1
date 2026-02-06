@@ -1,5 +1,5 @@
 // sw.js（超シンプル版：静的リソースのキャッシュ）
-const CACHE = 'athlog-v16';
+const CACHE = 'athlog-v17';
 const ASSETS = [
   './',
   './index.html',
