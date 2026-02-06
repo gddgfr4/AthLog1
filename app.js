@@ -4419,7 +4419,7 @@ shareStyle.innerHTML = `
     display: flex; justify-content: space-between; align-items: flex-start;
     /* ヘッダー下の隙間も最小限に */
     margin-bottom: 4px; padding-bottom: 4px;
-    border-bottom: 1px solid #f3f4f6; flex-shrink: 0;
+    border-bottom: 2px solid #f3f4f6; flex-shrink: 0;
     width: 100% !important;
   }
   .share-header-inner { display: flex; flex-direction: column; }
@@ -4485,7 +4485,7 @@ shareStyle.innerHTML = `
     height: 48px !important; flex-shrink: 0 !important; resize: none !important;
     line-height: 1.3;
     margin: 0 !important; /* マージン除去 */
-    margin-top: 0px !important; /* 数値との間を少しだけ離す */
+    margin-top: 0px !important; 
   }
 
   /* === 筋肉マップ (JSで最後に移動済みだが念のためCSSも) === */
