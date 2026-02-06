@@ -4289,17 +4289,6 @@ function addAiChatMessage(role, text){
   aiChatHistory.push({ role: role === 'user' ? 'user' : 'model', parts: [{ text: text }] });
 }
 
-// 部位名への変換用辞書
-const BODY_PART_NAMES = {
-  'neck': '首', 'shoulder': '肩', 'back': '背中', 'waist': '腰',
-  'glute_l': '左臀部', 'glute_r': '右臀部', 'groin_l': '左股関節', 'groin_r': '右股関節',
-  'quad_l': '左前もも', 'quad_r': '右前もも', 'hams_l': '左ハム', 'hams_r': '右ハム',
-  'knee_l': '左膝', 'knee_r': '右膝', 'calf_l': '左ふくらはぎ', 'calf_r': '右ふくらはぎ',
-  'shin_l': '左すね', 'shin_r': '右すね', 'ankle_l': '左足首', 'ankle_r': '右足首',
-  'foot_l': '左足裏', 'foot_r': '右足裏'
-};
-
-// app.js の runGeminiAnalysis 関数全体をこれに置き換えてください
 
 async function runGeminiAnalysis(apiKey, isInitial, userMessage = "") {
   const runBtn = document.getElementById('runAiBtn');
@@ -4333,8 +4322,10 @@ async function runGeminiAnalysis(apiKey, isInitial, userMessage = "") {
         
         let fatigueParts = [];
         const stats = data.mmStats || {}; 
-        const getPartName = (id) => (typeof BODY_PART_NAMES !== 'undefined' ? BODY_PART_NAMES[id] : id);
-
+        const getPartName = (id) => {
+            const found = BODY_PARTS_LIST.find(p => p.id === id);
+            return found ? found.label : id;
+        };
         Object.keys(stats).forEach(partId => {
           const val = stats[partId]; 
           if(val > 0) {
