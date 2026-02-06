@@ -26,17 +26,6 @@ function getMonthStr(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).pad
 function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
 function getWeekDates(d){ const s=startOfWeek(d); return [...Array(7).keys()].map(i=>addDays(s,i)); }
 
-async function sumWeekKm(d){
-  const dates=getWeekDates(d);
-  let s=0;
-  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-  for(const dt of dates){
-    const doc=await getJournalRef(srcTeam, viewingMemberId, dt).get();
-    if(doc.exists) s+=Number(doc.data().dist||0);
-  }
-  return s;
-}
-
 // --- マルチタッチ管理（2本以上は塗らないでピンチに委ねる）---
 const MT = { pointers: new Set() };
 
@@ -1886,19 +1875,6 @@ async function moveDay(n) {
   }
 }
 
-async function rolling7Km(d){
-  // dの週と同じ終了日基準（現在の選択日の0:00を終端とする）
-  const end=new Date(d); end.setHours(0,0,0,0);
-  const start=addDays(end,-6);
-  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-  let s=0;
-  for(let dt=new Date(start); dt<=end; dt=addDays(dt,1)){
-    const doc=await getJournalRef(srcTeam, viewingMemberId, dt).get();
-    if(doc.exists) s+=Number(doc.data().dist||0);
-  }
-  return s;
-}
-
 
 function renderQuickButtons(j){
   const currentTags=j?.tags||[];
@@ -2572,8 +2548,6 @@ async function renderDistanceChart(){
     data:{ labels, datasets:[{ label:'走行距離 (km)', data:chartData, backgroundColor:'rgba(79,70,229,0.5)', borderColor:'rgba(79,70,229,1)', borderWidth:1 }] },
     options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
   });
-
-  renderDashboardInsight();
 }
 
 async function renderConditionChart(){
@@ -3102,7 +3076,6 @@ document.addEventListener("DOMContentLoaded",()=>{
   window.addEventListener("keydown",(e)=>{ if(e.key==="Escape") $("#helpOverlay")?.classList.add("hidden"); });
 });
 
-function renderDashboardInsight(){ /* optional */ }
 
 // ===== Muscle-map (overlay/barrier) =====
 const MM = {
@@ -3658,7 +3631,7 @@ function initMuscleMap(){
 
 
 // ===== チームコメント（日付×表示中メンバー）誰でも編集可 =====
-let tscDirty = false, tscTimer = null;
+let tscDirty = false;
 
 function tscSetStatus(msg){ const el=document.getElementById('teamSharedCommentStatus'); if(el) el.textContent=msg; }
 
@@ -3741,12 +3714,7 @@ async function createDayCommentNotifications({ teamId, from, to, day, text }){
     console.error('Notification error:', e);
   }
 }
-function tscScheduleSave(){
-  tscDirty = true;
-  tscSetStatus('保存待ち…');
-  clearTimeout(tscTimer);
-  tscTimer = setTimeout(tscSave, 700); // デバウンス
-}
+
 
 // app.js (tscInitOnce 関数を書き換え)
 
@@ -3821,26 +3789,6 @@ async function getDayDistance(team, member, day){
   }
 }
 
-// 週合計と直近7日合計を計算
-async function calcWeekAndRolling7(team, member, baseDate){
-  // 週（ISO想定：月はじまり）
-  const ws = startOfWeek(baseDate);
-  const weekDates = Array.from({length:7}, (_,i)=> addDays(ws,i));
-
-  // 直近7日（baseDate含む過去6日）
-  const r7Start = addDays(baseDate, -6);
-  const r7Dates = Array.from({length:7}, (_,i)=> addDays(r7Start,i));
-
-  const weekVals = await Promise.all(weekDates.map(d => getDayDistance(team,member,d)));
-  const r7Vals   = await Promise.all(r7Dates.map(d => getDayDistance(team,member,d)));
-
-  const weekSum = weekVals.reduce((a,b)=>a+b,0);
-  const r7Sum   = r7Vals.reduce((a,b)=>a+b,0);
-  return { weekSum, r7Sum };
-}
-
-// 表示DOMへ反映
-// ==== 距離サマリ（週合計 & 直近7日）====
 
 // 1日ぶんの距離を安全に取得
 async function safeDayDist(srcTeam, member, day){
