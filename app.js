@@ -344,13 +344,13 @@ function initTeamSwitcher(){
     }).join('');
 
   sel.onchange = async (e)=>{
+    const currentTab = $(".tab.active")?.dataset.tab || 'journal';
     teamId = e.target.value;
-    const tl = $("#teamLabel");     // 要素を取得
-    if(tl) tl.textContent = teamId; // ★存在する場合のみ書き込む
-    
+    $("#teamLabel").textContent = teamId;
     await populateMemberSelect();   // チームのメンバー一覧を更新
     refreshBadges();
-    switchTab($(".tab.active")?.dataset.tab, true);
+    initTeamSwitcher(); 
+    switchTab(currentTab, true);
   };
 
   // ===== 修正案 2 =====
