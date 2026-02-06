@@ -749,7 +749,7 @@ html,body{
     font-size: 0 !important;
     margin-right: 2px;
   }
-  #openHelpBtn::before { content: "❓"; font-size: 14px; }
+  #openHelpBtn::before { content: "？"; font-size: 14px; }
   /* ログアウトボタン (アイコン化) */
   #logoutBtn {
     width: 30px !important;
@@ -1559,6 +1559,7 @@ body.share-mode #app {
   border: 2px solid #fff;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+
 
 
 
