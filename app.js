@@ -346,7 +346,10 @@ function initTeamSwitcher(){
   sel.onchange = async (e)=>{
     const currentTab = $(".tab.active")?.dataset.tab || 'journal';
     teamId = e.target.value;
-    $("#teamLabel").textContent = teamId;
+    const teamLabelEl = $("#teamLabel");
+    if (teamLabelEl) {
+      teamLabelEl.textContent = teamId;
+    }
     await populateMemberSelect();   // チームのメンバー一覧を更新
     refreshBadges();
     initTeamSwitcher(); 
