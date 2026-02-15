@@ -2928,13 +2928,23 @@ window.addEventListener("hashchange",()=>{ closePlanModal(); });
   try{
     const last=JSON.parse(localStorage.getItem("athlog:last")||"{}");
     if(last.team && last.member){
-      teamId=last.team; memberId=last.member; viewingMemberId=last.member;
+      // まずローカルストレージから「自分(ID)」を取得
+      memberId = last.member;
+
+      // ★修正: 最後に開いたチームではなく、「メインチーム」を優先して開く
+      const myMain = getMainTeamOf(memberId);
+      teamId = myMain ? myMain : last.team; // メイン未設定なら履歴を使う
+
+      // ★修正: 必ず「自分」の日誌を表示する状態にする
+      viewingMemberId = memberId;
       
-      // ▼▼▼ 修正 ▼▼▼
+      // ★修正: 日付は必ず「今日」にする
+      selDate = new Date();
+
+      // ▼▼▼ 以下は既存ロジックの調整（ミラー設定の確認など） ▼▼▼
       const myMainTeam = getMainTeamOf(memberId);
       if (!myMainTeam) {
-         // 稀なケース：ローカルストレージが破損しメインチーム情報がない
-         setMainTeamOf(memberId, teamId); // 現在のチームを仮のメインに
+         setMainTeamOf(memberId, teamId);
       }
 
       const memberRef = getMembersRef(teamId).doc(memberId);
@@ -2948,7 +2958,6 @@ window.addEventListener("hashchange",()=>{ closePlanModal(); });
             mirrorFromTeamId: mirrorSource
         }, { merge: true });
       } else {
-        // ミラーフラグが最新か確認・更新
         const currentMirror = memberSnap.data()?.mirrorFromTeamId;
         const expectedMirror = isMain ? undefined : getMainTeamOf(memberId);
         if (currentMirror !== expectedMirror) {
@@ -2958,8 +2967,8 @@ window.addEventListener("hashchange",()=>{ closePlanModal(); });
       // ▲▲▲ 修正 ▲▲▲
 
       await showApp();
-// ... (以下略)
-      selDate=new Date();
+      
+      // アプリ表示後に日付ピッカー等を確実に今日に合わせる
       const dp=document.getElementById("datePicker"); if(dp) dp.value=ymd(selDate);
       renderJournal();
     }
@@ -2968,6 +2977,7 @@ window.addEventListener("hashchange",()=>{ closePlanModal(); });
     localStorage.removeItem("athlog:last");
   }
 })();
+
 async function doLogin(){
   teamId=$("#teamId").value.trim();
   memberId=$("#memberName").value.trim();
@@ -4746,3 +4756,45 @@ async function reflectLtimerToJournal() {
     alert("反映に失敗しました。\n" + e.message);
   }
 }
+
+// app.js の末尾に追加
+
+// ▼▼▼ キーボードショートカット（PC用） ▼▼▼
+document.addEventListener('keydown', (e) => {
+  // 入力フォームにフォーカスがある場合は何もしない
+  const active = document.activeElement;
+  if (active && (['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable)) {
+    return;
+  }
+
+  // 左右キー：日付移動（日誌タブが表示されている時のみ推奨だが、利便性のため常時有効またはタブ判定を入れる）
+  // ここではシンプルに「現在のタブが日誌系なら」有効にします
+  const currentTab = $(".tab.active")?.dataset.tab;
+  const isJournalMode = ['journal', 'month', 'dashboard'].includes(currentTab);
+
+  if (e.key === 'ArrowLeft') {
+    if (isJournalMode) {
+      e.preventDefault();
+      selDate = addDays(selDate, -1);
+      const dp = document.getElementById("datePicker");
+      if(dp) dp.value = ymd(selDate);
+      renderJournal(); // 月表示などを連動させたい場合は switchTab(currentTab, true) でも可
+    }
+  } else if (e.key === 'ArrowRight') {
+    if (isJournalMode) {
+      e.preventDefault();
+      selDate = addDays(selDate, 1);
+      const dp = document.getElementById("datePicker");
+      if(dp) dp.value = ymd(selDate);
+      renderJournal();
+    }
+  } 
+  // 上下キー：メンバー切り替え
+  else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    goMemberDelta(-1); // 前のメンバーへ
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    goMemberDelta(1); // 次のメンバーへ
+  }
+});
