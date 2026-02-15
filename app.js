@@ -40,6 +40,38 @@ function autoResizeTextarea(el){
   el.style.height = 'auto';
   el.style.height = el.scrollHeight + 'px';
 }
+// ホームボタンのバッジ表示を制御する関数
+function updateHomeBadge() {
+  const homeBtn = document.querySelector('.tab[data-tab="home"]') || document.getElementById("goHomeBtn");
+  if (!homeBtn) return;
+
+  // 通知バッジの状態確認
+  const notifyBadge = document.getElementById("notifyBadge");
+  const hasNotify = notifyBadge && !notifyBadge.classList.contains("hidden");
+
+  // メモバッジの状態確認
+  const memoBadge = document.getElementById("memoBadge");
+  const hasMemo = memoBadge && !memoBadge.classList.contains("hidden");
+
+  // どちらかに未読があればホームボタンにも「new」クラスなどをつける
+  if (hasNotify || hasMemo) {
+    homeBtn.classList.add("has-badge");
+    
+    // もしホームボタンの中にバッジ要素がなければ作る（CSSでやる場合は不要だが念のため）
+    if(!homeBtn.querySelector(".home-dot")){
+      const dot = document.createElement("span");
+      dot.className = "home-dot";
+      // 簡易的なスタイル（CSSファイルに記述推奨）
+      dot.style.cssText = "position:absolute; top:4px; right:4px; width:8px; height:8px; background:red; border-radius:50%; pointer-events:none;";
+      homeBtn.style.position = "relative"; 
+      homeBtn.appendChild(dot);
+    }
+  } else {
+    homeBtn.classList.remove("has-badge");
+    const dot = homeBtn.querySelector(".home-dot");
+    if(dot) dot.remove();
+  }
+}
 
 // ===== Main/Sub helpers =====
 function getProfiles(){
@@ -324,7 +356,45 @@ async function showApp(){
   
   $("#goHomeBtn")?.addEventListener("click", () => switchTab("home"));
 }
-// ... (以下 switchTab 等のコード) ...
+
+function initNotifyBadgeCheck(){
+  if(notifyBadgeUnsub) { try{ notifyBadgeUnsub(); }catch{} notifyBadgeUnsub=null; }
+  
+  if(!memberId || !teamId) return;
+
+  const col = db.collection('teams').doc(teamId).collection('notifications');
+  
+  const q = col.where('to','==', memberId)
+                .orderBy('ts', 'desc')
+                .limit(1);
+
+  notifyBadgeUnsub = q.onSnapshot(snap => {
+    // 通知がない場合
+    if (snap.empty) {
+      if(typeof toggleNotifyBadges === 'function') toggleNotifyBadges(false);
+      updateHomeTabBadge(); // ★追加: 状態を再確認して更新
+      return;
+    }
+
+    const latest = snap.docs[0].data();
+    const latestTs = latest.ts || 0;
+    
+    const lastViewKey = `athlog:${teamId}:${memberId}:lastNotifyView`;
+    const lastViewTs = Number(localStorage.getItem(lastViewKey) || 0);
+
+    const hasNew = latestTs > lastViewTs;
+    if(typeof toggleNotifyBadges === 'function') toggleNotifyBadges(hasNew);
+    
+    // ★追加: ホームボタンの更新
+    // 「通知がある」または「既にメモのバッジがついている」ならホームも点灯
+    const isMemoActive = document.querySelector('.tab[data-tab="memo"]')?.classList.contains('new-message');
+    updateHomeTabBadge(hasNew || isMemoActive);
+    
+  }, err => {
+    console.error("Notify badge check failed (Index might be missing):", err);
+  });
+}
+
 function initTeamSwitcher(){
   const wrap   = $("#teamSwitchWrap");
   const sel    = $("#teamSwitchSelect");
@@ -2833,33 +2903,50 @@ let memoBadgeUnsub = null;
 function initMemoBadgeCheck() {
   if (memoBadgeUnsub) { try{ memoBadgeUnsub(); }catch{} memoBadgeUnsub=null; }
   
-  if (!teamId) return; // チーム未所属なら何もしない
+  if (!teamId) return;
 
-  const col = getTeamMemoCollectionRef(teamId);
-  const memoTab = document.querySelector('.tab[data-tab="memo"]'); // セレクタを厳密に
+  const col = getTeamMemoCollectionRef(teamId); // getTeamMemoCollectionRefが存在する前提
+  const memoTab = document.querySelector('.tab[data-tab="memo"]');
   const memoCard = document.querySelector('.home-card[data-target="memo"]');
-  // 最新の1件だけを監視
+
   memoBadgeUnsub = col.orderBy('ts', 'desc').limit(1).onSnapshot(snap => {
-    if (snap.empty) return;
+    // データがない場合
+    if (snap.empty) {
+      if (memoTab) memoTab.classList.remove('new-message');
+      if (memoCard) memoCard.classList.remove('new-message');
+      updateHomeTabBadge(); // ★追加: 状態を再確認
+      return;
+    }
     
     const latestDoc = snap.docs[0].data();
     const latestTs = latestDoc.ts || 0;
     
-    // 最後にメモを見た時刻を取得
     const lastViewKey = `athlog:${teamId}:${memberId}:lastMemoView`;
     const lastViewTs = Number(localStorage.getItem(lastViewKey) || 0);
 
-    if (latestTs > lastViewTs && latestDoc.mem !== memberId) {
-      if (memoTab) memoTab.classList.add('new-message');   // タブにバッジ
-      if (memoCard) memoCard.classList.add('new-message'); // ★ホームカードにバッジ
+    // 新着判定
+    const isNewMemo = (latestTs > lastViewTs && latestDoc.mem !== memberId);
+
+    if (isNewMemo) {
+      if (memoTab) memoTab.classList.add('new-message');
+      if (memoCard) memoCard.classList.add('new-message');
     } else {
       if (memoTab) memoTab.classList.remove('new-message');
-      if (memoCard) memoCard.classList.remove('new-message'); // ★バッジ消去
+      if (memoCard) memoCard.classList.remove('new-message');
     }
+
+    // ★追加: ホームボタンの更新
+    // 「メモがある」または「現在通知バッジが出ている」ならホームも点灯
+    const nBadge = document.getElementById("notifyBadge");
+    const isNotifyActive = nBadge && !nBadge.classList.contains("hidden");
+    
+    updateHomeTabBadge(isNewMemo || isNotifyActive);
+
   }, err => {
     console.log("Memo badge check error", err);
   });
 }
+
 // ===== NEW: Team Memo =====
 function initMemo(){
   const memoInput = $("#memoChatInput");
@@ -3838,40 +3925,31 @@ function toggleNotifyBadges(show) {
 }
 
 // ▼▼▼ 修正: タイムスタンプ比較ロジックに変更 ▼▼▼
-function initNotifyBadgeCheck(){
-  if(notifyBadgeUnsub) { try{ notifyBadgeUnsub(); }catch{} notifyBadgeUnsub=null; }
+// ホームボタンのバッジ状態を更新するヘルパー関数
+function updateHomeTabBadge(forceActive = null) {
+  const homeTab = document.querySelector('.tab[data-tab="home"]');
+  if (!homeTab) return;
+
+  // 引数が指定されていればそれに従う、なければDOMの状態から判定
+  let isActive = forceActive;
   
-  if(!memberId || !teamId) return;
-
-  const col = db.collection('teams').doc(teamId).collection('notifications');
-  
-  // 自分宛ての最新の通知を取得（既読・未読問わず、最新の日時をチェックするため）
-  // ※注意: このクエリ('to' + 'ts')にはFirestoreの複合インデックスが必要です。
-  // エラーが出る場合はコンソールのリンクからインデックスを作成してください。
-  const q = col.where('to','==', memberId)
-               .orderBy('ts', 'desc')
-               .limit(1);
-
-  notifyBadgeUnsub = q.onSnapshot(snap => {
-    if (snap.empty) {
-      toggleNotifyBadges(false);
-      return;
-    }
-
-    const latest = snap.docs[0].data();
-    const latestTs = latest.ts || 0;
+  if (isActive === null) {
+    // メモタブがバッジを持っているか
+    const isMemoActive = document.querySelector('.tab[data-tab="memo"]')?.classList.contains('new-message');
     
-    // 最後に通知画面を開いた時刻を取得
-    const lastViewKey = `athlog:${teamId}:${memberId}:lastNotifyView`;
-    const lastViewTs = Number(localStorage.getItem(lastViewKey) || 0);
+    // 通知バッジが表示されているか (toggleNotifyBadgesの実装に依存しますが、通常 #notifyBadge の hidden を確認)
+    const nBadge = document.getElementById("notifyBadge");
+    const isNotifyActive = nBadge && !nBadge.classList.contains("hidden") && nBadge.style.display !== 'none';
 
-    // 最新通知の時刻が、最後に見た時刻より新しければバッジを表示
-    const hasNew = latestTs > lastViewTs;
-    toggleNotifyBadges(hasNew);
-    
-  }, err => {
-    console.error("Notify badge check failed (Index might be missing):", err);
-  });
+    isActive = isMemoActive || isNotifyActive;
+  }
+
+  // ホームタブにクラスを付与/削除
+  if (isActive) {
+    homeTab.classList.add('new-message'); // CSSで .new-message::after { content: "●"; ... } のようなスタイルが当たっている想定
+  } else {
+    homeTab.classList.remove('new-message');
+  }
 }
 
 // ▼▼▼ 修正: 開いた瞬間に「最終閲覧時刻」を更新する処理を追加 ▼▼▼
