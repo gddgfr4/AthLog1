@@ -34,6 +34,12 @@ function setOverlayTouchAction(mode){
   if (ov) ov.style.touchAction = mode;   // 'none' | 'auto' | 'pan-x pan-y pinch-zoom'
 }
 
+function autoResizeTextarea(el){
+  if(!el) return;
+  // 高さを一度 auto にして縮小に対応させてから、scrollHeight に合わせる
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
 
 // ===== Main/Sub helpers =====
 function getProfiles(){
@@ -1418,8 +1424,8 @@ function initJournal(){
   $("#distInput")?.addEventListener("input", ()=>{ dirty.dist=true; scheduleAutoSave(); renderWeek(); });
   $("#weightInput")?.addEventListener("input", ()=>{ dirty.weight=true; scheduleAutoSave(); });
   $("#j-sleep")?.addEventListener("input", ()=>{ dirty.sleep=true; scheduleAutoSave(); });
-  $("#trainInput")?.addEventListener("input", ()=>{ dirty.train=true; scheduleAutoSave(); });
-  $("#feelInput")?.addEventListener("input", ()=>{ dirty.feel=true; scheduleAutoSave(); });
+  $("#trainInput")?.addEventListener("input", ()=>{ dirty.train=true; scheduleAutoSave(); autoResizeTextarea(e.target);});
+  $("#feelInput")?.addEventListener("input", ()=>{ dirty.feel=true; scheduleAutoSave(); autoResizeTextarea(e.target);});
 
   // パレット（お絵かき用）
   const brushBtns=$$('.palette .lvl, .palette #eraser');
@@ -1779,9 +1785,23 @@ async function renderJournal(){
     // 睡眠時間
     if(document.getElementById("j-sleep")) document.getElementById("j-sleep").value = data.sleep || "";
 
-    if(document.getElementById("trainInput")) document.getElementById("trainInput").value = data.train || "";
-    if(document.getElementById("feelInput")) document.getElementById("feelInput").value = data.feel || "";
-    
+    // 練習内容（trainInput）
+    if(!dirty.train) {
+      const el = document.getElementById("trainInput");
+      if(el) {
+        el.value = data.train || "";
+        autoResizeTextarea(el); // ★高さ調整を実行
+      }
+    }
+
+    // 感想（feelInput）
+    if(!dirty.feel) {
+      const el = document.getElementById("feelInput");
+      if(el) {
+        el.value = data.feel || "";
+        autoResizeTextarea(el); // ★高さ調整を実行
+      }
+    }
     // お気に入りボタンUI更新（関数があれば）
     if(typeof updateFavBtnUI === 'function') updateFavBtnUI(!!data.favorite);
 
