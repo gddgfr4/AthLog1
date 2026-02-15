@@ -262,8 +262,7 @@ function initHeaderEvents() {
 // ========== App Initialization ============
 // ==========================================
 async function showApp(){
-  // 先にUIリセット（タブを消す）
-  switchTab("home", true);
+
   const tl = document.getElementById("teamLabel");
   if(tl) tl.textContent = teamId;
   $("#login").classList.add("hidden");
@@ -314,7 +313,7 @@ async function showApp(){
   initHome();
   initHeaderEvents();
 
-  switchTab("home"); 
+  switchTab("journal"); 
   initMemoBadgeCheck();
   checkNewMemo();
   initTeamSwitcher();
