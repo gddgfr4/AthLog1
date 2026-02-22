@@ -1685,10 +1685,11 @@ function initJournal(){
   // 反映ボタン
   $("#mergeBtn")?.addEventListener("click", async ()=>{
     const scope  = $("#mergeScope").value;                
-    const tagCSV = ($("#mergeTagFilter")?.value || "").trim();
-    const text  = await collectPlansTextForDay(selDate, scope, tagCSV);
+    // タグ関連の引数を削除
+    const text  = await collectPlansTextForDay(selDate, scope);
     if(text) $("#trainInput").value = ($("#trainInput").value ? ($("#trainInput").value+"\n") : "") + text;
-    const types = await collectPlansTypesForDay(selDate, scope, tagCSV);
+    
+    const types = await collectPlansTypesForDay(selDate, scope);
     if(types.length){
       const docRef=getJournalRef(teamId,memberId,selDate);
       await docRef.set({ tags: types.slice(0,2) },{merge:true});
@@ -2319,7 +2320,6 @@ function initPlans(){
   $("#pNext")?.addEventListener("click",()=>{ const m=$("#planMonthPick").value.split("-"); const d=new Date(Number(m[0]), Number(m[1]), 1); $("#planMonthPick").value=getMonthStr(d); renderPlans(); });
   $("#planMonthPick")?.addEventListener("change", renderPlans);
   $("#planScope")?.addEventListener("change", renderPlans);
-  $("#tagFilter")?.addEventListener("input", renderPlans);
   $("#toggleChat")?.addEventListener("click",()=>$("#chatBox").classList.toggle("hidden"));
   const chatInput=$("#chatInput");
   if(chatInput) chatInput.addEventListener("keydown", async (e)=>{
@@ -2362,15 +2362,13 @@ async function renderPlans(){
 
     const unsub = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events').orderBy('mem')
       .onSnapshot(snapshot=>{
-        const scope=$("#planScope")?.value || viewingMemberId; // "all" から変更
-        const tagText=$("#tagFilter")?.value.trim() || "";
-        const tagSet=new Set(tagText ? tagText.split(",").map(s=>s.trim()).filter(Boolean) : []);
+        const scope=$("#planScope")?.value || viewingMemberId; 
+        // タグフィルタリング処理を削除
         const arr=[];
         snapshot.docs.forEach(doc=>{
           const it=doc.data();
           if(scope==="team" && it.scope!=="team") return;
           if(scope!=="all" && scope!=="team" && it.mem!==scope) return;
-          if(tagSet.size && !(it.tags||[]).some(t=>tagSet.has(t))) return;
           arr.push(it);
         });
         const targetEl=document.getElementById("pl_"+dayKey);
@@ -2425,8 +2423,7 @@ function openPlanModal(dt){
       <div style="display:flex;gap:6px;margin-bottom:6px">
         <select id="ptype" class="form-control"><option>ジョグ</option><option>ポイント</option><option>補強</option><option>オフ</option><option>その他</option></select>
         <select id="pscope" class="form-control"><option value="self">${getDisplayName(memberId)}</option><option value="team">全員</option></select>
-        <input id="ptags" placeholder="タグ(,区切り)" class="form-control" />
-      </div>
+        </div>
       <textarea id="pcontent" rows="3" style="width:100%" class="form-control"></textarea>
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
         <button id="p_delete" class="ghost" style="color:red; display:none; margin-right:auto;">削除</button>
@@ -2440,10 +2437,10 @@ function openPlanModal(dt){
   document.body.appendChild(modalDiv);
 
   const pActionBtn=$("#p_action",modalDiv), pDeleteBtn=$("#p_delete",modalDiv);
-  const pType=$("#ptype",modalDiv), pScope=$("#pscope",modalDiv), pTags=$("#ptags",modalDiv), pContent=$("#pcontent",modalDiv);
+  const pType=$("#ptype",modalDiv), pScope=$("#pscope",modalDiv), pContent=$("#pcontent",modalDiv);
   const resetForm=()=>{
     editingId=null;
-    pType.value="ジョグ"; pScope.value="self"; pTags.value=""; pContent.value="";
+    pType.value="ジョグ"; pScope.value="self"; pContent.value="";
     pActionBtn.textContent="追加"; pDeleteBtn.style.display="none";
     $$("#plist .row",modalDiv).forEach(r=>r.style.outline='none');
   };
@@ -2453,7 +2450,7 @@ function openPlanModal(dt){
       const item=doc.data();
       if(!item || item.mem!==memberId) return;
       editingId=id;
-      pType.value=item.type; pScope.value=item.scope; pTags.value=(item.tags||[]).join(","); pContent.value=item.content;
+      pType.value=item.type; pScope.value=item.scope; pContent.value=item.content;
       pActionBtn.textContent="更新"; pDeleteBtn.style.display="block";
       $$("#plist .row",modalDiv).forEach(r=>r.style.outline='none');
       targetRow.style.outline=`2px solid var(--primary)`;
@@ -2471,7 +2468,6 @@ function openPlanModal(dt){
     const content=pContent.value.trim(); if(!content) return;
     const planData={
       type:pType.value, scope:pScope.value, content, mem:memberId,
-      tags:(pTags.value||"").split(",").map(s=>s.trim()).filter(Boolean),
       month:mon, day:dayKey, team:teamId
     };
     if(editingId){
@@ -2527,7 +2523,7 @@ async function collectPlansTextForDay(day, scopeSel){
 }
 
 
-async function collectPlansTypesForDay(day, scopeSel, tagCSV=""){
+async function collectPlansTypesForDay(day, scopeSel){
   const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
   const dayKey=ymd(day);
   let query=getPlansCollectionRef(srcTeam).doc(dayKey).collection('events');
@@ -2540,10 +2536,6 @@ async function collectPlansTypesForDay(day, scopeSel, tagCSV=""){
   const types=[];
   snapshot.docs.forEach(doc=>{
     const it=doc.data();
-    if(tagSet.size){
-      const arr=Array.isArray(it.tags)?it.tags:[];
-      if(!arr.some(t=>tagSet.has(t))) return;
-    }
     const t=it.type;
     if(t && !types.includes(t)) types.push(t);
   });
