@@ -34,9 +34,11 @@ function setOverlayTouchAction(mode){
   if (ov) ov.style.touchAction = mode;   // 'none' | 'auto' | 'pan-x pan-y pinch-zoom'
 }
 
-function autoResizeTextarea(el){
-  if(!el) return;
-  // 高さを一度 auto にして縮小に対応させてから、scrollHeight に合わせる
+function autoResizeTextarea(el) {
+  if (!el) return;
+  // スクロールバーが出ないようにする
+  el.style.overflow = 'hidden';
+  // 一度高さをリセットして、内容量に合わせて再設定する
   el.style.height = 'auto';
   el.style.height = el.scrollHeight + 'px';
 }
@@ -1493,9 +1495,19 @@ function initJournal(){
   $("#distInput")?.addEventListener("input", ()=>{ dirty.dist=true; scheduleAutoSave(); renderWeek(); });
   $("#weightInput")?.addEventListener("input", ()=>{ dirty.weight=true; scheduleAutoSave(); });
   $("#j-sleep")?.addEventListener("input", ()=>{ dirty.sleep=true; scheduleAutoSave(); });
-  $("#trainInput")?.addEventListener("input", ()=>{ dirty.train=true; scheduleAutoSave(); autoResizeTextarea(e.target);});
-  $("#feelInput")?.addEventListener("input", ()=>{ dirty.feel=true; scheduleAutoSave(); autoResizeTextarea(e.target);});
+  // ▼▼▼ 修正: 練習内容（入力中に伸びる） ▼▼▼
+  $("#trainInput")?.addEventListener("input", (e)=>{ 
+    dirty.train=true; 
+    scheduleAutoSave(); 
+    autoResizeTextarea(e.target); 
+  });
 
+  // ▼▼▼ 修正: 感想欄（入力中に伸びる） ▼▼▼
+  $("#feelInput")?.addEventListener("input", (e)=>{ 
+    dirty.feel=true; 
+    scheduleAutoSave(); 
+    autoResizeTextarea(e.target); 
+  });
   // パレット（お絵かき用）
   const brushBtns=$$('.palette .lvl, .palette #eraser');
   brushBtns.forEach(b=>b.addEventListener('click',()=>{
@@ -1854,21 +1866,22 @@ async function renderJournal(){
     // 睡眠時間
     if(document.getElementById("j-sleep")) document.getElementById("j-sleep").value = data.sleep || "";
 
-    // 練習内容（trainInput）
+    // ▼▼▼ 修正: データをセットした直後にリサイズを実行（setTimeoutで確実にする） ▼▼▼
     if(!dirty.train) {
       const el = document.getElementById("trainInput");
       if(el) {
         el.value = data.train || "";
-        autoResizeTextarea(el); // ★高さ調整を実行
+        // 描画が完了した直後に高さを計算させる
+        setTimeout(() => autoResizeTextarea(el), 10);
       }
     }
 
-    // 感想（feelInput）
     if(!dirty.feel) {
       const el = document.getElementById("feelInput");
       if(el) {
         el.value = data.feel || "";
-        autoResizeTextarea(el); // ★高さ調整を実行
+        // 描画が完了した直後に高さを計算させる
+        setTimeout(() => autoResizeTextarea(el), 10);
       }
     }
     // お気に入りボタンUI更新（関数があれば）
