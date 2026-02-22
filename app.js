@@ -571,9 +571,12 @@ function switchTab(id, forceRender = false) {
   }
 
   // --- 3. 通常モード ---
-  ltimerRunning = false;
+  if (ltimerRunning) {
+      ltimerRunning = false;
+      // 時計画面を離れる時にセッション枠を解放する
+      if (typeof disconnectLtSession === 'function') disconnectLtSession();
+  }
   $("#clock")?.classList.remove("active"); $("#clock") && ($("#clock").style.display='none');
-
   if (!forceRender && $(".tabpanel.active")?.id === id && id !== 'home') return;
 
   $$(".tabpanel").forEach(p => p.classList.remove("active"));
@@ -695,19 +698,14 @@ function setupLtimerEvents() {
   if(window._ltEventsSetup) return;
   window._ltEventsSetup = true;
 
-  // 内部戻るボタン
-  const backBtn = $("#lt-back button");
+ const backBtn = $("#lt-back button");
   if (backBtn) {
     backBtn.onclick = (e) => {
       e.stopPropagation();
       stopCustomTimer();
       if(ltPmState.lanes) ltPmState.lanes.forEach(l => l.running = false);
-      // セッション切断
-      if(ltSessionRef && ltUserId) {
-          ltSessionRef.child('users').child(ltUserId).remove();
-          ltSessionRef.off(); ltSessionRef = null; ltUserId = null;
-          $("#share-status-msg").textContent = "";
-      }
+      // セッション切断（関数化）
+      disconnectLtSession();
       showLtScreen('menu');
     };
   }
@@ -716,9 +714,7 @@ function setupLtimerEvents() {
   const shareBtn = $("#share-connect-btn");
   if (shareBtn) {
     shareBtn.onclick = async () => {
-      const code = $("#share-passcode").value.trim();
-      if(!code) return alert("合言葉を入力してください");
-      await connectLtSession(code);
+      await connectLtSession(); // 合言葉なしで直接接続
     };
   }
 
@@ -1237,13 +1233,104 @@ function stopCustomTimer() {
 }
 
 // ===== Firebase Shared (Mock) =====
-async function connectLtSession(code) {
-    if(typeof firebase === 'undefined' || !firebase.apps.length) return;
-    alert("接続機能はサーバー側の設定が必要です。UIのみ実装しました。");
-    ltSessionRef = { key: code };
+let ltSessionUnsub = null;
+
+async function connectLtSession() {
+    if(!teamId || !memberId) return;
+    
+    const msg = document.getElementById("share-status-msg");
+    if(msg) { msg.textContent = "ペアを探しています..."; msg.style.color = "var(--primary)"; }
+    
+    // チームごとに1つの共有セッション部屋(ドキュメント)を用意
+    const sessionRef = db.collection('teams').doc(teamId).collection('ltimer').doc('session');
+    
+    try {
+        await db.runTransaction(async (transaction) => {
+            const doc = await transaction.get(sessionRef);
+            let data = doc.exists ? doc.data() : { user1: null, user2: null };
+            
+            // 自分がすでに入っているか？
+            if (data.user1 === memberId) {
+                ltUserId = 'user1';
+            } else if (data.user2 === memberId) {
+                ltUserId = 'user2';
+            } 
+            // 空きスロット（先着2名）に入れるか？
+            else if (!data.user1) {
+                transaction.set(sessionRef, { user1: memberId }, { merge: true });
+                ltUserId = 'user1';
+            } else if (!data.user2) {
+                transaction.set(sessionRef, { user2: memberId }, { merge: true });
+                ltUserId = 'user2';
+            } else {
+                throw new Error("既に他の2人が使用中です");
+            }
+        });
+        
+        ltSessionRef = sessionRef; // 接続済みフラグとして保持
+        updateLtChooserView();
+        
+        // セッション状態のリアルタイム監視
+        if (ltSessionUnsub) { ltSessionUnsub(); ltSessionUnsub = null; }
+        ltSessionUnsub = sessionRef.onSnapshot((doc) => {
+            const data = doc.exists ? doc.data() : {};
+            const isUser1 = (data.user1 === memberId);
+            const isUser2 = (data.user2 === memberId);
+            
+            // 自分が追い出された（退室処理など）場合
+            if (ltUserId && !isUser1 && !isUser2) {
+                 disconnectLtSession();
+                 if(msg) { msg.textContent = "切断されました"; msg.style.color = "red"; }
+                 return;
+            }
+
+            const usersCount = (data.user1 ? 1 : 0) + (data.user2 ? 1 : 0);
+            
+            if (msg) {
+                if (usersCount === 2) {
+                    msg.textContent = "ペアと接続しました！";
+                    msg.style.color = "green";
+                } else {
+                    msg.textContent = "相手を待っています...";
+                    msg.style.color = "var(--primary)";
+                }
+            }
+            
+            // ※「タイムの完全な同期」まで行う場合は、ここにFirestore(data.watches等)を
+            // 相手の時計に反映させる処理を追記する必要があります。
+        });
+        
+    } catch (e) {
+        if(msg) { msg.textContent = e.message; msg.style.color = "red"; }
+        console.error(e);
+        ltSessionRef = null;
+        ltUserId = null;
+        updateLtChooserView();
+    }
+}
+
+// 退室処理（空き枠を返す）
+function disconnectLtSession() {
+    if(ltSessionRef && ltUserId) {
+        ltSessionRef.set({ [ltUserId]: null }, { merge: true }).catch(()=>{});
+    }
+    if(ltSessionUnsub) { ltSessionUnsub(); ltSessionUnsub = null; }
+    ltSessionRef = null; 
+    ltUserId = null;
+    const msg = document.getElementById("share-status-msg");
+    if(msg) msg.textContent = "";
     updateLtChooserView();
 }
+
+// タイム同期用の空関数（現状のモック維持）
 function updateSharedWatches() {}
+
+// ブラウザを閉じたりリロードした際にも退室して枠を空ける
+window.addEventListener('beforeunload', () => {
+    if(ltSessionRef && ltUserId) {
+        ltSessionRef.set({ [ltUserId]: null }, { merge: true });
+    }
+});
 // ==========================================
 // ========== Stadium Map Logic =============
 // ==========================================
