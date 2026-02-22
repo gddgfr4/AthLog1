@@ -156,14 +156,15 @@
                     </div>
                 </div>
                 <div class="note">
-                    <label>練習内容</label>
-                    <textarea id="trainInput" rows="3"></textarea>
-                    <div class="merge">
-                    <select id="mergeScope" class="ghost"></select>
-                    <input id="mergeTagFilter" class="ghost" placeholder="タグ" />
-                    <button id="mergeBtn" class="ghost">反映</button>
-                    </div>
-                </div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                      <label style="margin-bottom:0;">練習内容</label>
+                      <div class="merge" style="display:flex; gap:6px; align-items:center; margin-top:0;">
+                          <select id="mergeScope" class="ghost" style="padding:2px 6px; font-size:11px; height:auto; min-height:0;"></select>
+                          <button id="mergeBtn" class="ghost" style="padding:2px 8px; font-size:11px; height:auto; min-height:0;">反映</button>
+                      </div>
+                  </div>
+                  <textarea id="trainInput" rows="3"></textarea>
+              </div>
                 <div class="note">
                     <label>感想</label>
                     <textarea id="feelInput" rows="6"></textarea>
@@ -534,6 +535,7 @@
   </div>
 </body>
 </html>
+
 
 
 
