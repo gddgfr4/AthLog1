@@ -163,18 +163,18 @@
                           <button id="mergeBtn" class="ghost" style="padding:2px 8px; font-size:11px; height:auto; min-height:0;">反映</button>
                       </div>
                   </div>
-                  <textarea id="trainInput" rows="3"></textarea>
+                  <textarea id="trainInput" rows="3" maxlength="2000"></textarea>
               </div>
                 <div class="note">
                     <label>感想</label>
-                    <textarea id="feelInput" rows="6"></textarea>
+                    <textarea id="feelInput" rows="6" maxlength="4000"></textarea>
                 </div>
                 <div class="savebar">
                     <div id="distanceSummary" class="muted">...</div>
                 </div>
                 <div class="note" id="teamSharedCommentBox">
                     <label>コメント</label>
-                    <textarea id="teamSharedComment" rows="2" placeholder="共有コメント..."></textarea>
+                    <textarea id="teamSharedComment" rows="2" placeholder="共有コメント..." maxlength="1000"></textarea>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
                     <div id="teamSharedCommentStatus" class="muted"></div>
                     <button id="tscSendBtn" class="primary">送信</button>
@@ -200,7 +200,7 @@
       </div>
       <div class="panel" style="margin-bottom:12px;">
         <label for="monthGoalInput"><strong>月間目標</strong></label>
-        <textarea id="monthGoalInput" class="form-control" rows="2"></textarea>
+        <textarea id="monthGoalInput" class="form-control" rows="2" maxlength="400"></textarea>
       </div>
       <div id="monthList" class="list"></div>
     </section>
@@ -535,23 +535,3 @@
   </div>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
