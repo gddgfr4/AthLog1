@@ -36,11 +36,22 @@ function setOverlayTouchAction(mode){
 
 function autoResizeTextarea(el) {
   if (!el) return;
-  // スクロールバーが出ないようにする
+  
+  // スマホ(iOS等)で height:auto にした際、画面が上に飛んでしまうのを防ぐ
+  const scrollPos = window.scrollY;
+  
+  // スクロールバーを隠す
   el.style.overflow = 'hidden';
-  // 一度高さをリセットして、内容量に合わせて再設定する
+  
+  // 一旦高さをリセット（この瞬間にscrollHeightが正確な内容の高さになります）
   el.style.height = 'auto';
-  el.style.height = el.scrollHeight + 'px';
+  
+  // CSSの指定(height固定など)に負けないよう !important を付与し、
+  // padding等の誤差による見切れを防ぐため少し余裕(+2px)を持たせて適用する
+  el.style.setProperty('height', (el.scrollHeight + 2) + 'px', 'important');
+  
+  // スクロール位置を復元
+  window.scrollTo(0, scrollPos);
 }
 // ホームボタンのバッジ表示を制御する関数
 function updateHomeBadge() {
