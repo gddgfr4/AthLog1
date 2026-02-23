@@ -3243,59 +3243,142 @@ async function populateMemberSelect(){
   viewingMemberId=select.value;
   refreshBadges();
 }
-// app.js の末尾付近 document.addEventListener("DOMContentLoaded", ... 内
 
 document.addEventListener("DOMContentLoaded",()=>{
   const btn=$("#loginBtn"); if(btn) btn.onclick=doLogin;
   const t=$("#teamId"), m=$("#memberName");
   if(t && m) [t,m].forEach(inp=>inp.addEventListener("keydown",(e)=>{ if(e.key==="Enter") doLogin(); }));
 
-  // ▼▼▼ ヘルプ内容の更新 ▼▼▼
-  const helpBody=document.getElementById("helpBody");
-  if(helpBody){
-    helpBody.innerHTML=`
-      <h3 style="margin-top:0;">🏁 はじめに</h3>
-      <ul>
-        <li>ログインは「Team ID」と「名前」の一致で行います。</li>
-        <li>右上のメンバー切替で、チームメイトの日誌を閲覧できます（編集は自分のみ）。</li>
+  // ▼▼▼ 画面ごとのヘルプ内容を定義（詳細版） ▼▼▼
+  const helpContents = {
+    "home": `
+      <h3 style="border-bottom:2px solid var(--primary); padding-bottom:4px; margin-top:0;">🏠 メニュー選択（ホーム）</h3>
+      <p>AthLogのすべての機能にアクセスできるメイン画面です。</p>
+      <ul style="padding-left:20px; margin-top:8px;">
+        <li style="margin-bottom:6px;"><b>📓 日誌</b>：毎日の練習内容、コンディション、筋疲労を記録します。</li>
+        <li style="margin-bottom:6px;"><b>📅 予定</b>：今後の練習メニューをカレンダーに登録します。</li>
+        <li style="margin-bottom:6px;"><b>💬 メモ</b>：チーム全体で共有できるチャット形式の掲示板です。</li>
+        <li style="margin-bottom:6px;"><b>🤖 AIコーチ</b>：あなたの練習データを分析し、専属コーチとしてアドバイスをくれます。</li>
+        <li style="margin-bottom:6px;"><b>🔔 通知</b>：チームメンバーからのコメントなどのお知らせを確認できます。</li>
+        <li style="margin-bottom:6px;"><b>⏱ 時計</b>：ペース走やインターバルに特化した多機能タイマーです。</li>
+        <li style="margin-bottom:6px;"><b>🏟 競技場</b>：全国の陸上競技場を地図上で検索できます。</li>
       </ul>
-
-      <h3>📓 日誌 (Journal)</h3>
-      <ul>
-        <li><b>基本記録</b>: 距離・体重・睡眠時間・調子(5段階)を入力して保存します。</li>
-        <li><b>筋疲労マップ</b>: 人体図をタップして疲労部位を記録できます（Lv1:青→Lv2:黄→Lv3:赤）。</li>
-        <li><b>シェアモード(📷)</b>: 日付横のカメラボタンで、SNS投稿用の画像を生成します。</li>
-        <li><b>AIコーチ</b>: 直近の記録からアドバイスをもらえます。</li>
+      <div style="background:var(--bg); padding:8px; border-radius:4px; font-size:12px; margin-top:12px;">
+        💡 <b>ヒント:</b> 画面左上の「🏠」ボタンを押せば、いつでもこの画面に戻ってくることができます。
+      </div>
+    `,
+    "journal": `
+      <h3 style="border-bottom:2px solid var(--primary); padding-bottom:4px; margin-top:0;">📓 日誌</h3>
+      <p>日々のトレーニング結果や体調を記録する画面です。</p>
+      <ul style="padding-left:20px; margin-top:8px;">
+        <li style="margin-bottom:6px;"><b>筋疲労マップ</b>：人体図をタップして疲労度を記録します。パレットからレベル（1〜3）を選んで色塗りし、間違えたら「🧼（消しゴム）」で消せます。</li>
+        <li style="margin-bottom:6px;"><b>カレンダー操作</b>：日付横の矢印やカレンダーアイコンで過去に移動できます。「今日」ボタンで即座に本日に戻ります。</li>
+        <li style="margin-bottom:6px;"><b>予定から追加</b>：事前に「予定」画面で作っておいた本日のメニューを、ワンタップで練習内容欄にコピーできます。</li>
+        <li style="margin-bottom:6px;"><b>★（お気に入り）</b>：右上の「☆」を押すと、会心の練習や重要な大会などをハイライトできます。一覧画面で絞り込みに便利です。</li>
+        <li style="margin-bottom:6px;"><b>クイック入力</b>：「ジョグ」「ポイント」などのボタンを押すと、練習内容欄に自動でテキストが挿入されます。</li>
+        <li style="margin-bottom:6px;"><b>チーム共有コメント</b>：一番下の欄に書き込むと、チームメンバー全員に通知され共有されます。</li>
       </ul>
-
-      <h3>📅 カレンダー・予定</h3>
-      <ul>
-        <li><b>一覧</b>: 月ごとの走行距離や調子を確認できます。検索ボタン(🔍)で過去の日誌を探せます。</li>
-        <li><b>予定</b>: 練習メニューを作成し、チームで共有できます。「反映」ボタンで日誌に取り込めます。</li>
+    `,
+    "month": `
+      <h3 style="border-bottom:2px solid var(--primary); padding-bottom:4px; margin-top:0;">📅 一覧</h3>
+      <p>月ごとの練習記録をリスト形式で振り返る画面です。</p>
+      <ul style="padding-left:20px; margin-top:8px;">
+        <li style="margin-bottom:6px;"><b>月間目標</b>：その月のテーマや目標距離などを自由に書き込めます。</li>
+        <li style="margin-bottom:6px;"><b>検索機能（🔍）</b>：練習内容や感想に含まれるキーワード（例：「インターバル」「雨」など）で、過去の記録を瞬時に検索できます。</li>
+        <li style="margin-bottom:6px;"><b>★のみフィルター</b>：日誌で「★」をつけた重要な日だけを抽出して表示します。</li>
+        <li style="margin-bottom:6px;"><b>走行距離の集計</b>：右上にその月の合計走行距離が自動計算されて表示されます。</li>
       </ul>
-
-      <h3>📊 データ・便利機能</h3>
-      <ul>
-        <li><b>グラフ</b>: 走行距離(日/週/月)、体重、睡眠、コンディションの推移を可視化します。</li>
-        <li><b>チームメモ</b>: チーム全員が見られる掲示板です。連絡事項などに。</li>
-        <li><b>通知</b>: 新着コメントやお知らせが届くとバッジ(🔴)がつきます。</li>
+    `,
+    "dashboard": `
+      <h3 style="border-bottom:2px solid var(--primary); padding-bottom:4px; margin-top:0;">📊 グラフ</h3>
+      <p>蓄積されたデータを視覚的に分析する画面です。</p>
+      <ul style="padding-left:20px; margin-top:8px;">
+        <li style="margin-bottom:6px;"><b>走行距離（日/週/月）</b>：過去の走行距離の推移を確認できます。矢印ボタンで表示期間を前後にスライドできます。</li>
+        <li style="margin-bottom:6px;"><b>コンディション推移</b>：日誌で記録した調子（1〜5）の波を折れ線グラフで確認できます。</li>
+        <li style="margin-bottom:6px;"><b>体重推移</b>：体重の変化を記録し、適正体重の維持に役立てます。</li>
+        <li style="margin-bottom:6px;"><b>練習割合（円グラフ）</b>：ジョグ、ポイント練習、休養などの割合を一目で把握し、オーバートレーニングを防ぎます。</li>
       </ul>
-
-      <h3>⏱ 時計・マップ</h3>
-      <ul>
-        <li><b>時計</b>: ペース走・インターバル・カスタムタイマー機能。計測結果を日誌に転記できます。</li>
-        <li><b>競技場</b>: 全国の陸上競技場をマップで検索できます。</li>
+    `,
+    "plans": `
+      <h3 style="border-bottom:2px solid var(--primary); padding-bottom:4px; margin-top:0;">📅 予定</h3>
+      <p>今後の練習計画（メニュー）を作成・管理する画面です。</p>
+      <ul style="padding-left:20px; margin-top:8px;">
+        <li style="margin-bottom:6px;"><b>予定の作成</b>：カレンダーの任意の日付をタップすると、その日の予定を作成できます。</li>
+        <li style="margin-bottom:6px;"><b>種別と詳細</b>：ジョグ、ポイント、オフなどの種別を選べます。ポイント練習の場合は、「ペース走」か「インターバル」の選択と距離の設定も可能です。</li>
+        <li style="margin-bottom:6px;"><b>共有範囲</b>：予定を自分専用（自分のみ）にするか、チーム全体の予定（全員）として表示するかを選択できます。</li>
       </ul>
-    `;
-  }
+      <div style="background:var(--bg); padding:8px; border-radius:4px; font-size:12px; margin-top:12px;">
+        💡 <b>連携:</b> ここで作成した予定は、当日の「日誌」画面で「予定から追加」ボタンを押すことで簡単に反映できます。
+      </div>
+    `,
+    "ai_coach": `
+      <h3 style="border-bottom:2px solid var(--primary); padding-bottom:4px; margin-top:0;">🤖 AIコーチ</h3>
+      <p>AIがあなたの直近の練習データを分析し、専門的なアドバイスを提供します。</p>
+      <ul style="padding-left:20px; margin-top:8px;">
+        <li style="margin-bottom:6px;"><b>プロフィール設定（⚙️）</b>：専門種目、目標タイム、申し送り事項（怪我や疲労の状況など）を設定しておくと、よりあなたに合った具体的なアドバイスがもらえます。</li>
+        <li style="margin-bottom:6px;"><b>分析開始</b>：「📊 分析開始」ボタンを押すと、過去7日間の日誌データを自動で読み込み、総合的な評価と今後の提案を行います。</li>
+        <li style="margin-bottom:6px;"><b>チャット機能</b>：「明日はどういう練習が良い？」「右ふくらはぎの疲労をとるストレッチは？」など、気になることを自由に質問できます。</li>
+      </ul>
+    `,
+    "memo": `
+      <h3 style="border-bottom:2px solid var(--primary); padding-bottom:4px; margin-top:0;">💬 チームメモ</h3>
+      <p>チーム全員で共有できる掲示板です。</p>
+      <ul style="padding-left:20px; margin-top:8px;">
+        <li style="margin-bottom:6px;"><b>連絡事項の共有</b>：次回の集合時間、大会の持ち物、雨天時の対応などを自由に書き込めます。</li>
+        <li style="margin-bottom:6px;"><b>気軽なコミュニケーション</b>：練習の感想や励ましのメッセージなど、チームのコミュニケーションツールとして活用してください。</li>
+      </ul>
+    `,
+    "notify": `
+      <h3 style="border-bottom:2px solid var(--primary); padding-bottom:4px; margin-top:0;">🔔 通知</h3>
+      <p>あなたへの重要なお知らせが表示されます。</p>
+      <ul style="padding-left:20px; margin-top:8px;">
+        <li style="margin-bottom:6px;"><b>新着コメント</b>：あなたの日誌に対して、チームメンバーからコメントが付いた際に通知されます。</li>
+        <li style="margin-bottom:6px;">タップすると、該当の日誌に直接ジャンプして内容を確認できます。</li>
+      </ul>
+    `,
+    "clock": `
+      <h3 style="border-bottom:2px solid var(--primary); padding-bottom:4px; margin-top:0;">⏱ 時計（timer）</h3>
+      <p>陸上競技の練習に特化した多機能タイマーです。</p>
+      <ul style="padding-left:20px; margin-top:8px;">
+        <li style="margin-bottom:6px;"><b>ペア接続</b>：「接続する」ボタンを押すと、同じチームのメンバーと先着でペアリングされ、2人で同じタイム画面を共有できます。</li>
+        <li style="margin-bottom:6px;"><b>ペース走</b>：設定した距離と目標ペースに合わせて、ラップタイムを計測・管理します。</li>
+        <li style="margin-bottom:6px;"><b>インターバル</b>：疾走区間とリカバリー区間を交互に設定し、自動でカウントダウンと計測を行います。</li>
+        <li style="margin-bottom:6px;"><b>タイマー</b>：独自のセット数やステップを自由に組んで、オリジナルのタイマーを作成できます。</li>
+      </ul>
+    `,
+    "stadium": `
+      <h3 style="border-bottom:2px solid var(--primary); padding-bottom:4px; margin-top:0;">🏟 競技場</h3>
+      <p>全国の陸上競技場を地図上で探せるマップ機能です。</p>
+      <ul style="padding-left:20px; margin-top:8px;">
+        <li style="margin-bottom:6px;"><b>現在地検索（📍）</b>：右下のボタンを押すと、スマートフォンのGPSを利用して、現在地周辺の競技場をすばやく表示します。</li>
+        <li style="margin-bottom:6px;"><b>テキスト検索</b>：上部の検索バーに「都道府県名」や「競技場名」を入力して探すことができます。</li>
+      </ul>
+    `
+  };
 
-  // イベントリスナーの設定
-  $("#openHelpBtn")?.addEventListener("click",()=>{ $("#helpOverlay")?.classList.remove("hidden"); });
+  // ▼▼▼ イベントリスナーの設定 ▼▼▼
+  // ヘルプボタンを押したときに、現在の画面に合わせて中身を書き換えてから表示する
+  $("#openHelpBtn")?.addEventListener("click", () => {
+    // 現在アクティブな画面（タブ）を取得
+    const activePanel = document.querySelector('.tabpanel.active');
+    const currentTabId = activePanel ? activePanel.id : 'home';
+    
+    // 表示する内容を決定
+    const content = helpContents[currentTabId] || "<h3>ヘルプ</h3><p>現在の画面の使い方です。</p>";
+    
+    // ヘルプ本文にセットして、モーダルを表示
+    const helpBody = document.getElementById("helpBody");
+    if (helpBody) {
+      helpBody.innerHTML = content;
+    }
+    $("#helpOverlay")?.classList.remove("hidden");
+  });
+
+  // モーダルを閉じる処理
   $("#helpClose")?.addEventListener("click",()=>{ $("#helpOverlay")?.classList.add("hidden"); });
   $("#helpOverlay")?.addEventListener("click",(e)=>{ if(e.target.id==="helpOverlay") e.currentTarget.classList.add("hidden"); });
   window.addEventListener("keydown",(e)=>{ if(e.key==="Escape") $("#helpOverlay")?.classList.add("hidden"); });
 });
-
 
 // ===== Muscle-map (overlay/barrier) =====
 const MM = {
