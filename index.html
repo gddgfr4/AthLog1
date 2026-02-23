@@ -130,57 +130,63 @@
                 <button class="qbtn other">その他</button>
                 </div>
 
-                <div class="formcol">
-                <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">
-                    <div style="width: 70px;">
-                    <label>距離(km)</label>
-                    <input type="number" id="distInput" step="0.1" min="0" />
+               <div class="formcol">
+                <div style="display:flex; flex-wrap:nowrap; gap:4px; align-items:flex-end; width:100%;">
+                    <div style="flex:1; min-width:0;">
+                      <label style="font-size:10px; white-space:nowrap;">距離(km)</label>
+                      <input type="number" id="distInput" step="0.1" min="0" style="width:100%; padding:6px 2px; font-size:12px; text-align:center;" />
                     </div>
-                   <div style="width: 70px;">
-                     <label>体重(kg)</label>
-                     <input type="number" id="weightInput" step="0.1" min="0" />
+                   <div style="flex:1; min-width:0;">
+                     <label style="font-size:10px; white-space:nowrap;">体重(kg)</label>
+                     <input type="number" id="weightInput" step="0.1" min="0" style="width:100%; padding:6px 2px; font-size:12px; text-align:center;" />
                    </div>
-                   <div style="width: 70px;">
-                     <label>睡眠(h)</label>
-                     <input type="number" id="j-sleep" step="0.1" min="0" />
+                   <div style="flex:1; min-width:0;">
+                     <label style="font-size:10px; white-space:nowrap;">睡眠(h)</label>
+                     <input type="number" id="j-sleep" step="0.1" min="0" style="width:100%; padding:6px 2px; font-size:12px; text-align:center;" />
                    </div>
-                   <div style="flex:1; min-width:150px;">
-                    <label>調子</label>
-                    <div id="conditionBtns" class="condition-rating">
-                        <button data-val="1">1</button>
-                        <button data-val="2">2</button>
-                        <button data-val="3">3</button>
-                        <button data-val="4">4</button>
-                        <button data-val="5">5</button>
+                   <div style="flex:2; min-width:0;">
+                    <label style="font-size:10px; white-space:nowrap;">調子</label>
+                    <div id="conditionBtns" class="condition-rating" style="display:flex; gap:2px;">
+                        <button data-val="1" style="flex:1; padding:4px 0; font-size:12px; min-width:0;">1</button>
+                        <button data-val="2" style="flex:1; padding:4px 0; font-size:12px; min-width:0;">2</button>
+                        <button data-val="3" style="flex:1; padding:4px 0; font-size:12px; min-width:0;">3</button>
+                        <button data-val="4" style="flex:1; padding:4px 0; font-size:12px; min-width:0;">4</button>
+                        <button data-val="5" style="flex:1; padding:4px 0; font-size:12px; min-width:0;">5</button>
                     </div>
-                    </div>
+                   </div>
                 </div>
-                <div class="note">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                      <label style="margin-bottom:0;">練習内容</label>
-                      <div class="merge" style="display:flex; gap:6px; align-items:center; margin-top:0;">
-                          <select id="mergeScope" class="ghost" style="padding:2px 6px; font-size:11px; height:auto; min-height:0;"></select>
-                          <button id="mergeBtn" class="ghost" style="padding:2px 8px; font-size:11px; height:auto; min-height:0;">反映</button>
-                      </div>
-                  </div>
-                  <textarea id="trainInput" rows="3" maxlength="2000"></textarea>
-              </div>
+
+                <div class="note" style="margin-top:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <label style="margin-bottom:0;">練習内容</label>
+                        <div class="merge" style="display:flex; gap:6px; align-items:center; margin-top:0;">
+                            <select id="mergeScope" class="ghost" style="padding:0 6px; font-size:12px; height:26px; min-height:0; border:1px solid var(--line);"></select>
+                            <button id="mergeBtn" class="ghost" style="padding:0 12px; font-size:12px; height:26px; min-height:0; border:1px solid var(--line); line-height:24px;">予定から追加</button>
+                        </div>
+                    </div>
+                    <textarea id="trainInput" rows="3" maxlength="2000"></textarea>
+                </div>
+
                 <div class="note">
                     <label>感想</label>
                     <textarea id="feelInput" rows="6" maxlength="4000"></textarea>
                 </div>
+
                 <div class="savebar">
                     <div id="distanceSummary" class="muted">...</div>
                 </div>
+
                 <div class="note" id="teamSharedCommentBox">
-                    <label>コメント</label>
-                    <textarea id="teamSharedComment" rows="2" placeholder="共有コメント..." maxlength="1000"></textarea>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                    <div id="teamSharedCommentStatus" class="muted"></div>
-                    <button id="tscSendBtn" class="primary">送信</button>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <label style="margin-bottom:0;">コメント</label>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <div id="teamSharedCommentStatus" class="muted" style="font-size:11px;"></div>
+                            <button id="tscSendBtn" class="primary" style="padding:0 16px; font-size:12px; height:26px; min-height:0; line-height:26px;">送信</button>
+                        </div>
                     </div>
+                    <textarea id="teamSharedComment" rows="2" placeholder="共有コメント..." maxlength="1000"></textarea>
                 </div>
-                </div>
+                </div> 
             </div>
         </div>
     </section>
@@ -534,5 +540,6 @@
   </div>
 </body>
 </html>
+
 
 
