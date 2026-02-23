@@ -1780,17 +1780,22 @@ function initJournal(){
   $("#gotoToday")?.addEventListener("click",()=>{ selDate=new Date(); renderJournal(); });
   $("#datePicker")?.addEventListener("change",(e)=>{ selDate=parseDateInput(e.target.value); renderJournal(); });
 
-  // 反映ボタン
-  $("#mergeBtn")?.addEventListener("click", async ()=>{
-    const scope  = $("#mergeScope").value;                
-    // タグ関連の引数を削除
-    const text  = await collectPlansTextForDay(selDate, scope);
-    if(text) $("#trainInput").value = ($("#trainInput").value ? ($("#trainInput").value+"\n") : "") + text;
+ // 反映ボタン（予定から追加）
+  $("#mergeBtn")?.addEventListener("click", async () => {
+    const scope = $("#mergeScope").value;
+    
+    // 引数は selDate と scope の2つだけにする
+    const text = await collectPlansTextForDay(selDate, scope);
+    if (text) {
+      const currentText = $("#trainInput").value;
+      $("#trainInput").value = (currentText ? currentText + "\n" : "") + text;
+      autoResizeTextarea($("#trainInput")); // 高さを自動調整
+    }
     
     const types = await collectPlansTypesForDay(selDate, scope);
-    if(types.length){
-      const docRef=getJournalRef(teamId,memberId,selDate);
-      await docRef.set({ tags: types.slice(0,2) },{merge:true});
+    if (types.length) {
+      const docRef = getJournalRef(teamId, memberId, selDate);
+      await docRef.set({ tags: types.slice(0, 2) }, { merge: true });
       renderWeek();
     }
   });
@@ -2600,46 +2605,44 @@ function renderPlanListInModal(mon, dayKey, editCallback){
 }
 function closePlanModal(){ if(modalDiv){ modalDiv.remove(); modalDiv=null; } }
 
-// 予定本文取り込み（内容だけを返す：編集者名や種別は付けない）
-async function collectPlansTextForDay(day, scopeSel){
+// ▼▼▼ 予定のテキストを収集する関数 ▼▼▼
+async function collectPlansTextForDay(day, scopeSel) {
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
-  const dayKey  = ymd(day);
-  const plansRef = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events');
+  const dayKey = ymd(day);
+  let query = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events').orderBy('mem');
+  
+  if (scopeSel === memberId) query = query.where('mem', '==', memberId);
+  if (scopeSel === 'team') query = query.where('scope', '==', 'team');
 
-  let query = plansRef;
-  if (scopeSel === memberId) query = query.where('mem','==',memberId);
-  if (scopeSel === 'team')   query = query.where('scope','==','team');
-
-  const snap = await query.get();
-  const lines = [];
-  snap.docs.forEach(doc=>{
+  const snapshot = await query.get();
+  let lines = [];
+  snapshot.docs.forEach(doc => {
     const it = doc.data();
-    const content = (it.content || '').trim();
-    if (content) lines.push(content);     // ← 内容だけを集める
+    // tagCSVの判定をすべて削除し、純粋にテキストだけを抽出
+    if (it.content) lines.push(it.content);
   });
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
+// ▼▼▼ 予定の種別（ジョグ、ポイントなど）を収集する関数 ▼▼▼
+async function collectPlansTypesForDay(day, scopeSel) {
+  const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
+  const dayKey = ymd(day);
+  let query = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events');
+  
+  if (scopeSel === memberId) query = query.where('mem', '==', memberId);
+  if (scopeSel === 'team') query = query.where('scope', '==', 'team');
 
-async function collectPlansTypesForDay(day, scopeSel){
-  const srcTeam=await getViewSourceTeamId(teamId, viewingMemberId);
-  const dayKey=ymd(day);
-  let query=getPlansCollectionRef(srcTeam).doc(dayKey).collection('events');
-  if(scopeSel===memberId) query=query.where('mem','==',memberId);
-  if(scopeSel==='team')   query=query.where('scope','==','team');
-
-  const tagSet = new Set(tagCSV.split(",").map(s=>s.trim()).filter(Boolean));
-
-  const snapshot=await query.get();
-  const types=[];
-  snapshot.docs.forEach(doc=>{
-    const it=doc.data();
-    const t=it.type;
-    if(t && !types.includes(t)) types.push(t);
+  const snapshot = await query.get();
+  const types = [];
+  snapshot.docs.forEach(doc => {
+    const it = doc.data();
+    const t = it.type;
+    // tagCSVの判定をすべて削除
+    if (t && !types.includes(t)) types.push(t);
   });
   return types;
 }
-
 
 let chartDay=null, chartWeek=null, chartMonth=null;
 
