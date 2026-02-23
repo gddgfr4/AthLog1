@@ -3249,6 +3249,22 @@ document.addEventListener("DOMContentLoaded",()=>{
   const t=$("#teamId"), m=$("#memberName");
   if(t && m) [t,m].forEach(inp=>inp.addEventListener("keydown",(e)=>{ if(e.key==="Enter") doLogin(); }));
 
+  const style = document.createElement('style');
+  style.innerHTML = `
+    @keyframes pulseHelpBtn {
+      0% { box-shadow: 0 0 0 0 rgba(255, 87, 34, 0.6); }
+      70% { box-shadow: 0 0 0 8px rgba(255, 87, 34, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 87, 34, 0); }
+    }
+    .highlight-help {
+      animation: pulseHelpBtn 1.5s infinite !important;
+      color: #ff5722 !important;
+      font-weight: bold !important;
+      border-radius: 50%;
+    }
+  `;
+  document.head.appendChild(style);
+  
   // ▼▼▼ 画面ごとのヘルプ内容を定義（詳細版） ▼▼▼
   const helpContents = {
     "home": `
@@ -3355,18 +3371,56 @@ document.addEventListener("DOMContentLoaded",()=>{
       </ul>
     `
   };
-
-  // ▼▼▼ イベントリスナーの設定 ▼▼▼
-  // ヘルプボタンを押したときに、現在の画面に合わせて中身を書き換えてから表示する
-  $("#openHelpBtn")?.addEventListener("click", () => {
-    // 現在アクティブな画面（タブ）を取得
+  
+  function updateHelpHighlight() {
     const activePanel = document.querySelector('.tabpanel.active');
     const currentTabId = activePanel ? activePanel.id : 'home';
     
-    // 表示する内容を決定
-    const content = helpContents[currentTabId] || "<h3>ヘルプ</h3><p>現在の画面の使い方です。</p>";
+    // 過去に読んだ画面のリストを端末から取得
+    const viewedStr = localStorage.getItem('athlog_help_viewed') || '{}';
+    const viewed = JSON.parse(viewedStr);
     
-    // ヘルプ本文にセットして、モーダルを表示
+    const helpBtn = document.getElementById("openHelpBtn");
+    if (helpBtn) {
+      // その画面のヘルプが未読なら光らせる、既読なら消す
+      if (!viewed[currentTabId]) {
+        helpBtn.classList.add("highlight-help");
+      } else {
+        helpBtn.classList.remove("highlight-help");
+      }
+    }
+  }
+
+  // ▼▼▼ 画面（タブ）が切り替わったことを自動検知する仕組み ▼▼▼
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      // 画面がアクティブ（表示状態）になった瞬間にハイライト判定を行う
+      if (mutation.target.classList.contains('active')) {
+        updateHelpHighlight();
+      }
+    });
+  });
+  // 全ての画面（tabpanel）を監視対象にする
+  document.querySelectorAll('.tabpanel').forEach(panel => {
+    observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
+  });
+  
+  // アプリ起動時（初期表示）にも判定を実行
+  updateHelpHighlight();
+
+  $("#openHelpBtn")?.addEventListener("click", () => {
+    const activePanel = document.querySelector('.tabpanel.active');
+    const currentTabId = activePanel ? activePanel.id : 'home';
+    
+    // ★ 追加：開いたことを localStorage に記録し、光を即座に消す
+    const viewedStr = localStorage.getItem('athlog_help_viewed') || '{}';
+    const viewed = JSON.parse(viewedStr);
+    viewed[currentTabId] = true; // この画面を「既読」にする
+    localStorage.setItem('athlog_help_viewed', JSON.stringify(viewed));
+    document.getElementById("openHelpBtn").classList.remove("highlight-help");
+    
+    // 内容をセットして表示
+    const content = helpContents[currentTabId] || "<h3>ヘルプ</h3><p>現在の画面の使い方です。</p>";
     const helpBody = document.getElementById("helpBody");
     if (helpBody) {
       helpBody.innerHTML = content;
