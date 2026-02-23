@@ -1781,15 +1781,22 @@ function initJournal(){
   $("#datePicker")?.addEventListener("change",(e)=>{ selDate=parseDateInput(e.target.value); renderJournal(); });
 
  // 反映ボタン（予定から追加）
+  // 反映ボタン（予定から追加）
   $("#mergeBtn")?.addEventListener("click", async () => {
     const scope = $("#mergeScope").value;
     
-    // 引数は selDate と scope の2つだけにする
     const text = await collectPlansTextForDay(selDate, scope);
     if (text) {
-      const currentText = $("#trainInput").value;
-      $("#trainInput").value = (currentText ? currentText + "\n" : "") + text;
-      autoResizeTextarea($("#trainInput")); // 高さを自動調整
+      const trainInput = document.getElementById("trainInput");
+      const currentText = trainInput.value;
+      trainInput.value = (currentText ? currentText + "\n" : "") + text;
+      autoResizeTextarea(trainInput); // 高さを自動調整
+      
+      // ★追加: 値をプログラムで変更したことをアプリに通知し、自動保存を走らせる
+      trainInput.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      // 予定がなかった場合はお知らせする
+      alert("反映できる予定が見つかりませんでした。");
     }
     
     const types = await collectPlansTypesForDay(selDate, scope);
@@ -2609,16 +2616,25 @@ function closePlanModal(){ if(modalDiv){ modalDiv.remove(); modalDiv=null; } }
 async function collectPlansTextForDay(day, scopeSel) {
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   const dayKey = ymd(day);
-  let query = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events').orderBy('mem');
   
-  if (scopeSel === memberId) query = query.where('mem', '==', memberId);
-  if (scopeSel === 'team') query = query.where('scope', '==', 'team');
-
-  const snapshot = await query.get();
+  // エラー回避のため、一旦その日の予定をすべて取得する
+  const snapshot = await getPlansCollectionRef(srcTeam).doc(dayKey).collection('events').get();
+  
   let lines = [];
-  snapshot.docs.forEach(doc => {
-    const it = doc.data();
-    // tagCSVの判定をすべて削除し、純粋にテキストだけを抽出
+  let docs = snapshot.docs.map(doc => doc.data());
+  
+  // メンバーID順に並び替え
+  docs.sort((a, b) => (a.mem || '').localeCompare(b.mem || ''));
+
+  docs.forEach(it => {
+    // 選択された範囲に応じてフィルタリング
+    if (scopeSel === memberId && it.mem !== memberId) return;
+    if (scopeSel === 'team' && it.scope !== 'team') return;
+    if (scopeSel === 'auto') {
+      // auto の場合は「自分の予定」＋「チーム全員への予定」
+      if (it.mem !== memberId && it.scope !== 'team') return;
+    }
+    
     if (it.content) lines.push(it.content);
   });
   return lines.join("\n");
@@ -2628,22 +2644,23 @@ async function collectPlansTextForDay(day, scopeSel) {
 async function collectPlansTypesForDay(day, scopeSel) {
   const srcTeam = await getViewSourceTeamId(teamId, viewingMemberId);
   const dayKey = ymd(day);
-  let query = getPlansCollectionRef(srcTeam).doc(dayKey).collection('events');
+  const snapshot = await getPlansCollectionRef(srcTeam).doc(dayKey).collection('events').get();
   
-  if (scopeSel === memberId) query = query.where('mem', '==', memberId);
-  if (scopeSel === 'team') query = query.where('scope', '==', 'team');
-
-  const snapshot = await query.get();
   const types = [];
   snapshot.docs.forEach(doc => {
     const it = doc.data();
+    
+    if (scopeSel === memberId && it.mem !== memberId) return;
+    if (scopeSel === 'team' && it.scope !== 'team') return;
+    if (scopeSel === 'auto') {
+      if (it.mem !== memberId && it.scope !== 'team') return;
+    }
+
     const t = it.type;
-    // tagCSVの判定をすべて削除
     if (t && !types.includes(t)) types.push(t);
   });
   return types;
 }
-
 let chartDay=null, chartWeek=null, chartMonth=null;
 
 // それぞれのグラフのスクロール位置（0=最新側）
