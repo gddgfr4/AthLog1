@@ -3829,34 +3829,6 @@ function initMuscleMap(){
   ov.addEventListener('pointerleave', onPointerEnd, { passive:true });
   window.addEventListener('resize', ()=> drawMuscleFromDoc(lastJournal));
 }
-/* ===========================
- * ログイン注意文（ログイン画面に1回だけ表示）
- * =========================== */
-(function addLoginNoteOnce(){
-  // ログインボタンのIDは index.html で定義されているものに合わせる
-  var startBtn = document.getElementById('loginBtn');
-  if (!startBtn) return;
-  if (document.querySelector('.login-note')) return; // 重複防止
-  var p = document.createElement('p');
-  p.className = 'login-note';
-  p.innerHTML =
-    '※ 次回以降は自動ログインとなります。<br>' +
-    '※ チーム名と名前は<strong>完全一致</strong>が必要です（スペースや全角・半角にご注意ください）。';
-  startBtn.insertAdjacentElement('afterend', p);
-})();
-
-/* ちょいスタイル（必要なら style.css に移動可） */
-(function injectLoginNoteStyle(){
-  if (document.getElementById('loginNoteStyle')) return;
-  var css = '.login-note{font-size:12px;color:#6b7280;margin-top:8px;line-height:1.6}'+
-            '.comment-box{margin-top:12px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;background:#fafafa}'+
-            '#daynote-text{width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:6px;resize:vertical}'+
-            '.muted{color:#6b7280}';
-  var s = document.createElement('style');
-  s.id = 'loginNoteStyle';
-  s.appendChild(document.createTextNode(css));
-  document.head.appendChild(s);
-})();
 
 // ===== チームコメント（日付×表示中メンバー）誰でも編集可 =====
 let tscDirty = false;
