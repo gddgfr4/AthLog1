@@ -5094,18 +5094,21 @@ async function reflectLtimerToJournal() {
   }
 }
 
-// app.js の末尾に追加
-
 // ▼▼▼ キーボードショートカット（PC用） ▼▼▼
 document.addEventListener('keydown', (e) => {
-  // 入力フォームにフォーカスがある場合は何もしない
   const active = document.activeElement;
-  if (active && (['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable)) {
+  
+  // 1. テキスト入力中（日誌やメモの入力時）はショートカットを無効化
+  if (active && (['INPUT', 'TEXTAREA'].includes(active.tagName) || active.isContentEditable)) {
     return;
   }
 
-  // 左右キー：日付移動（日誌タブが表示されている時のみ推奨だが、利便性のため常時有効またはタブ判定を入れる）
-  // ここではシンプルに「現在のタブが日誌系なら」有効にします
+  // 2. ★修正: プルダウン(SELECT)にフォーカスが残っている状態で上下キーを押した場合、
+  // 意図せずチームなどが変わってしまうのを防ぐため、強制的にフォーカスを外す
+  if (active && active.tagName === 'SELECT' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    active.blur();
+  }
+
   const currentTab = $(".tab.active")?.dataset.tab;
   const isJournalMode = ['journal', 'month', 'dashboard'].includes(currentTab);
 
@@ -5115,7 +5118,7 @@ document.addEventListener('keydown', (e) => {
       selDate = addDays(selDate, -1);
       const dp = document.getElementById("datePicker");
       if(dp) dp.value = ymd(selDate);
-      renderJournal(); // 月表示などを連動させたい場合は switchTab(currentTab, true) でも可
+      renderJournal(); 
     }
   } else if (e.key === 'ArrowRight') {
     if (isJournalMode) {
@@ -5126,7 +5129,7 @@ document.addEventListener('keydown', (e) => {
       renderJournal();
     }
   } 
-  // 上下キー：メンバー切り替え
+  // 上下キー：メンバー切り替え（強制発動）
   else if (e.key === 'ArrowUp') {
     e.preventDefault();
     goMemberDelta(-1); // 前のメンバーへ
