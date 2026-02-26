@@ -433,26 +433,25 @@ function initTeamSwitcher(){
     }).join('');
 
   sel.onchange = async (e)=>{
+    // 重複していた currentTab を1つに統合
     const currentTab = document.querySelector(".tabpanel.active")?.id || 'journal';
     teamId = e.target.value;
     const teamLabelEl = $("#teamLabel");
     if (teamLabelEl) {
       teamLabelEl.textContent = teamId;
     }
-    await populateMemberSelect(); // サブチームのメンバー一覧（＋自分）を再読込
-      refreshBadges();
-      initTeamSwitcher(); // セレクトを再生成
-      const currentTab = document.querySelector(".tabpanel.active")?.id || 'journal';
-      switchTab(currentTab, true);
-    };
-  // ===== 修正案 2 =====
-//
+    await populateMemberSelect(); 
+    refreshBadges();
+    initTeamSwitcher(); 
+    switchTab(currentTab, true);
+  };
+
   if(btnAdd){
     btnAdd.onclick = async ()=>{
       const t = prompt("追加する Team ID を入力:");
-      if(!t || t === teamId) return; // 空や現在のチームは無視
+      if(!t || t === teamId) return; 
       upsertProfile(t, memberId);
-      teamId = t; // 新しいチームIDに切り替え
+      teamId = t; 
       localStorage.setItem("athlog:last", JSON.stringify({ team:teamId, member:memberId }));
 
       const myMainTeam = getMainTeamOf(memberId);
@@ -461,11 +460,6 @@ function initTeamSwitcher(){
           return;
       }
       
-      // [削除] 以前の全メンバー同期処理
-      // await applyMirrorFlagsForUser(memberId, myMainTeam);
-      
-      // [追加] 自分だけをサブチームにミラー設定付きで追加
-      // ※ メインチームでの自分の名前を取得して設定する
       let myNameInMainTeam = memberId;
       try {
         const mainMemberSnap = await getMembersRef(myMainTeam).doc(memberId).get();
@@ -475,15 +469,17 @@ function initTeamSwitcher(){
       } catch (e) {}
 
       await getMembersRef(teamId).doc(memberId).set({ 
-          name: myNameInMainTeam, // メインチームでの名前
+          name: myNameInMainTeam, 
           mirrorFromTeamId: myMainTeam 
       }, { merge: true });
-      // ▲▲▲ 修正 ▲▲▲
 
-      await populateMemberSelect(); // サブチームのメンバー一覧（＋自分）を再読込
+      await populateMemberSelect(); 
       refreshBadges();
-      initTeamSwitcher(); // セレクトを再生成
-      switchTab($(".tab.active")?.dataset.tab, true);
+      initTeamSwitcher(); 
+      
+      // ここも currentTab を安全に取得するように修正
+      const currentTab = document.querySelector(".tabpanel.active")?.id || 'journal';
+      switchTab(currentTab, true);
     };
   }
 
