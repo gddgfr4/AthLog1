@@ -498,16 +498,38 @@
     </section>
   </div>
 
-  <div id="login" class="login">
-    <div class="login-card">
-      <div class="logo">AthLog</div>
-      <div class="desc">Login</div>
-      <label>Team ID</label>
-      <input id="teamId" />
-      <label>Member</label>
-      <input id="memberName" />
-      <button id="loginBtn" class="primary wide">Enter</button>
+  <div id="login" class="container">
+    <div style="text-align:center; margin-bottom:20px;">
+      <h1 style="color:var(--primary); margin:0;">AthLog</h1>
+      <p style="color:var(--muted); font-size:14px; margin-top:4px;">Team Athletics Logger</p>
     </div>
+    
+    <button id="loginBtn" class="primary" style="width:100%; padding:12px; font-size:16px;">ログイン</button>
+  </div>
+
+<div id="login" class="container">
+    <div style="text-align:center; margin-bottom:20px;">
+      <h1 style="color:var(--primary); margin:0;">AthLog</h1>
+      <p style="color:var(--muted); font-size:14px; margin-top:4px;">Team Athletics Logger</p>
+    </div>
+    
+    <div style="background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:20px; font-size:12px; color:var(--text); line-height:1.5;">
+      <p style="margin:0 0 8px; font-weight:bold; color:var(--primary); text-align:center;">📱 アプリとして使う方法</p>
+      <ul style="margin:0; padding-left:20px; color:#555;">
+        <li>ブラウザのメニューから<b>「ホーム画面に追加」</b>を選択してください。</li>
+        <li>次回からアイコンをタップするだけで<b>自動ログイン</b>され、本物のアプリのように快適に使用できます。</li>
+      </ul>
+    </div>
+    <div class="form-group">
+      <label>Team ID</label>
+      <input type="text" id="teamId" class="form-control" placeholder="例: tf_club" />
+    </div>
+    <div class="form-group">
+      <label>Member Name</label>
+      <input type="text" id="memberName" class="form-control" placeholder="例: 山田太郎" />
+    </div>
+    
+    <button id="loginBtn" class="primary" style="width:100%; padding:12px; font-size:16px;">ログイン</button>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -540,6 +562,7 @@
   </div>
 </body>
 </html>
+
 
 
 
