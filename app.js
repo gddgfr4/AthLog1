@@ -168,7 +168,8 @@ async function chooseMainTeam(newMainTeam){
   if(!memberId || !newMainTeam) return;
   setMainTeamOf(memberId, newMainTeam);
   await applyMirrorFlagsForUser(memberId, newMainTeam);
-  switchTab($(".tab.active")?.dataset.tab, true);
+  const currentTab = document.querySelector(".tabpanel.active")?.id || 'journal';
+  switchTab(currentTab, true);
 }
 function refreshBadges(){
   const mainTeamBadge = $("#mainTeamBadge");
@@ -336,17 +337,17 @@ async function showApp(){
 
   refreshBadges();
   
-  
   if(memberSelect) memberSelect.addEventListener('change', ()=>{
     viewingMemberId=$("#memberSelect").value;
     const ml = $("#memberLabel");
     if(ml) ml.textContent = getDisplayName(viewingMemberId);
     
     refreshBadges();
-    switchTab($(".tab.active")?.dataset.tab, true);
+    // 画面が真っ白になるのを防ぐため、現在アクティブなパネルから直接IDを取得
+    const currentTab = document.querySelector(".tabpanel.active")?.id || 'journal';
+    switchTab(currentTab, true);
   });
 
-  // タブボタンイベント
   $$(".tab").forEach(btn => {
     btn.addEventListener("click", () => {
       const target = btn.dataset.tab;
@@ -432,18 +433,18 @@ function initTeamSwitcher(){
     }).join('');
 
   sel.onchange = async (e)=>{
-    const currentTab = $(".tab.active")?.dataset.tab || 'journal';
+    const currentTab = document.querySelector(".tabpanel.active")?.id || 'journal';
     teamId = e.target.value;
     const teamLabelEl = $("#teamLabel");
     if (teamLabelEl) {
       teamLabelEl.textContent = teamId;
     }
-    await populateMemberSelect();   // チームのメンバー一覧を更新
-    refreshBadges();
-    initTeamSwitcher(); 
-    switchTab(currentTab, true);
-  };
-
+    await populateMemberSelect(); // サブチームのメンバー一覧（＋自分）を再読込
+      refreshBadges();
+      initTeamSwitcher(); // セレクトを再生成
+      const currentTab = document.querySelector(".tabpanel.active")?.id || 'journal';
+      switchTab(currentTab, true);
+    };
   // ===== 修正案 2 =====
 //
   if(btnAdd){
@@ -4385,7 +4386,8 @@ function goMemberDelta(delta){
   refreshBadges();
 
   // 現在のタブを再描画してデータを読み込み直す
-  switchTab($(".tab.active")?.dataset.tab, true);
+  const currentTab = document.querySelector(".tabpanel.active")?.id || 'journal';
+  switchTab(currentTab, true);
 }
 function initMemberNav(){
     $("#memberPrev")?.addEventListener("click", () => goMemberDelta(-1));
