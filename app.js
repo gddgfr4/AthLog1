@@ -1,9 +1,14 @@
 // ===== Firebase Initialization =====
-// あるなら残してOK（ガード必須）。無ければ何も書かなくて良い。
 if (!firebase.apps || !firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
+
 const db = firebase.firestore();
+
+db.settings({
+  experimentalForceLongPolling: true,
+  merge: true
+});
 
 
 // ===== Utilities =====
